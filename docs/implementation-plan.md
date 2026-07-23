@@ -52,17 +52,6 @@ These decisions are now locked and are reflected throughout the plan:
 ## 0. TL;DR
 
 We are building **an AI software factory** — call it **Factory** (CLI codename `fac`, placeholder)
-— modelled on [gstack](https://github.com/garrytan/gstack) but assembled from skills you already own.
-
-The core insight that makes this cheap to build:
-
-> **gstack and your `agent-skills` library are complementary halves.**
-> gstack is *orchestration and process* but delegates the actual craft (writing Python, designing
-> a schema, building a React app) to a raw, unguided model. Your library is exactly that missing
-> craft — `python-expert`, `fullstack-developer`, `tdd-red-green-refactor`,
-> `typed-service-contracts`, `ux-designer` — plus a mature authoring standard and
-> `project-context.yaml` parameterisation. **We already own ~40% of the value; we build the
-> orchestration shell, the workflow skills, and the tooling around it.**
 
 Three layers to build:
 
@@ -79,9 +68,7 @@ on **Phase 1**, then hardening (evals, multi-host, security) in later phases.
 
 ## 1. What we're building and why
 
-**Goal.** A repeatable, opinionated workflow that lets you ship products with AI at gstack-class
-rigor: every change gets team-grade planning, code review, QA, security, and release discipline —
-without you hand-writing the process each time.
+**Goal.** A repeatable, opinionated workflow that lets you ship products with AI. Every change gets team-grade planning, code review, QA, security, and release discipline — without you hand-writing the process each time.
 
 **Non-goals (for now).**
 - Not a resident/end-user product. This is *internal tooling* for you the builder.
@@ -94,11 +81,8 @@ skills, not an unguided model.
 
 ---
 
-## 2. Design principles (fuse gstack ethos + your library standard)
+## 2. Design principles 
 
-We inherit the best of both. These are load-bearing and every skill must honour them.
-
-### From gstack
 1. **Skills are generated from templates.** A shared preamble (ethos, writing style, config
    protocol) is injected into every workflow skill at build time — one source of truth, no drift.
 2. **Boil the ocean.** Completeness is cheap with AI. Prefer the complete implementation over the
@@ -110,8 +94,6 @@ We inherit the best of both. These are load-bearing and every skill must honour 
 6. **The sprint is a pipeline.** Each skill writes an artifact the next one reads (design doc →
    plan → test plan → review → ship). Nothing falls through the cracks.
 7. **Everything is measured.** A multi-tier eval harness proves skills work before they ship.
-
-### From your `agent-skills` library
 8. **Mechanism vs parameters.** A skill encodes the reusable *method*; `project-context.yaml`
    supplies the *values*. Never fork a skill to make it project-aware — parameterise it.
 9. **Authoring standard.** Kebab-case folder == `name`; `SKILL.md` ≤ ~500 lines; deep material in
@@ -120,7 +102,7 @@ We inherit the best of both. These are load-bearing and every skill must honour 
 10. **Freedom level.** Fragile/compliance steps are *low freedom* (strict procedures); creative
     steps are *high freedom* (principles).
 
-### The delta to close (what your library lacks vs gstack)
+### The delta to close
 | Capability | Library today | Needed for Factory |
 |---|---|---|
 | Generation pipeline (template → SKILL.md + shared preamble) | ❌ static markdown | ✅ build |
