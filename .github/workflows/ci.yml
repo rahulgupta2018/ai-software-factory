@@ -1,0 +1,56 @@
+name: CI
+
+# The gate tier: every push and PR runs the same checks that run locally — skills generate without
+# drift, static validation passes, vendored craft skills bind, and the Tier-1 test suite is green.
+# The heavier periodic tier runs on a schedule in periodic-evals.yml (see lib/eval-plan.ts for the
+# cadence policy that keeps the two in agreement).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: gen + validate + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type-check (tsc --noEmit)
+        run: bun run typecheck
+
+      - name: Generate skills
+        run: bun run gen:skills
+
+      - name: Assert no generated-skill drift
+        run: |
+          # Committed SKILL.md files must match what the .tmpl + resolvers produce.
+          # (.codex/ output is gitignored, so only the canonical skills/ tree is checked.)
+          if ! git diff --exit-code -- skills; then
+            echo "::error::Generated skills are stale. Run 'bun run gen:skills' and commit the result." >&2
+            exit 1
+          fi
+
+      - name: Static validation (skill:check)
+        run: bun run skill:check
+
+      - name: Vendored-skill integrity (vendor:check)
+        run: bun run vendor:check
+
+      - name: Preview gate selection
+        run: bun run eval:select --tier gate
+
+      - name: Tier-1 tests
+        run: bun test

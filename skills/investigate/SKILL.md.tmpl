@@ -1,0 +1,144 @@
+---
+name: investigate
+description: >-
+  Systematic root-cause debugging for a reported bug, failing test, or production incident. Iron
+  Law: no fix without an investigation first. Reproduces the failure, forms and tests hypotheses,
+  isolates the true cause, then proposes the minimal fix plus a regression test that fails before
+  and passes after. Activates on "why is this broken", a stack trace, a flaky test, or an incident;
+  owns diagnosis, not feature work.
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-07-22
+  layer: "Review"
+  priority: "V1"
+---
+
+# Investigate
+
+{{PREAMBLE}}
+
+## Overview
+
+`/investigate` is the Factory's debugger. Given a bug report, a failing test, a stack trace, or a
+production incident, it finds the **true root cause** before anyone touches a line of code, then
+proposes the smallest fix that addresses that cause and a regression test that pins it. It records
+the investigation as a run artifact so the reasoning — not just the patch — survives.
+
+Its governing rule is the **Iron Law: no fix without an investigation.** A change that makes the
+symptom disappear without a named cause is a guess, and guesses regress. This skill exists to stop
+the reflex to patch the first plausible line.
+
+## When to Activate
+
+Activate when:
+- A test fails, an exception is thrown, behaviour is wrong, or an incident is reported.
+- The user says "why is this happening", "debug this", "it's broken", "flaky test", or pastes a
+  stack trace or error log.
+
+**Do not activate** (adjacent skills own this):
+- `review` — reviews a *diff* for issues before landing; `/investigate` diagnoses an *observed
+  failure* and only then proposes a diff.
+- `security` — hunts vulnerability classes (OWASP/STRIDE) proactively; `/investigate` chases one
+  concrete failure to its cause.
+- `qa` / `qa-report` — drives the app to *find* bugs; `/investigate` explains a bug already found.
+- The build loop (Implementer + `tdd-red-green-refactor`) — *implements* the fix this skill
+  scopes; TDD writes the failing test, `/investigate` tells it what to assert.
+
+## Core Concepts
+
+- **The investigation is the artifact.** The reproduction, the hypotheses tried and rejected, the
+  isolated cause, and the proposed fix are recorded as a run artifact (`NN-investigate.md`) so the
+  next person (or agent) doesn't re-derive it.
+- **Reproduce first.** A bug you can't reproduce, you can't confirm you fixed. Establish a reliable
+  repro (or the smallest failing test) before hypothesising.
+- **Hypothesis, then test — one variable at a time.** Name a candidate cause, make a prediction,
+  run the smallest experiment that would falsify it. Reject fast; don't accumulate guesses.
+- **Root cause, not proximate cause.** The line that throws is rarely the cause. Trace back to the
+  decision or state that made the throw inevitable.
+- **The fix ships with a regression test** that fails on the old code and passes on the new — proof
+  the cause is understood, and a guard against its return.
+
+## Workflow
+
+Freedom level: **low** — the method is disciplined; the order is load-bearing.
+
+1. **Capture the failure.** Record the exact symptom: message, stack trace, failing assertion,
+   inputs, environment. Distinguish "always" from "sometimes" (flaky).
+2. **Reproduce it.** Build the smallest reliable reproduction — ideally a failing test. If it's
+   intermittent, find what makes it deterministic (seed, timing, ordering, shared state).
+3. **Form hypotheses.** List the plausible causes, most-likely first, each as a falsifiable
+   statement.
+4. **Test hypotheses one at a time.** For each: predict, run the minimal experiment, keep or
+   reject. Change one variable per experiment. Record what each rules out.
+5. **Isolate the root cause.** Trace from symptom to the originating decision/state. State the
+   cause in one sentence and the evidence that confirms it.
+6. **Scope the minimal fix.** Propose the smallest change that removes the cause (not the symptom),
+   and name a regression test that fails before / passes after.
+7. **Write the investigation as a run artifact.** Under an active run:
+   ```bash
+   fac run artifact --step investigate --inputs <repro-or-log> --body-file investigation.md
+   ```
+8. **Hand off.** Point the build loop at the fix: `tdd-red-green-refactor` writes the failing
+   regression test, the Implementer makes it pass, then `/review`.
+
+## Practical Guidance
+
+- Read the error before theorising; the message and the top of your own stack frames usually name
+  the neighbourhood.
+- Binary-search the change history (`git bisect`-style thinking) when "it worked yesterday".
+- For flaky failures, suspect shared state, timing, ordering, and unawaited async before blaming
+  the framework.
+- Add temporary instrumentation to confirm state, then remove it; don't leave debug noise behind.
+- If two hypotheses both fit, design the one experiment that separates them.
+
+## Examples
+
+**Example:**
+```
+Input:  "RepairList sometimes shows a stale status after assigning." Intermittent.
+Steps:  repro made deterministic by asserting after the mutation resolves →
+        hypotheses: (a) cache not invalidated, (b) optimistic update races the refetch,
+        (c) key collision. Test (a): invalidate → still stale (reject). Test (b): await
+        refetch → correct (confirm). Root cause: optimistic update applied, refetch keyed
+        on stale filter so it no-ops.
+Output: run artifact NN-investigate.md — cause in one line + evidence; minimal fix (key the
+        refetch on the active filter); regression test that fails before / passes after.
+Handoff → tdd-red-green-refactor writes the test, Implementer applies the fix, /review.
+```
+
+## Guidelines
+
+1. Never propose a fix before you can state the root cause in one sentence with evidence.
+2. Reproduce (or write a failing test) before hypothesising.
+3. Test one variable per experiment; record what each rules out.
+4. Fix the cause, not the symptom; the smallest change that removes the cause wins.
+5. Every fix ships with a regression test that fails before and passes after.
+6. Record the investigation as a run artifact so the reasoning survives the patch.
+
+## Gotchas
+
+1. **Patching the proximate line**: silencing the throw where it surfaces leaves the cause live to
+   resurface elsewhere.
+2. **No repro**: "I think this fixes it" without a reproduction is a guess you can't confirm.
+3. **Multi-variable experiments**: changing three things at once means you learn nothing when it
+   passes.
+4. **Blaming flakiness on the framework**: it's almost always shared state, timing, or ordering in
+   your own code.
+5. **Leaving instrumentation behind**: temporary logging that ships is its own bug.
+
+## Integration
+
+- `review` — reviews the resulting diff; `/investigate` supplies the cause and the regression test.
+- `tdd-red-green-refactor` — writes the failing regression test the investigation specifies.
+- `qa` / `qa-report` — feed bugs into `/investigate`; it explains them.
+- `security` — a vulnerability confirmed as an incident routes here for root-cause; a class-level
+  hunt stays in `/security`.
+- Run harness (`fac run`) — records the investigation as `NN-investigate.md`.
+
+## References
+
+- Run harness: `fac run` (artifact + resume)
+- Related skills: `review`, `qa`, `qa-report`, `security`, `tdd-red-green-refactor`
+- Agent: `agents/debugger.md` (the persona that runs this skill)

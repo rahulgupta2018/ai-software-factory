@@ -1,0 +1,31 @@
+{
+  "skill": "spec",
+  "intent": "Turns vague intent into an executable spec — testable acceptance criteria, an explicit non-goals list, edge cases, and a clean handoff to the build loop.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "acceptance-criteria",
+      "criterion": "Produces acceptance criteria phrased as testable behaviours.",
+      "weight": 3,
+      "anchors": { "require_all": ["acceptance criteria"], "any": ["testable", "given", "when", "then"], "min_any": 1 }
+    },
+    {
+      "name": "explicit-scope",
+      "criterion": "States what is out of scope — an explicit non-goals list.",
+      "weight": 2,
+      "anchors": { "any": ["non-goal", "out of scope", "in and out"], "min_any": 1 }
+    },
+    {
+      "name": "edge-cases",
+      "criterion": "Surfaces the edge cases the happy path ignores.",
+      "weight": 2,
+      "anchors": { "any": ["edge case", "edge cases"], "min_any": 1 }
+    },
+    {
+      "name": "handoff",
+      "criterion": "Breaks the work into tasks and hands off to the build loop.",
+      "weight": 2,
+      "anchors": { "any": ["task breakdown", "break this into tasks", "project-planner", "handoff"], "min_any": 1 }
+    }
+  ]
+}

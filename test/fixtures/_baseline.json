@@ -1,0 +1,37 @@
+{
+  "skill": "_baseline",
+  "intent": "Every generated skill is precisely scoped, actionable, and honest about its edges — the cross-skill quality floor Tier 1 structure alone does not guarantee.",
+  "pass_threshold": 0.85,
+  "dimensions": [
+    {
+      "name": "activation-precision",
+      "criterion": "States when to activate AND names when NOT to, so the router never fires it on an adjacent skill's job.",
+      "weight": 2,
+      "anchors": { "require_all": ["When to Activate", "Do not activate"] }
+    },
+    {
+      "name": "actionable-workflow",
+      "criterion": "Has a concrete workflow that records a run artifact, not just prose.",
+      "weight": 2,
+      "anchors": { "require_all": ["## Workflow"], "any": ["fac run artifact", "fac run"], "min_any": 1 }
+    },
+    {
+      "name": "grounded-examples",
+      "criterion": "Shows at least one worked example rather than only abstract description.",
+      "weight": 1,
+      "anchors": { "require_all": ["## Examples"] }
+    },
+    {
+      "name": "failure-awareness",
+      "criterion": "Documents its own failure modes / gotchas.",
+      "weight": 1,
+      "anchors": { "require_all": ["## Gotchas"] }
+    },
+    {
+      "name": "integration-declared",
+      "criterion": "Declares how it hands off to and from other skills.",
+      "weight": 1,
+      "anchors": { "require_all": ["## Integration"] }
+    }
+  ]
+}

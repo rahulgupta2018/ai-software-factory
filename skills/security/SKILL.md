@@ -1,0 +1,206 @@
+---
+name: security
+description: >-
+  Security audit of a codebase or change against the OWASP Top 10, OWASP API Security Top 10,
+  and STRIDE — plus an application-security checklist (crypto, access management/RBAC,
+  tokens/JWT, API headers & params, sessions, caching) and, for mobile components, OWASP MASVS
+  and the transport (TLS) posture. Low false-positive gate — every finding is a concrete,
+  exploitable path with a severity, evidence, and a fix, not a theoretical worry. Activates on
+  "security review", "is this safe", pre-launch hardening, or an audit request. Owns proactive
+  vulnerability hunting; escalates confirmed incidents to /investigate.
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.2.0
+  last_updated: 2026-07-23
+  layer: Review
+  priority: V1
+---
+
+# Security
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/security` is the Factory's security officer. It audits a codebase or a change against the
+**OWASP Top 10** and **STRIDE** threat model and reports findings ranked by severity — each one a
+concrete, exploitable path with evidence and a fix. It records the audit as a run artifact.
+
+Its defining discipline is a **low false-positive gate**: a report full of "consider maybe"
+noise gets ignored, so every finding must name the attack, the vulnerable code, the impact, and
+the remediation. A theoretical worry with no exploit path is a note, not a finding.
+
+## When to Activate
+
+Activate when:
+- The user asks for a "security review/audit", "is this safe to ship", "check for vulnerabilities",
+  or pre-launch hardening.
+- A change touches auth, input handling, data access, secrets, file/network I/O, or dependencies.
+
+**Do not activate** (adjacent skills own this):
+- `review` — general correctness/quality review of a diff; `/security` is the deep,
+  threat-model-driven pass (it may be invoked *by* review for security-sensitive changes).
+- `investigate` — root-causes a *confirmed* incident; `/security` hunts *potential* vulnerabilities
+  before they're exploited.
+- `code-reviewer` (craft) — supplies the security rule catalogue (injection, authz, crypto,
+  secrets); `/security` runs the STRIDE/OWASP audit and applies those rules with an exploit gate.
+
+## Core Concepts
+
+- **The audit is the artifact.** Scope, threat model, findings (with severity/evidence/fix), and
+  residual risk are recorded as a run artifact (`NN-security.md`).
+- **Two lenses, one pass.** Walk the **OWASP Top 10** (injection, broken auth, broken access
+  control, cryptographic failures, SSRF, misconfig, vulnerable dependencies, integrity/SSRF, logging
+  gaps) and **STRIDE** (Spoofing, Tampering, Repudiation, Information disclosure, Denial of service,
+  Elevation of privilege) over the trust boundaries. For an API surface, add the **OWASP API
+  Security Top 10** (BOLA, broken function-level authz, unrestricted resource consumption).
+- **Application security is bound, not built (plan §6.3).** The Factory rolls no authn/authz,
+  crypto, session, or cache layer of its own — it binds a vetted provider/library recorded in
+  `tech_bindings` (`auth`, `crypto`, `session`, `cache`, `tls`) and *audits the binding*. Walk the
+  checklist: **cryptography** (A02 — no rolled-your-own, keys in a KMS/vault), **access
+  management/RBAC** (A01, API BOLA/BFLA — every object and function authorised server-side),
+  **tokens/JWT** (A07 — verified signature, `exp`/`aud`/`iss`, no `alg:none`), **API headers &
+  query params** (A03/A05 — input validated, security headers set, no secrets in the URL),
+  **sessions** (A07 — rotation on privilege change, sane lifetime, secure/HttpOnly/SameSite), and
+  **caching** (A01/A05 — no per-user data in a shared cache, cache key includes the tenant).
+- **Mobile components get MASVS + transport.** For a mobile component (e.g. Flutter/Dart), walk
+  the **OWASP MASVS** essentials — secrets in the platform secure store (never plaintext prefs), no
+  secrets in the bundle, HTTPS-only with certificate pinning, obfuscated/stripped release builds —
+  and the transport posture (`lib/tls-verify.ts` policy: valid chain, >= TLS 1.2, HSTS). Defer
+  idiom-level MASVS findings to `flutter-dart-expert`; `/security` confirms the control exists.
+- **Trust boundaries first.** Map where untrusted input crosses into trusted code (network edges,
+  user input, third-party callbacks, deserialization). Findings cluster there.
+- **Low false-positive gate.** A finding requires: the attack, the exact vulnerable code, the
+  impact if exploited, and the fix. No exploit path → downgrade to an informational note.
+- **Severity by impact × exploitability.** Rank Critical/High/Medium/Low; lead with what a real
+  attacker reaches first.
+
+## Workflow
+
+Freedom level: **low** — the coverage is a checklist; skipping a category is a gap.
+
+1. **Scope.** Identify what's under audit (whole codebase or a diff) and the assets worth
+   protecting (credentials, PII boundary per `guardrails`, tenant isolation, money paths).
+2. **Map trust boundaries.** List every point where untrusted input enters and every privilege
+   transition. This is the attack surface.
+3. **Walk OWASP Top 10** across the surface — injection, authn, access control, crypto/secrets,
+   SSRF, misconfiguration, vulnerable dependencies, integrity, logging/monitoring gaps. Apply the
+   `code-reviewer` security rules.
+4. **Walk STRIDE** per boundary — for each, ask which of Spoofing/Tampering/Repudiation/Info-
+   disclosure/DoS/Elevation applies and whether a control exists.
+5. **Walk the application-security checklist (§6.3)** against the bound providers in
+   `tech_bindings` — crypto, access management/RBAC (+ OWASP API BOLA/BFLA on any API surface),
+   tokens/JWT, API headers & query params, sessions, caching. A missing or misconfigured binding is
+   a finding; a bound-but-correct control is a note. For a **mobile** component, add the MASVS
+   essentials and the transport (TLS) posture.
+6. **Confirm exploitability.** For each candidate, establish the concrete path and impact. Drop
+   anything you can't exploit to an informational note (the FP gate).
+7. **Rank and fix.** Severity = impact × exploitability. For each finding, give evidence (file +
+   line) and a specific remediation.
+8. **Write the audit as a run artifact.** Under an active run:
+   ```bash
+   fac run artifact --step security --inputs <scope> --body-file security-audit.md
+   ```
+9. **Hand off / gate.** Critical/High findings on a change bound for production are a **hard gate**
+   (`escalation_policy`): stop, report, and require a fix before `/deploy`. A public endpoint that
+   fails the transport (TLS) policy is likewise a hard gate `/deploy` re-checks mechanically.
+
+## Practical Guidance
+
+- Start where untrusted input meets a dangerous sink (query, shell, filesystem, template, deserializer).
+- Secrets: grep for hardcoded keys/tokens and client-exposed credentials; verify they load from a
+  vault/env, never source or logs.
+- Dependencies: flag known-vulnerable versions; prefer the maintained, patched line.
+- Prefer parameterisation, allow-lists, least privilege, and fail-closed defaults in every fix.
+- Don't drown the signal: three real Highs beat thirty "consider" notes.
+
+## Examples
+
+**Example:**
+```
+Input:  diff adds a repairs search endpoint building a Cypher query by string concatenation.
+Audit:  trust boundary = HTTP query param → Neo4j. OWASP A03 Injection + STRIDE Tampering.
+        Exploit confirmed: `" OR 1=1 //` returns all tenants' repairs (also breaks tenant
+        isolation per guardrails).
+Output: run artifact NN-security.md — finding CRITICAL: Cypher injection + cross-tenant leak,
+        evidence (file:line), fix (parameterised query + tenant scope in WHERE). One Medium:
+        error response leaks stack trace. FP gate dropped a "verbose logging" note to
+        informational (no exploit path).
+Gate:   Critical on a production-bound change → hard stop before /deploy.
+```
+
+## Guidelines
+
+1. Every finding names the attack, the vulnerable code (file:line), the impact, and the fix.
+2. No exploit path → it's an informational note, not a finding (the FP gate).
+3. Cover OWASP Top 10 and STRIDE (+ OWASP API Top 10 on an API surface); a skipped category is a
+   coverage gap, say so.
+4. Audit the bound providers (`tech_bindings.auth/.crypto/.session/.cache/.tls`) against the §6.3
+   checklist; for a mobile component add MASVS + the transport policy.
+5. Rank by impact × exploitability; lead with what an attacker reaches first.
+6. Critical/High on a production-bound change is a hard gate — stop and require the fix.
+7. Record the audit as a run artifact.
+
+## Gotchas
+
+1. **False-positive flood**: an audit that cries wolf gets ignored; gate every finding on a real
+   exploit path.
+2. **Symptom fixes**: escaping one query while the pattern repeats elsewhere fixes nothing — fix
+   the class.
+3. **Ignoring dependencies**: your code can be perfect and still ship a known-vulnerable library.
+4. **Secrets in code/logs**: hardcoded or logged credentials are Critical, not Medium.
+5. **Skipping trust-boundary mapping**: findings cluster at boundaries; skip the map and you miss them.
+
+## Integration
+
+- `code-reviewer` (craft) — supplies the security rule catalogue this audit applies.
+- `review` — may invoke `/security` for security-sensitive diffs; `/security` returns findings.
+- `investigate` — a confirmed, exploited vulnerability routes there for incident root-cause.
+- `deploy` — Critical/High findings are a hard gate before it runs.
+- Run harness (`fac run`) — records the audit as `NN-security.md`.
+
+## References
+
+- OWASP Top 10, OWASP API Security Top 10, OWASP ASVS, OWASP MASVS, STRIDE threat model
+- Transport policy: `lib/tls-verify.ts` (valid chain, >= TLS 1.2, HSTS) — re-checked by `/deploy`
+- Application-security checklist: plan §6.3 (authn/authz, crypto, sessions, API, caching)
+- Security rules: vendored `code-reviewer` (`references/`)
+- Related skills: `review`, `investigate`, `deploy`
+- Agent: `agents/security-officer.md`

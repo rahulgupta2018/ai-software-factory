@@ -1,0 +1,31 @@
+{
+  "skill": "document",
+  "intent": "A wrapper that turns a shipped change into the docs it needs — benefit-first release notes grounded in the real diff, plus Diataxis-shaped content — composing technical-writer for the craft.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "release-notes",
+      "criterion": "Produces user-facing, benefit-first release notes.",
+      "weight": 3,
+      "anchors": { "require_all": ["release notes"], "any": ["user-facing", "benefit"], "min_any": 1 }
+    },
+    {
+      "name": "diataxis",
+      "criterion": "Adds Diataxis-shaped content — reference, how-to, tutorial, or explanation.",
+      "weight": 2,
+      "anchors": { "require_all": ["Diataxis"] }
+    },
+    {
+      "name": "grounded-in-diff",
+      "criterion": "Documents what actually shipped (the diff), not what was planned.",
+      "weight": 2,
+      "anchors": { "any": ["diff", "shipped", "what shipped"], "min_any": 1 }
+    },
+    {
+      "name": "wraps-technical-writer",
+      "criterion": "Composes technical-writer for the writing craft.",
+      "weight": 2,
+      "anchors": { "require_all": ["technical-writer"] }
+    }
+  ]
+}

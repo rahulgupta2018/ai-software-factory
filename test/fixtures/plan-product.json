@@ -1,0 +1,31 @@
+{
+  "skill": "plan-product",
+  "intent": "A wrapper that pressure-tests a PRD before the build — runs Expand / Hold / Reduce modes, scores strategic dimensions, and sharpens the PRD without authoring it.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "review-modes",
+      "criterion": "Runs in explicit Expand / Hold / Reduce modes.",
+      "weight": 3,
+      "anchors": { "require_all": ["Expand", "Reduce"], "any": ["Hold"], "min_any": 1 }
+    },
+    {
+      "name": "dimension-scoring",
+      "criterion": "Scores the plan on strategic dimensions with concrete next steps.",
+      "weight": 2,
+      "anchors": { "any": ["score", "dimension"], "min_any": 1 }
+    },
+    {
+      "name": "sharpen-not-author",
+      "criterion": "Sharpens (pressure-tests) the PRD; it does not author requirements.",
+      "weight": 2,
+      "anchors": { "any": ["pressure-test", "sharpen", "does not author", "not author"], "min_any": 1 }
+    },
+    {
+      "name": "wraps-strategy-advisor",
+      "criterion": "Composes strategy-advisor for genuine option generation and trade-offs.",
+      "weight": 2,
+      "anchors": { "require_all": ["strategy-advisor"] }
+    }
+  ]
+}

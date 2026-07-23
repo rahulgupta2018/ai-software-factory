@@ -1,0 +1,31 @@
+{
+  "skill": "investigate",
+  "intent": "A debugging skill that refuses to patch before it understands — reproduces, isolates the true cause, and ships a regression test.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "iron-law",
+      "criterion": "States the governing rule: no fix without an investigation first.",
+      "weight": 3,
+      "anchors": { "require_all": ["Iron Law", "no fix without an investigation"] }
+    },
+    {
+      "name": "reproduce-first",
+      "criterion": "Requires a reliable reproduction before hypothesising.",
+      "weight": 2,
+      "anchors": { "any": ["reproduce", "reproduction", "repro"], "min_any": 1 }
+    },
+    {
+      "name": "root-cause",
+      "criterion": "Chases the root cause, not the line that happens to throw.",
+      "weight": 2,
+      "anchors": { "require_all": ["root cause"] }
+    },
+    {
+      "name": "regression-test",
+      "criterion": "The fix ships with a regression test that fails before and passes after.",
+      "weight": 2,
+      "anchors": { "require_all": ["regression test"] }
+    }
+  ]
+}

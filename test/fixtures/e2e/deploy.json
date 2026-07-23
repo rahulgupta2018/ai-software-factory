@@ -1,0 +1,12 @@
+{
+  "skill": "deploy",
+  "tier": "gate",
+  "intent": "The deploy session hard-gates every irreversible step, has rollback ready before deploying, and verifies a real health signal after — not just that the command ran.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "The PR is merged. Walk me through taking this change to production.",
+  "expect": {
+    "output_contains": ["hard gate", "rollback"],
+    "output_any": ["verify", "health", "smoke"],
+    "min_any": 1
+  }
+}

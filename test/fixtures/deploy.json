@@ -1,0 +1,31 @@
+{
+  "skill": "deploy",
+  "intent": "Takes a landed change from merge to verified-in-production, hard-gating every irreversible step, verifying a real health signal, and keeping rollback first-class.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "hard-gate-irreversible",
+      "criterion": "Every irreversible step (merge, production deploy, escalation trigger) is a hard gate.",
+      "weight": 3,
+      "anchors": { "require_all": ["hard gate"], "any": ["irreversible", "merge", "production"], "min_any": 1 }
+    },
+    {
+      "name": "verify-health",
+      "criterion": "Verifies a real health signal after deploying, not just that the command ran.",
+      "weight": 2,
+      "anchors": { "any": ["verify", "health", "smoke", "version marker"], "min_any": 1 }
+    },
+    {
+      "name": "rollback-first-class",
+      "criterion": "Rollback is a first-class path, ready before the deploy.",
+      "weight": 2,
+      "anchors": { "require_all": ["rollback"] }
+    },
+    {
+      "name": "reads-context",
+      "criterion": "Reads deploy commands and triggers from the product context, not hardcoded.",
+      "weight": 2,
+      "anchors": { "any": ["commands", "context", "escalation_policy"], "min_any": 1 }
+    }
+  ]
+}

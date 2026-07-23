@@ -1,0 +1,42 @@
+{
+  "name": "ai-software-factory",
+  "version": "0.30.0",
+  "private": true,
+  "description": "Product-agnostic AI engineering workflow: a team of specialist agents that turn a PRD into shipped software.",
+  "type": "module",
+  "bin": {
+    "fac": "./bin/fac.ts"
+  },
+  "scripts": {
+    "gen:skills": "bun run scripts/gen-skill-docs.ts",
+    "skill:check": "bun run scripts/skill-check.ts",
+    "vendor": "bun run scripts/vendor.ts",
+    "vendor:check": "bun run scripts/vendor-check.ts",
+    "sync-context": "bun run scripts/sync-context.ts",
+    "version:check": "bun run scripts/version-check.ts",
+    "browse": "bun run tools/browse/browse.ts",
+    "diagram": "bun run tools/diagram/diagram.ts",
+    "make-pdf": "bun run tools/make-pdf/make-pdf.ts",
+    "design": "bun run tools/design/design.ts",
+    "eval:select": "bun run scripts/eval-select.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "bun run version:check && bun run gen:skills && bun run skill:check && bun run vendor:check && bun run typecheck",
+    "test": "bun test",
+    "test:evals": "FACTORY_EVAL_LLM=1 bun test test/skill-llm-eval.test.ts",
+    "test:e2e": "FACTORY_EVAL_E2E=1 bun test test/skill-e2e.test.ts"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.14",
+    "typescript": "^7.0.2"
+  }
+}

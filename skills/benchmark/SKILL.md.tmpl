@@ -1,0 +1,129 @@
+---
+name: benchmark
+description: >-
+  Measure performance against a stored baseline and flag regressions — build time, bundle
+  size, endpoint latency, or any metric the project cares about — then update the baseline
+  when a change is intended. Reads and writes the baseline as a product-scope memory note so
+  it survives across sessions. Activates on "benchmark", "did that slow down", "check for a
+  perf regression", or a pre-ship performance gate; owns timing/size measurement. Does not run
+  correctness gates (/health) or fix the slow path (/investigate).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.1.0
+  last_updated: 2026-07-22
+  layer: Ops
+  priority: FF
+---
+
+# Benchmark
+
+{{PREAMBLE}}
+
+## Overview
+
+`/benchmark` measures the metrics a project cares about — build time, bundle size, cold-start,
+endpoint latency — and compares them against a stored baseline, flagging anything that regressed
+past a threshold. The baseline lives in the `product` scope of the memory store as a `benchmark`
+note, so it persists across sessions and machines: the comparison is against last known-good, not
+against nothing.
+
+It answers one question honestly: *did this change make things slower or heavier?* When a slowdown
+is a deliberate trade (a feature that costs 20ms), you update the baseline on purpose. When it's
+accidental, `/benchmark` catches it before it ships — and hands the fix to `/investigate`, because
+measuring the regression and fixing it are different jobs.
+
+## When to Activate
+
+Activate when:
+- The user says "benchmark", "did that slow down", or "check for a perf regression".
+- Before a ship where performance is a gate (a hot path, a size-sensitive bundle).
+- After a change that plausibly touches performance (a new dependency, an algorithm swap).
+
+**Do not activate** (adjacent skills own this):
+- `health` — runs correctness gates (pass/fail); `/benchmark` measures *timing and size* against a
+  baseline.
+- `investigate` — *fixes* a slow path; `/benchmark` *detects and quantifies* the regression.
+- `canary` — watches a *live deploy's* health post-ship; `/benchmark` measures *locally* against a
+  stored baseline pre-ship.
+
+## Core Concepts
+
+- **Baseline is persisted state.** Stored as `product/benchmark` in the memory store — comparison is
+  against last known-good across sessions.
+- **Threshold, not noise.** A metric regresses only past a stated threshold (e.g. +10%), so normal
+  variance doesn't cry wolf.
+- **Update is deliberate.** The baseline moves only when a slowdown is an intended trade, recorded
+  as a decision.
+- **Measure, don't fix.** `/benchmark` quantifies; the fix is a separate job.
+
+## Workflow
+
+Freedom level: **medium** — measure, compare, verdict, maybe rebaseline.
+
+1. **Read the baseline:**
+   ```bash
+   fac memory read --scope product --key benchmark
+   ```
+   No baseline yet? This is a *first capture* — measure and store it, don't report a regression.
+2. **Measure** the project's metrics (build/test time from `${ctx.commands}`, bundle size, latency
+   as configured). Run enough to be stable; note the method so it's reproducible.
+3. **Compare** each metric to the baseline against its threshold. Classify: improved / within noise /
+   regressed.
+4. **Verdict + record:**
+   ```bash
+   fac run artifact --step benchmark --body-file benchmark.md
+   ```
+5. **Rebaseline only on intent.** If a regression is a deliberate trade, update the baseline and log
+   why:
+   ```bash
+   fac memory write --scope product --key benchmark --body-file new-baseline.json
+   fac decision log --decision "Accept +18ms on /search for fuzzy matching" \
+     --rationale "benchmark: intended trade for relevance" --scope repo --source user --confidence 8
+   ```
+
+## Examples
+
+**Example:**
+```
+Input:  "Did the new search dependency slow us down?"
+Steps:  fac memory read --scope product --key benchmark → build 12.1s, /search p95 40ms.
+        Measure now: build 12.4s (within 5% noise), /search p95 58ms (+45%, > 10% threshold).
+Output: benchmark.md — build OK; /search REGRESSED +45% (40→58ms). Not an intended trade.
+        NN-benchmark.md recorded. Baseline unchanged.
+Handoff → /investigate the /search latency; re-run /benchmark to confirm the fix.
+```
+
+## Guidelines
+
+1. Always compare to the stored baseline; a number with nothing to compare it to isn't a benchmark.
+2. Use a threshold so normal variance doesn't register as a regression.
+3. Move the baseline only for an *intended* trade, and log a decision saying why.
+4. First run with no baseline is a capture, not a failure — store it and say so.
+5. Note the measurement method so the run is reproducible.
+
+## Gotchas
+
+1. **Noise read as regression.** One slow run isn't a regression; measure enough to be stable and
+   compare past a threshold.
+2. **Silent rebaselining.** Moving the baseline hides the regression from the next run — only do it
+   on intent, with a logged decision.
+3. **No baseline treated as a fail.** The first measurement establishes the baseline; don't report a
+   regression against nothing.
+4. **Measuring the wrong thing.** Benchmark the metric that matters to users (latency, size), not
+   whatever is easiest to time.
+
+## Integration
+
+- `fac memory` (`product` scope) — stores and reads the `benchmark` baseline across sessions.
+- `fac decision` — records an intended trade when the baseline moves.
+- `investigate` — the fixer `/benchmark` hands a real regression to.
+- `canary` — the post-deploy counterpart; `/benchmark` is pre-ship and local.
+- Run harness (`fac run`) — records results as `NN-benchmark.md`.
+
+## References
+
+- Substrate CLIs: `fac memory`, `fac decision`, `fac run artifact`
+- Config: `stack.yaml` → `commands` (for build/test timing)
+- Related skills: `health`, `investigate`, `canary`, `ship`
+- Libraries: `lib/memory.ts`, `lib/decision.ts`, `lib/run.ts`

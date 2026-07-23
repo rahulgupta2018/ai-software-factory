@@ -1,0 +1,166 @@
+---
+name: learn
+description: >-
+  Turn a lesson from real work into a durable, standing rule — promote a logged decision or a
+  retro finding into project memory (or an optimised skill) so the next run doesn't repeat the
+  last one's mistake. Reads the decision log and run history, proposes concrete rule changes,
+  and persists the durable ones to the product-scope memory note. Activates on "learn from
+  this", "remember this for next time", "make this a rule", or after a /retro surfaces a
+  repeating pattern; owns durable-lesson capture. Does not run the retro itself (/retro) or
+  author/optimise a skill's prompt loop (/skill-smith).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.1.0
+  last_updated: 2026-07-22
+  layer: Ops
+  priority: FF
+---
+
+# Learn
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/learn` is how a lesson stops being a one-off and becomes a standing rule. A `/retro` names what
+went wrong; `/learn` decides which of those findings are *durable* and writes them where the next
+run will actually see them — the `product` scope of the memory store, and (for a rule that governs
+a decision) the decision log. The point is a ratchet: each pass through the loop, the Factory
+should be a little harder to trip the same way twice.
+
+It reads the evidence — active decisions and recent run history — and separates the durable from
+the disposable. A durable lesson is one that should shape *future* work regardless of the task in
+flight ("always add a contract test when an API shape changes"); a disposable one belongs to the
+task and dies with it. Durable lessons are persisted; disposable ones are left alone.
+
+## When to Activate
+
+Activate when:
+- The user says "learn from this", "remember this for next time", or "make this a rule".
+- A `/retro` surfaced a repeating pattern worth encoding as a standing rule.
+- A decision keeps getting re-made or reversed and should become a persistent convention.
+
+**Do not activate** (adjacent skills own this):
+- `retro` — *finds* the cross-run patterns; `/learn` *promotes* the durable ones into memory.
+- `skill-smith` — authors or optimises a *skill's* prompt loop; `/learn` writes *project rules*,
+  not skill edits.
+- `context-save` — captures *this task's* working state; `/learn` captures *cross-task* lessons in
+  the `product` scope.
+
+## Core Concepts
+
+- **Durable vs disposable.** Only lessons that govern future work get persisted; task-local notes
+  do not belong in project memory.
+- **Memory is the ratchet.** Standing rules live in `product/learnings` (memory store) so every
+  later run reads them; a lesson that isn't written down evaporates.
+- **A rule that governs a call is a decision.** When the lesson is "we always choose X", log it to
+  the decision log too, with its rationale.
+- **Evidence, not vibes.** Promote from the decision log and run history, citing the runs that
+  justify the rule.
+
+## Workflow
+
+Freedom level: **medium** — gather, separate durable from disposable, persist.
+
+1. **Gather the evidence.** Read the active decisions (`fac decision list`) and recent run history
+   (`fac run list` / `fac run status`); if this follows a retro, start from its findings.
+2. **Separate durable from disposable.** For each candidate lesson, ask: does this govern *future*
+   work regardless of task? If no, leave it in the run/retro artifact and stop.
+3. **Read the current rules** so you append, not clobber:
+   ```bash
+   fac memory read --scope product --key learnings
+   ```
+4. **Write the updated rule set** back to project memory:
+   ```bash
+   fac memory write --scope product --key learnings --body-file learnings.md
+   ```
+5. **Log a governing decision** when the lesson is a standing choice, and record the pass:
+   ```bash
+   fac decision log --decision "Always add a contract test when an API shape changes" \
+     --rationale "learn: 3 of last 5 review catches were API-shape drift" --scope repo \
+     --source agent --confidence 7
+   fac run artifact --step learn --body-file learn.md
+   ```
+
+## Examples
+
+**Example:**
+```
+Input:  "Learn from this week — we keep breaking the API contract."
+Steps:  fac decision list + run history → 3 runs stalled at review on API-shape drift.
+        Durable? Yes — governs every future API change. Read product/learnings, append the rule.
+Output: product/learnings updated with "contract-test on API-shape change"; logged as a decision;
+        NN-learn.md recorded.
+Handoff → /skill-smith if the rule implies a skill should enforce it automatically.
+```
+
+## Guidelines
+
+1. Persist only durable lessons; task-local notes stay in the run/retro artifact.
+2. Read `product/learnings` before writing so you append rather than overwrite.
+3. Cite the runs or decisions that justify a rule — no promoting from memory alone.
+4. When a lesson is a standing choice, log it as a decision so the rationale travels with it.
+5. Keep the rule set short and actionable; a learnings note nobody reads is dead weight.
+
+## Gotchas
+
+1. **Promoting the disposable.** A task-specific fix isn't a standing rule; project memory fills
+   with noise if you promote everything.
+2. **Clobbering the learnings note.** Overwriting instead of appending loses prior rules — read
+   first.
+3. **A rule with no enforcement.** If the lesson needs a skill to enforce it, hand to `/skill-smith`;
+   a rule nobody checks is a wish.
+4. **Secrets in a learnings note.** The write is secret-blocking, but keep credentials out of the
+   rule text regardless.
+
+## Integration
+
+- `retro` — the upstream source of patterns `/learn` promotes into standing rules.
+- `fac memory` (`product` scope) — where durable learnings persist across sessions.
+- `fac decision` — records a lesson that governs a standing choice.
+- `skill-smith` — the next step when a rule should be enforced by a skill, not just remembered.
+- Run harness (`fac run`) — records the promotion as `NN-learn.md`.
+
+## References
+
+- Substrate CLIs: `fac memory`, `fac decision list`, `fac run artifact`
+- Related skills: `retro`, `skill-smith`, `context-save`
+- Craft skill: `self-improving-agent-skills` (for optimising a skill, via `/skill-smith`)
+- Libraries: `lib/memory.ts`, `lib/decision.ts`, `lib/run.ts`

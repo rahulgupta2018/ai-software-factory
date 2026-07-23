@@ -1,0 +1,188 @@
+---
+name: deploy
+description: >-
+  Takes an approved, reviewed, QA'd change from merge to verified-in-production — merge the
+  PR, wait for CI, run the deploy, then verify the deployment is healthy before declaring
+  done. Every irreversible step is a hard gate. Activates on "deploy", "ship to prod",
+  "release it", after /ship has opened and landed the PR. Owns the merge→deploy→verify tail,
+  not the pre-merge PR (that's /ship).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.2.0
+  last_updated: 2026-07-23
+  layer: Ship
+  priority: V1
+---
+
+# Deploy
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/deploy` is the Factory's release tail. Given an approved, reviewed, QA'd change, it merges the
+PR, waits for CI to go green, runs the deploy, and then **verifies the deployment is actually
+healthy** before declaring success. It records each step as a run artifact so the release is
+auditable.
+
+Its defining trait is the **hard gate on every irreversible action.** Merging, deploying to
+production, and anything matching `escalation_policy.triggers` stop and require explicit consent —
+these are never batched with routine gates. A deploy that "probably worked" is not done; verified
+is done.
+
+## When to Activate
+
+Activate when:
+- The change is reviewed, QA'd, and its PR is ready to land — the user says "deploy", "ship to
+  prod", "release it", "land and deploy".
+- `/ship` has already produced the PR; `/deploy` takes it from merge onward.
+
+**Do not activate** (adjacent skills own this):
+- `ship` — owns the *pre-merge* path: sync, tests, coverage audit, push, open PR. `/deploy` starts
+  at merge.
+- `review` / `qa` / `security` — the quality gates that must be green *before* `/deploy`; it
+  consumes their verdicts, it doesn't re-run the review.
+- `investigate` — if the post-deploy verification fails, root-cause routes there (or roll back).
+
+## Core Concepts
+
+- **The release log is the artifact.** Merge, CI result, deploy output, and health verification are
+  recorded as a run artifact (`NN-deploy.md`) — an auditable trail of what shipped and that it's
+  healthy.
+- **Hard gate on irreversibility.** Merge, production deploy, and `escalation_policy.triggers`
+  stop and ask; they are never auto-approved or batched. Routine steps (waiting on CI) may proceed.
+- **Green before merge, green after deploy.** Don't merge on a red or pending CI; don't declare
+  done on an unverified deploy. Both ends are checked.
+- **Verify, don't assume.** After deploy, hit the real health signal — a health endpoint, a smoke
+  check, key-page load via `browse` — and confirm it before success.
+- **Public HTTPS is a hard gate.** A public endpoint must not ship without transport security. The
+  Factory runs no CA and provisions no cert itself — that's the deploy target's job
+  (`tech_bindings.tls`: Let's Encrypt, ACM, Cloudflare, ...) — but `/deploy` mechanically
+  **verifies** the live endpoint with `lib/tls-verify.ts`: a trusted, in-date chain, >= TLS 1.2,
+  and a long-lived HSTS header. A public endpoint that fails is blocked; an internal-only endpoint
+  is ungated.
+- **Rollback is a first-class path.** If verification fails, the move is roll back (or fix-forward
+  with consent) and route the failure to `/investigate`, not to hope.
+
+## Workflow
+
+Freedom level: **low** — the gate order protects production; don't reorder it.
+
+1. **Preflight.** Confirm the PR is approved and its quality gates are green (`/review`, `/qa`,
+   and `/security` if it applied). Read `commands` (deploy/CI) and `escalation_policy` from context.
+2. **Merge — HARD GATE.** Merging is irreversible on shared history: stop, show what will land, get
+   explicit consent, then merge.
+3. **Wait for CI.** Watch the pipeline to green. A red or cancelled pipeline stops the release —
+   route to `/investigate`.
+4. **Deploy — HARD GATE.** A production deploy (and any `escalation_policy.triggers` match) stops
+   for explicit consent, then runs the deploy command from `commands`.
+5. **Transport gate (public endpoints) — HARD GATE.** For every public endpoint, gather what it
+   presents (TLS negotiated? chain valid? leaf expiry? protocol version? HSTS header?) with an
+   `openssl s_client` / `curl -sI` probe, then run it through `lib/tls-verify.ts`. A failing
+   verdict (plaintext, bad/expired chain, < TLS 1.2, missing/short HSTS) **blocks the release** —
+   fix the cert/config at the deploy target (`tech_bindings.tls`) and re-probe. Internal-only
+   endpoints are ungated and pass automatically.
+6. **Verify health.** Hit the health signal — endpoint, smoke test, or key-page load via `browse`.
+   Confirm the new version is serving and error rates are nominal.
+7. **Decide.** Healthy → record success. Unhealthy → **roll back** (or fix-forward with consent)
+   and hand the failure to `/investigate`.
+8. **Write the release log as a run artifact.** Under an active run:
+   ```bash
+   fac run artifact --step deploy --inputs <pr-ref> --body-file deploy-log.md
+   ```
+
+## Practical Guidance
+
+- Never `--force` shared history or bypass CI to "save time"; the gate is the point.
+- Read the deploy/CI commands from `commands` in context — don't hardcode a platform.
+- Keep the health check specific: a 200 on `/` isn't proof the new build is live; check a version
+  marker or a real feature.
+- Have the rollback command ready *before* you deploy, not after it fails.
+- Batch nothing that's irreversible; a routine wait can proceed, a merge cannot.
+
+## Examples
+
+**Example:**
+```
+Input:  PR #42 (repairs CSV export) — /review clean, /qa green, /security clean.
+Steps:  preflight ok → HARD GATE merge (consent) → CI green in 4m → HARD GATE deploy to prod
+        (consent) → run commands.web.deploy → verify: browse goto /repairs?export, version
+        marker == new build, export downloads. Healthy.
+Output: run artifact NN-deploy.md — merge sha, CI link, deploy output, health-check result.
+        Release verified.
+Fail path: if the version marker still showed the old build → roll back, hand to /investigate.
+```
+
+## Guidelines
+
+1. Merge and production deploy are hard gates — explicit consent, never batched.
+2. Don't merge on red/pending CI; don't declare done on an unverified deploy.
+3. Read deploy/CI/rollback from `commands`; stay platform-agnostic.
+4. A public endpoint fails the transport gate (`lib/tls-verify.ts`) → the release is blocked; fix
+   the cert/config at the deploy target and re-probe. Never run a CA yourself.
+5. Verify a real health signal (version marker / smoke / key page), not just a 200.
+6. On verification failure, roll back or fix-forward-with-consent and route to `/investigate`.
+7. Record the release log as a run artifact.
+
+## Gotchas
+
+1. **Assuming success**: an unverified deploy is not done; check the live version.
+2. **Batching the merge**: irreversible steps can't ride a routine `--yes`; they always stop.
+3. **Weak health check**: a 200 on the old build passes a naive check — verify the new version.
+4. **No rollback ready**: discovering you can't roll back *after* a bad deploy is the nightmare.
+5. **Re-litigating review**: `/deploy` trusts the green gates; it verifies deployment, not the diff.
+6. **Shipping public HTTP**: a public endpoint with no/weak TLS is a blocked release, not a
+   follow-up ticket — the transport gate fails closed.
+
+## Integration
+
+- `ship` — produces the reviewed PR `/deploy` lands; the handoff boundary is merge.
+- `review` / `qa` / `security` — the gates that must be green before `/deploy` runs.
+- `investigate` — receives a failed post-deploy verification for root-cause.
+- `escalation_policy` (context) — supplies the triggers that force hard gates.
+- Run harness (`fac run`) — records the release as `NN-deploy.md`.
+
+## References
+
+- Deploy/CI commands: `commands` in `.factory/stack.yaml`
+- Transport gate: `lib/tls-verify.ts` (valid chain, >= TLS 1.2, HSTS); binding `tech_bindings.tls`
+- Health verification: `fac browse` (key-page load)
+- Related skills: `ship`, `review`, `qa`, `security`, `investigate`
+- Agent: `agents/release-engineer.md`

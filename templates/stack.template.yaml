@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .factory/stack.yaml — MACHINE-OWNED. /plan-arch writes this; you review it.
+#
+# Split out of PRD.md frontmatter so an agent writing tech_stack never clobbers
+# the requirements document a human is editing. Commit this file: it is the
+# design record. Validated against project-context.schema.json.
+#
+# Run `fac sync-context` after any change.
+# ─────────────────────────────────────────────────────────────────────────────
+
+tech_stack:
+  languages: []                # allowed set, e.g. [typescript, react, java, quarkus, python, sql]
+  components: []               # filled by /plan-arch, one entry per component:
+                               #   - name: api
+                               #     language: typescript
+                               #     framework: hono
+                               #     db: postgres
+                               #   - name: web
+                               #     language: typescript
+                               #     framework: react
+                               #     css: tailwind-v4
+
+commands: {}                   # per component (+ optional deploy), e.g.
+                               #   api:
+                               #     test: bun test
+                               #     build: bun run build
+                               #     lint: bun run lint
+                               #   deploy: fly deploy
+
+# Concrete infra a skill may target. sync-context derives per-component entries
+# and `db` from tech_stack.components[]; anything you set here wins.
+tech_bindings: {}              # e.g. { hosting: fly.io, cache: redis }
+
+skills: []                     # adopted-skill manifest, e.g.
+                               #   - name: discover
+                               #     priority: V1
+                               #   - name: fullstack-developer
+                               #     version: "1.1.0"
+
+guardrails:
+  pii_handling: detect_and_stop
+  secrets: never_log
+  # budget:                    # per-run cost warning (plan §8.1); warns, never halts
+  #   warn_tokens: 400000
+
+escalation_policy:
+  triggers: []
+  action: ""
+  disclaimer: ""

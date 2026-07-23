@@ -1,0 +1,49 @@
+# MACHINE-OWNED — the shape /plan-arch writes. Committed: this is the design record.
+# Java/Quarkus reference fixture; proves the pipeline routes a Java component unchanged.
+
+tech_stack:
+  languages: [java, sql]
+  components:
+    - name: api
+      language: java
+      framework: quarkus
+      db: postgres
+      notes: "Spec-and-Handler per typed-service-contracts JVM dialect; sealed-interface Results, never throws."
+
+commands:
+  api:
+    test: ./mvnw test
+    build: ./mvnw package
+    lint: ./mvnw spotless:check
+    run: ./mvnw quarkus:dev
+  deploy: "./mvnw package && fly deploy"
+
+# sync-context derives api/db from tech_stack.components[]; these add what design chose
+# but components can't express.
+tech_bindings:
+  hosting: fly.io
+  cache: none
+
+skills:
+  - name: discover
+    priority: V1
+  - name: java-quarkus-expert
+    version: "0.1.0"
+  - name: tdd-red-green-refactor
+    version: "1.2.0"
+  - name: typed-service-contracts
+    version: "1.2.0"
+  - name: code-reviewer
+    version: "1.0.0"
+
+guardrails:
+  pii_handling: detect_and_stop
+  secrets: never_log
+  prohibited_data: ["tenant contact details in logs"]
+  budget:
+    warn_tokens: 400000          # warn, never halt (plan §8.1)
+
+escalation_policy:
+  triggers: ["schema migration on live data", "anything touching contractor payments"]
+  action: "stop and ask the operator before proceeding"
+  disclaimer: ""

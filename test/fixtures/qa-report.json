@@ -1,0 +1,31 @@
+{
+  "skill": "qa-report",
+  "intent": "Report-only QA — drives the running app in a real browser, files a prioritised defect list with repro and evidence, and changes no code.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "report-only",
+      "criterion": "Makes no code changes — it reports, it does not fix.",
+      "weight": 3,
+      "anchors": { "any": ["report-only", "makes no code changes", "no code changes", "does not change code"], "min_any": 1 }
+    },
+    {
+      "name": "browser-driven",
+      "criterion": "Drives the running app in a real browser.",
+      "weight": 2,
+      "anchors": { "any": ["fac browse", "real browser", "running app"], "min_any": 1 }
+    },
+    {
+      "name": "prioritised-defects",
+      "criterion": "Produces a prioritised defect list.",
+      "weight": 2,
+      "anchors": { "any": ["prioritised", "prioritized", "severity", "defect"], "min_any": 1 }
+    },
+    {
+      "name": "evidence",
+      "criterion": "Each defect carries reproduction steps and evidence.",
+      "weight": 2,
+      "anchors": { "any": ["repro", "reproduction", "evidence"], "min_any": 1 }
+    }
+  ]
+}

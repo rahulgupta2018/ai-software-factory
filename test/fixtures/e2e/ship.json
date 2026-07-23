@@ -1,0 +1,13 @@
+{
+  "skill": "ship",
+  "tier": "periodic",
+  "intent": "The ship session runs the review/test gates, bumps the version, and writes a user-facing changelog entry describing what the user can now do — not the branch's internal history.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "I'm ready to ship the repair-status feature. What do you do before opening the PR?",
+  "expect": {
+    "output_any": ["changelog", "version", "release notes"],
+    "min_any": 1,
+    "output_contains": ["review"],
+    "output_excludes": ["push --no-verify"]
+  }
+}

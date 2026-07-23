@@ -1,0 +1,175 @@
+---
+name: review
+description: >-
+  Pre-landing code review of a change set. Reviews the diff against the base branch in
+  priority order (Security → Performance → Correctness → Maintainability → Testing), writes a
+  review-report artifact, and applies safe auto-fixes. Activates when a change is ready for
+  review or before /ship. Hard-gates on security findings; does not own writing features or
+  running the app.
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.1.0
+  last_updated: 2026-07-22
+  layer: Build
+  priority: V1
+---
+
+# Review
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/review` is the Factory's staff engineer. It reviews a change set — the diff between the working
+branch and its base — before that change lands. It composes the ported `code-reviewer` craft skill
+and reviews in a fixed priority order, writes a review-report artifact into the run, applies the
+fixes that are safe to automate, and flags the rest for the author. Security findings are a **hard
+gate**: the change does not proceed to `/ship` until they're resolved.
+
+## When to Activate
+
+Activate when:
+- A change set (feature, fix, refactor) is implemented and ready for review.
+- The user asks to "review", "check this diff", or "look before I ship".
+- `/ship` requests a review gate on an unreviewed change.
+
+**Do not activate** (adjacent skills own this):
+- `fullstack-developer` / `python-expert` / `java-quarkus-expert` / `flutter-dart-expert` (craft) —
+  own *writing* the code under review.
+- `qa` — owns exercising the *running* app in a browser; `/review` reads the diff, not the app.
+- `investigate` — owns root-causing a specific bug; `/review` scans the whole change surface.
+- `ship` — owns landing the change; `/review` is the gate before it.
+
+## Core Concepts
+
+- **The diff is the input.** Review the change between the working branch and its base
+  (`git diff <base>...HEAD`), not the whole repo. Scope keeps the review sharp and re-runnable.
+- **Priority order is fixed.** Security → Performance → Correctness → Maintainability → Testing.
+  Higher-priority findings are addressed first; a security finding outranks a style nit every time.
+- **The report is the artifact.** Findings land in `.factory/runs/<id>/NN-review.md` with
+  file/line references, severity, and a fix. The artifact records the diff's inputs so resume
+  re-runs the review when the code changes (make-like cascade).
+- **Auto-fix the safe, flag the rest.** Apply mechanical, low-risk fixes (obvious bugs, missing
+  error handling at boundaries, lint) directly. Anything that changes behaviour or design gets
+  flagged for the author, not silently rewritten.
+- **Security is a hard gate.** An unresolved security finding is irreversible-adjacent risk — it
+  matches the escalation policy and never batches through. `/ship` must not proceed past it.
+
+## Workflow
+
+Freedom level: **medium** — follow the order, adapt depth to the change size.
+
+1. **Read context.** Load the merged product context (per the config protocol) for `commands`,
+   `guardrails`, and `escalation_policy`. Identify the base branch.
+2. **Get the diff.** `git diff <base>...HEAD` plus the list of changed files. If the change is
+   large, review file-group by file-group, highest-risk first.
+3. **Review in priority order** using the ported `code-reviewer` catalogue:
+   - **Security** — injection, authn/authz, secrets, unsafe deserialization, OWASP Top 10.
+   - **Performance** — N+1 queries, unbounded loops, needless allocation, blocking I/O.
+   - **Correctness** — logic errors, edge cases, error handling at boundaries, race conditions.
+   - **Maintainability** — naming, dead code, over-abstraction, unclear control flow.
+   - **Testing** — missing coverage for the change's behaviour and edge cases.
+4. **Run the checks.** Execute the stack's `lint`, `typecheck`, and `test` commands for each
+   affected component (`commands.<component>.*`). These are language-routed: a TypeScript
+   component runs `bun`/`tsc`, a **Python component runs `pytest`/`ruff`/`mypy`** (defer to
+   `python-expert` for idiom-level findings), a Java/Quarkus component runs its Maven/Gradle
+   equivalents (`mvn verify`, `./gradlew check`), a **Dart/Flutter component runs `flutter analyze`
+   / `dart format --set-exit-if-changed` / `flutter test`** (defer to `flutter-dart-expert` for
+   idiom- and MASVS-level findings). Treat failures as findings.
+5. **Apply safe auto-fixes.** Mechanical, behaviour-preserving fixes only. Re-run the checks.
+6. **Write the report artifact.** Record findings with severity, `path:line`, and a fix under an
+   active run:
+   ```bash
+   fac run artifact --seq 3 --step review --inputs <changed-files> --body-file review.md
+   ```
+7. **Gate.** If any unresolved **security** finding remains, this is a **hard gate** — stop and
+   surface it; do not hand off to `/ship`. Otherwise, routine findings are advisory.
+8. **Hand off.** Point the user to `/qa` (exercise the app) or `/ship` (land the change).
+
+## Practical Guidance
+
+- Reference every finding by `path:line` — a review the author can't locate is noise.
+- Give a fix, not just a complaint. "Parameterise this query (SQLi)" beats "unsafe query".
+- Don't rewrite design under the banner of a fix. Flag design concerns; let the author decide.
+- Keep the report skimmable: severity-sorted, security first, one line per finding plus the fix.
+
+## Examples
+
+**Example:**
+```
+Input:  diff on feature/repair-status — adds a Postgres query built by string concatenation and
+        a new endpoint with no authz check.
+Output: 03-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 → parameterise;
+        SECURITY (high): missing authz at repairs/routes.ts:18 → require session role.
+        Auto-fixed: lint + an unhandled Promise rejection. Hard gate raised — /ship blocked
+        until the two security findings are resolved.
+```
+
+## Guidelines
+
+1. Review the diff against the base, not the whole repo.
+2. Address findings in priority order; security outranks everything.
+3. Every finding has a `path:line` and a concrete fix.
+4. Auto-fix only behaviour-preserving changes; flag anything that alters design or behaviour.
+5. An unresolved security finding is a hard gate — `/ship` does not proceed.
+6. Write the review report as a run artifact.
+
+## Gotchas
+
+1. **Reviewing the whole repo**: drowns the real change. Scope to the diff.
+2. **Silent design rewrites**: eroding trust. Flag design; don't auto-apply it.
+3. **Style over substance**: a nit above a security hole is a mis-ordered review. Follow the order.
+4. **Batching a security finding through a routine gate**: never. Security is a hard gate.
+
+## Integration
+
+- `fullstack-developer` / `python-expert` / `java-quarkus-expert` / `flutter-dart-expert` (craft) —
+  write the code `/review` inspects.
+- `code-reviewer` (ported craft) — the indexed rule catalogue `/review` applies.
+- Run harness (`fac run`) — stores the review report; resume re-runs review when the diff changes.
+- `qa` — exercises the running app after review.
+- `ship` — the landing step gated by this review.
+
+## References
+
+- Rule catalogue: ported `code-reviewer` skill (`vendor-skills/code-reviewer/`)
+- Commands + guardrails: merged product context (`.factory/context.gen.yaml`)
+- Run artifacts: `.factory/runs/<id>/NN-review.md`
+- Related skills: `qa`, `ship`, `investigate`, `security`

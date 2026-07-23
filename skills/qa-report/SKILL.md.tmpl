@@ -1,0 +1,139 @@
+---
+name: qa-report
+description: >-
+  Report-only QA — drives the running app in a real browser to find bugs, then writes a prioritised
+  bug report with repro steps and evidence, and makes no code changes. Activates for "QA this",
+  "find bugs", a pre-release sweep, or when a stakeholder wants a defect list without a fix loop.
+  Composes the browse tool and visualization-expert for report visuals; owns finding-and-reporting,
+  not fixing (that's /investigate) or the fix-and-verify loop (that's /qa).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-07-22
+  layer: "Test"
+  priority: "V1"
+---
+
+# QA-Report
+
+{{PREAMBLE}}
+
+## Overview
+
+`/qa-report` is the Factory's report-only QA pass. It drives the running application in a real
+browser (the `browse` tool), exercises the primary flows and their edges, and produces a
+**prioritised bug report** — each defect with reproduction steps, expected vs actual, severity, and
+evidence (screenshot/console). It changes **no code**; the output is a defect list, recorded as a
+run artifact.
+
+It is the counterpart to `/qa`: same methodology, but it stops at the report. Use it when a
+stakeholder wants an honest defect inventory, a pre-release sweep, or a second opinion without the
+skill touching the codebase.
+
+## When to Activate
+
+Activate when:
+- The user asks to "QA this", "find bugs", "test the app", or wants a "bug report" / "defect list"
+  before a release — and does **not** want fixes applied.
+- A running app or a preview URL is available to drive.
+
+**Do not activate** (adjacent skills own this):
+- `qa` — same browser methodology but *fixes* bugs and re-verifies; `/qa-report` only reports.
+- `investigate` — root-causes a *specific* bug; `/qa-report` *finds* bugs across the app and hands
+  the interesting ones off.
+- `security` — threat-model audit of code; `/qa-report` is black-box functional testing of the
+  running app.
+- `review` — reads a diff; `/qa-report` drives the built product.
+
+## Core Concepts
+
+- **Report, don't fix.** The output is a defect list; the skill makes zero code changes. Fixes are
+  a separate, explicit step (`/investigate` → build loop → `/qa`).
+- **The report is the artifact.** Findings — repro, expected/actual, severity, evidence — are
+  recorded as a run artifact (`NN-qa-report.md`).
+- **Real browser, real flows.** Drive the app the way a user does via `browse` (`goto`, `click`,
+  `type`, `snapshot`, `screenshot`); test the V1 flows the PRD names, plus their edges.
+- **Every bug is reproducible.** A defect without steps is a rumour. Each entry has the exact steps
+  to reproduce and the observed vs expected result.
+- **Severity, not volume.** Rank Critical/High/Medium/Low by user impact; a clear top-five beats an
+  unranked wall of nitpicks. `visualization-expert` shapes any summary chart.
+
+## Workflow
+
+Freedom level: **medium** — cover the flows; the report shape is fixed.
+
+1. **Get a target.** Confirm the running URL (local or preview) and the V1 flows to exercise (from
+   `PRD.md`). Default `browse` to localhost; external targets need the explicit `--allow-external`
+   gate.
+2. **Drive the happy paths.** Walk each primary flow end-to-end via `browse`, capturing snapshots
+   at each step.
+3. **Attack the edges.** Empty states, invalid input, boundaries, permissions, back/refresh,
+   double-submit, slow network. Watch the console for errors.
+4. **Record each defect** with: title, severity, exact repro steps, expected vs actual, and
+   evidence (screenshot path / console excerpt).
+5. **Prioritise.** Rank by user impact; summarise the top findings first. Add a severity summary
+   (optionally a chart via `visualization-expert`).
+6. **Write the report as a run artifact.** Under an active run:
+   ```bash
+   fac run artifact --step qa-report --inputs <app-url-or-build-ref> --body-file qa-report.md
+   ```
+7. **Hand off.** Route Critical/High defects to `/investigate` (root cause) → build loop → `/qa`
+   (fix + verify). `/qa-report` itself stops here.
+
+## Practical Guidance
+
+- Use `browse snapshot` to capture accessible structure and `screenshot` for visual evidence at the
+  moment of failure.
+- Reproduce a defect twice before filing it; intermittent gets labelled intermittent.
+- Keep repro steps copy-pasteable and minimal — the smallest path that triggers the bug.
+- Separate "bug" from "opinion"; report defects, note UX concerns separately.
+- Never edit code to "confirm" a fix — that's `/qa`'s job, not this one.
+
+## Examples
+
+**Example:**
+```
+Input:  "QA the Repair Tracker at http://localhost:5173 before the demo. Report only."
+Drive:  browse goto → log a repair → assign → filter. Edges: submit empty form; assign to
+        no-one; refresh mid-filter.
+Found:  CRITICAL empty-form submit throws + white-screens (console: TypeError). HIGH filter
+        resets on refresh, losing context. MEDIUM toast never dismisses. LOW date format
+        inconsistent.
+Output: run artifact NN-qa-report.md — 4 defects ranked, each with steps + screenshot; no
+        code changed. Handoff → /investigate for the Critical, then build loop → /qa.
+```
+
+## Guidelines
+
+1. Make no code changes — this pass reports only.
+2. Every defect has reproducible steps, expected vs actual, severity, and evidence.
+3. Drive the real app via `browse`; localhost by default, external only behind the gate.
+4. Rank by user impact and lead with the top findings.
+5. Hand Critical/High defects to `/investigate` → build loop → `/qa`; don't fix them here.
+6. Record the report as a run artifact.
+
+## Gotchas
+
+1. **Fixing while reporting**: the moment you edit code you're doing `/qa`, not `/qa-report`; keep
+   the boundary.
+2. **Unreproducible entries**: a defect without steps can't be fixed or verified.
+3. **Nitpick wall**: an unranked list of trivia buries the Critical bug; prioritise.
+4. **External URL without the gate**: `browse` is localhost-first; external needs
+   `--allow-external` and consent.
+5. **Opinion as defect**: "I'd prefer blue" isn't a bug; separate UX notes from defects.
+
+## Integration
+
+- `qa` — the fix-and-verify counterpart; `/qa-report` hands its Critical/High defects toward it.
+- `investigate` — root-causes the defects this report surfaces.
+- `visualization-expert` (craft) — shapes the severity summary/chart.
+- `browse` tool — drives the running app (`fac browse`).
+- Run harness (`fac run`) — records the report as `NN-qa-report.md`.
+
+## References
+
+- Browser tool: `fac browse` (localhost-first, `--allow-external` gate)
+- Report visuals: vendored `visualization-expert`
+- Related skills: `qa`, `investigate`, `review`
+- Agent: `agents/qa-engineer.md`

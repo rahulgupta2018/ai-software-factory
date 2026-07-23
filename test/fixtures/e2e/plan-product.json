@@ -1,0 +1,12 @@
+{
+  "skill": "plan-product",
+  "tier": "periodic",
+  "intent": "Faced with a vague product ask, the session asks the sharp clarifying questions and frames scope in outcome terms before proposing a build — it does not leap to implementation.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "I want to build an app for our housing officers. Where do we start?",
+  "expect": {
+    "output_any": ["clarify", "question", "scope", "outcome"],
+    "min_any": 2,
+    "output_excludes": ["let's start coding", "here is the code"]
+  }
+}

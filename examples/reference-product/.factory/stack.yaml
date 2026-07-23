@@ -1,0 +1,103 @@
+# MACHINE-OWNED — the shape /plan-arch writes. Committed: this is the design record.
+# Golden reference fixture; `fac vendor:check` resolves ${ctx.*} bindings against it.
+
+tech_stack:
+  languages: [typescript, react, python, dart, sql]
+  components:
+    - name: api
+      language: typescript
+      framework: hono
+      db: postgres
+      notes: "Spec-and-Handler per typed-service-contracts; Result types, never throws."
+    - name: web
+      language: typescript
+      framework: react
+      css: tailwind-v4
+    - name: reminders
+      language: python
+      framework: none
+      notes: "SLA reminder worker (cron): emails repairs past their priority SLA. Proves the Python craft path — routes to python-expert, TDD in pytest."
+    - name: mobile
+      language: dart
+      framework: flutter
+      notes: "Contractor app (iOS + Android from one codebase): view assigned jobs, update status offline. Proves the Flutter craft path — routes to flutter-dart-expert, TDD in flutter_test, MASVS mobile-security checklist. Tokens in flutter_secure_storage, never SharedPreferences."
+
+commands:
+  api:
+    test: bun test
+    build: bun run build
+    lint: bun run lint
+    typecheck: bun run typecheck
+  web:
+    test: bun test
+    build: bun run build
+    lint: bun run lint
+  reminders:
+    test: pytest
+    lint: ruff check
+    typecheck: mypy .
+  mobile:
+    test: flutter test
+    build: flutter build apk --release
+    lint: flutter analyze
+    format: dart format --set-exit-if-changed .
+  deploy: "fly deploy"
+
+# sync-context derives api/web/db from tech_stack.components[]; these add what design chose
+# but components can't express.
+tech_bindings:
+  hosting: fly.io
+  cache: none
+
+# Multi-tenant repairs product; database-expert binds ${ctx.tenancy} for per-query isolation.
+tenancy:
+  model: multi-tenant
+  isolation: row-level-security
+
+skills:
+  - name: discover
+    priority: V1
+  - name: fullstack-developer
+    version: "1.1.0"
+  - name: react-frontend-architect      # web component: React module architecture
+    version: "0.1.0"
+  - name: modern-css-design-systems     # web component: Tailwind v4 + tokens + shadcn
+    version: "0.1.0"
+  - name: frontend-design               # design phase: visual direction
+    version: "0.1.0"
+  - name: ux-designer                   # design phase: flows, IA, WCAG
+    version: "1.2.0"
+  - name: visualization-expert          # design phase: chart selection
+    version: "1.1.0"
+  - name: tdd-red-green-refactor
+    version: "1.1.0"
+  - name: typed-service-contracts
+    version: "1.1.0"
+  - name: python-expert                  # reminders component: Python idioms, typing, error handling
+    version: "1.1.0"
+  - name: database-expert                # api component (postgres): schema, indexing, migrations, query tuning
+    version: "0.1.0"
+  - name: flutter-dart-expert            # mobile component: Flutter/Dart idioms + MASVS mobile security
+    version: "0.1.0"
+  - name: code-reviewer
+    version: "1.0.0"
+  - name: strategy-advisor              # /plan-product: option generation + trade-offs
+    version: "1.1.0"
+  - name: project-planner               # /spec + architecture: work breakdown
+    version: "1.1.0"
+  - name: multi-agent-patterns          # architecture: agent topology / context isolation
+    version: "2.2.0"
+  - name: technical-writer              # /document: release notes + Diataxis
+    version: "1.1.0"
+
+guardrails:
+  pii_handling: detect_and_stop
+  secrets: never_log
+  prohibited_data: ["tenant contact details in logs"]
+  budget:
+    warn_tokens: 400000          # warn, never halt (plan §8.1) — tune once a baseline exists
+
+escalation_policy:
+  triggers: ["schema migration on live data", "anything touching contractor payments"]
+  action: "stop and ask the operator before proceeding"
+  disclaimer: ""

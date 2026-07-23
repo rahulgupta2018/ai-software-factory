@@ -1,0 +1,13 @@
+{
+  "skill": "review",
+  "tier": "gate",
+  "intent": "Given a diff with a SQL-injection and a missing-authz endpoint, the review flags both as security findings, references path:line, and raises a hard gate rather than approving.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "Review this diff and write the findings.\n\n```diff\n+++ b/repairs/query.ts\n+ export function findRepairs(status) {\n+   return db.query(`SELECT * FROM repairs WHERE status = '${status}'`);\n+ }\n+++ b/repairs/routes.ts\n+ router.get('/repairs', (req, res) => res.json(findRepairs(req.query.status)));\n```",
+  "expect": {
+    "output_contains": ["hard gate"],
+    "output_any": ["sql injection", "sqli", "parameterise", "parameterize"],
+    "min_any": 1,
+    "output_excludes": ["looks good to me", "lgtm", "no issues found"]
+  }
+}

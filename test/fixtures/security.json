@@ -1,0 +1,31 @@
+{
+  "skill": "security",
+  "intent": "An audit that walks OWASP + STRIDE but earns trust by reporting only real, exploitable findings — and hard-gates a production-bound change on Critical/High.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "dual-lens",
+      "criterion": "Uses both the OWASP Top 10 and the STRIDE threat model.",
+      "weight": 3,
+      "anchors": { "require_all": ["OWASP", "STRIDE"] }
+    },
+    {
+      "name": "low-false-positive",
+      "criterion": "Every finding is a concrete exploitable path — a low-false-positive gate, not noise.",
+      "weight": 2,
+      "anchors": { "any": ["false-positive", "exploitable", "exploit path", "attack path"], "min_any": 1 }
+    },
+    {
+      "name": "severity-ranked",
+      "criterion": "Findings are ranked by severity with evidence.",
+      "weight": 2,
+      "anchors": { "any": ["severity", "Critical", "High"], "min_any": 1 }
+    },
+    {
+      "name": "hard-gate",
+      "criterion": "Critical/High on a production-bound change is a hard gate before deploy.",
+      "weight": 2,
+      "anchors": { "any": ["hard gate", "hard-gate", "gate before"], "min_any": 1 }
+    }
+  ]
+}

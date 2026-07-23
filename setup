@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# setup — one-time install for the AI Software Factory (Phase 0).
+# Builds generated skills and symlinks them into detected hosts (Claude Code, Codex).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+echo "==> AI Software Factory setup"
+
+# 1. Dependencies + generation
+if command -v bun >/dev/null 2>&1; then
+  bun install >/dev/null 2>&1 || true
+  echo "==> Generating skills for all hosts"
+  bun run gen:skills
+  bun run skill:check
+  bun run vendor:check
+else
+  echo "!! bun not found. Install Bun (https://bun.sh) then re-run ./setup" >&2
+  exit 1
+fi
+
+# 2. Symlink into detected hosts (delegated to the tested installer: lib/install-plan.ts +
+#    scripts/install.ts). It copies instead of symlinking on Windows and verifies each target.
+echo "==> Installing skills into hosts"
+bun "$ROOT/scripts/install.ts"
+
+echo "==> Done. Run 'fac init' inside a product repo to scaffold PRD.md + .factory/stack.yaml."

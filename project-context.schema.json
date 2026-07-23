@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-software-factory/project-context.schema.json",
+  "title": "Product Context (merged PRD.md + .factory/stack.yaml)",
+  "description": "Contract for the machine context a product exposes to Factory skills. A product is authored in TWO files split by author: PRD.md frontmatter (human-owned: product, domain, meta) and .factory/stack.yaml (machine-owned, written by /plan-arch: tech_stack, commands, skills, guardrails, escalation_policy, tech_bindings). `fac sync-context` merges them, derives the compatibility aliases, validates the result against this schema, and writes .factory/context.gen.yaml. Each property carries an `x-owner` annotation naming the file that authors it. This schema is a genuine superset of the agent-skills project-context schema: every key that library defines is reproduced below so vendored craft skills bind unchanged.",
+  "type": "object",
+  "required": ["product"],
+  "additionalProperties": true,
+  "properties": {
+    "product": {
+      "type": "object",
+      "x-owner": "PRD.md",
+      "description": "Product identity. Authored by a human in PRD.md frontmatter.",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Product name. Non-empty — an untouched template must not validate."
+        },
+        "code": { "type": "string", "description": "Short code/slug." },
+        "description": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "in-design", "in-build", "shipped"],
+          "default": "draft"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "x-owner": "derived",
+      "description": "COMPAT ALIAS — do not author. Derived from `product` by `fac sync-context` because the agent-skills library requires a `project` key. Vendored craft skills bind to this.",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "domain": {
+      "type": "string",
+      "x-owner": "PRD.md",
+      "description": "One-line domain statement. Sets the frame for domain-knowledge craft skills."
+    },
+    "tech_stack": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml",
+      "description": "Languages allowed for this product and the per-component choices made at design time by /plan-arch. Drives Implementer craft-skill routing.",
+      "required": ["languages"],
+      "additionalProperties": false,
+      "properties": {
+        "languages": {
+          "type": "array",
+          "description": "Allowed language set for this product.",
+          "items": {
+            "type": "string",
+            "enum": ["java", "quarkus", "javascript", "typescript", "react", "python", "dart", "sql"]
+          }
+        },
+        "components": {
+          "type": "array",
+          "description": "Per-component language/framework choices, filled by /plan-arch.",
+          "items": {
+            "type": "object",
+            "required": ["name", "language"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "description": "Component name, e.g. 'api', 'web'." },
+              "language": {
+                "type": "string",
+                "enum": ["java", "quarkus", "javascript", "typescript", "react", "python", "dart", "sql"]
+              },
+              "framework": { "type": "string", "description": "e.g. 'quarkus', 'react', 'hono'." },
+              "css": { "type": "string", "description": "e.g. 'tailwind-v4', 'vanilla-extract', 'css-modules'." },
+              "db": { "type": "string", "description": "e.g. 'postgres'." },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml",
+      "description": "Per-component command config (read -> ask -> persist). Keys are component names plus optional top-level 'deploy'.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "test": { "type": "string" },
+              "build": { "type": "string" },
+              "lint": { "type": "string" },
+              "format": { "type": "string" },
+              "run": { "type": "string" },
+              "typecheck": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "tech_bindings": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml (+ derived)",
+      "description": "Concrete infrastructure a skill may target. `fac sync-context` derives entries from tech_stack.components[] (per-component stack, plus `db`); values authored here win over derived ones. Required by library skills that bind ${ctx.tech_bindings}.",
+      "additionalProperties": true,
+      "properties": {
+        "graph_store": { "type": "string" },
+        "vector_index": { "type": "string" },
+        "llm": { "type": "string" },
+        "embedding_model": { "type": "string" },
+        "cache": { "type": "string", "description": "Caching layer, e.g. 'redis', 'none'. Audited for cache-poisoning / authz-bypass (OWASP A01/A05)." },
+        "orchestrator": { "type": "string" },
+        "hosting": { "type": "string" },
+        "db": { "type": "string" },
+        "auth": { "type": "string", "description": "Authn/authz provider or strategy, e.g. 'auth0', 'oidc', 'session-cookie', 'jwt'. Audited by /security (access management, RBAC, tokens — OWASP A01/A07, API BOLA/BFLA)." },
+        "crypto": { "type": "string", "description": "Encryption / key-management binding, e.g. 'aws-kms', 'libsodium', 'webcrypto'. The Factory rolls no crypto itself; audited for weak/rolled-your-own crypto (OWASP A02)." },
+        "session": { "type": "string", "description": "Session strategy, e.g. 'stateless-jwt', 'redis-session', 'signed-cookie'. Audited for fixation / weak lifetime (OWASP A07)." },
+        "tls": { "type": "string", "description": "Transport security posture for public endpoints, e.g. 'lets-encrypt', 'acm', 'cloudflare'. /deploy hard-gates a public deploy on a valid chain + min TLS version + HSTS via lib/tls-verify.ts (OWASP A02/A05)." }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "x-owner": ".factory/stack.yaml",
+      "description": "Manifest of skills this product has adopted, with optional per-skill overrides.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "description": "Skill folder name (Layer 1 workflow or vendored craft)." },
+          "version": { "type": "string", "description": "Pinned version copied from source (craft skills)." },
+          "enabled": { "type": "boolean", "default": true },
+          "layer": { "type": "string", "description": "Architecture layer this skill maps to." },
+          "priority": { "type": "string", "enum": ["V1", "FF", "Later"] },
+          "overrides": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "guardrails": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml",
+      "description": "Safety/data-handling switches skills consult.",
+      "additionalProperties": true,
+      "properties": {
+        "pii_handling": { "type": "string", "description": "e.g. 'detect_and_stop', 'strip', 'allow'." },
+        "secrets": { "type": "string", "description": "e.g. 'never_log'." },
+        "prohibited_data": { "type": "array", "items": { "type": "string" } },
+        "budget": {
+          "type": "object",
+          "description": "Per-run cost budget (plan §8.1). Warns, does not halt, until a measured baseline exists.",
+          "additionalProperties": false,
+          "properties": {
+            "warn_tokens": { "type": "integer", "minimum": 1 },
+            "warn_wall_ms": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "escalation_policy": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml",
+      "description": "When and how to escalate / defer to humans.",
+      "additionalProperties": false,
+      "properties": {
+        "triggers": { "type": "array", "items": { "type": "string" } },
+        "action": { "type": "string" },
+        "disclaimer": { "type": "string" }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "x-owner": "PRD.md",
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string" },
+        "last_updated": { "type": "string" },
+        "owner": { "type": "string" },
+        "schema_version": { "type": "string" }
+      }
+    },
+
+    "jurisdictions": {
+      "type": "array",
+      "x-owner": "PRD.md",
+      "description": "LIBRARY KEY — applicable jurisdictions/regions, most-relevant first.",
+      "items": { "type": "string" }
+    },
+    "authority_hierarchy": {
+      "type": "array",
+      "x-owner": "PRD.md",
+      "description": "LIBRARY KEY — source-authority tiers, ORDERED highest to lowest.",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "sources": {
+      "type": "object",
+      "x-owner": "PRD.md",
+      "description": "LIBRARY KEY — source registry grouped by tier.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "url": { "type": "string" },
+                "authority": { "type": "string" },
+                "access": { "type": "string", "enum": ["public", "licensed", "internal"] },
+                "notes": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "glossary": {
+      "type": "object",
+      "x-owner": "PRD.md",
+      "description": "LIBRARY KEY — domain terminology the agent should use/expand.",
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "type": "string" },
+        "terms": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "compliance_rules": {
+      "type": "array",
+      "x-owner": ".factory/stack.yaml",
+      "description": "LIBRARY KEY — non-negotiable rules skills must honour.",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["id", "rule"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "rule": { "type": "string" },
+              "severity": { "type": "string", "enum": ["blocking", "high", "medium", "low"] }
+            }
+          }
+        ]
+      }
+    },
+    "confidence_tiers": {
+      "type": "object",
+      "x-owner": "PRD.md",
+      "description": "LIBRARY KEY — authority level to user-facing confidence label.",
+      "additionalProperties": { "type": "string" }
+    },
+    "tenancy": {
+      "type": "object",
+      "x-owner": ".factory/stack.yaml",
+      "description": "LIBRARY KEY — tenancy/isolation model.",
+      "additionalProperties": true,
+      "properties": {
+        "model": { "type": "string" },
+        "isolation": { "type": "string" }
+      }
+    }
+  }
+}

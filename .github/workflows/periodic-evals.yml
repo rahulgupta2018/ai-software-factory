@@ -1,0 +1,42 @@
+name: Periodic evals
+
+# The heavier, non-deterministic eval tier. Unlike CI (the gate tier, which blocks every PR), this
+# runs on a weekly schedule and on manual dispatch. Per the cadence policy in lib/eval-plan.ts,
+# `schedule` and `workflow_dispatch` map to the periodic tier.
+#
+# The periodic *live* scenarios only spawn when a model runner is wired and FACTORY_EVAL_E2E=1.
+# This repo ships no bundled model client, so by default this workflow runs the full free suite and
+# previews which periodic scenarios *would* run — going live is a one-line change once a runner and
+# its secret are configured (set FACTORY_EVAL_E2E=1 below).
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: periodic-evals
+  cancel-in-progress: false
+
+jobs:
+  periodic:
+    name: periodic-tier evals
+    runs-on: ubuntu-latest
+    env:
+      FACTORY_EVAL_TIER: periodic
+      # FACTORY_EVAL_E2E: '1'   # uncomment once a model runner + secret are wired to go live
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Preview periodic selection
+        run: bun run eval:select --tier periodic
+
+      - name: Periodic evals (free suite; live scenarios run only when a runner is wired)
+        run: bun test

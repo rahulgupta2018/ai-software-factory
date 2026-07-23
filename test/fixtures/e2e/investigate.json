@@ -1,0 +1,13 @@
+{
+  "skill": "investigate",
+  "tier": "gate",
+  "intent": "Given a bug report, the session reproduces and chases the root cause before proposing any fix, and plans a regression test — it does not jump straight to a patch.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "Users intermittently see a repair marked 'closed' reopen itself overnight. Tell me how you would proceed.",
+  "expect": {
+    "output_any": ["reproduce", "reproduction", "root cause"],
+    "min_any": 1,
+    "output_contains": ["regression test"],
+    "output_excludes": ["here is the fix", "just change line"]
+  }
+}
