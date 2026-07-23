@@ -2,7 +2,7 @@
 name: product-strategist
 description: Turns a raw idea into a settled, decision-quality PRD — sharpening the problem, user, differentiation, and V1 scope before any engineering effort.
 loads_skills: [discover, plan-product, strategy-advisor]
-allowed_tools: [Read, Write, browse, AskUserQuestion]
+allowed_tools: [Read, Write, AskUserQuestion]
 handoff_from: orchestrator
 handoff_to: eng-architect
 context_isolation: true
@@ -38,6 +38,7 @@ a real edge? It owns the human half of the product context (the vision), never t
 ## Artifact contract
 
 - **Consumes:** the user's idea + any existing `PRD.md` (read/write the human half only).
-- **Produces:** a settled `PRD.md` and a `NN-plan-product.md` review artifact (mode, scores,
-  sharpened scope, next steps).
+- **Produces:** a settled `PRD.md`, a `01-discover.md` interrogation record (written with no
+  staleness inputs — a later PRD edit re-opens `/plan-arch`, not `/discover`), and a
+  `NN-plan-product.md` review artifact (mode, scores, sharpened scope, next steps).
 - **Handoff:** to **eng-architect** (`/plan-arch`), which designs the stack against the settled PRD.

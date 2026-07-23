@@ -30,6 +30,7 @@ import {
   createRun,
   findResumePoint,
   gateTier,
+  isPlaceholderProduct,
   listArtifacts,
   matchEscalationTriggers,
   parseArtifact,
@@ -38,6 +39,7 @@ import {
   recordStep,
   releaseLock,
   runDir,
+  setRunProduct,
   sha256,
   writeArtifact,
   type PlanStep,
@@ -74,7 +76,10 @@ function planFor(id: string, components: Component[]): DriveStep[] {
   }));
   const buildFiles = buildSteps.map((s) => runRel(s.file));
   return [
-    { seq: 1, step: 'discover', file: '01-discover.md', inputs: ['PRD.md'] },
+    // discover has NO staleness inputs: its input is the chat idea, not a file, and PRD.md is its
+    // OUTPUT. Anchoring it to PRD.md would make a human PRD edit re-run discover and clobber that
+    // edit. A PRD edit re-opens plan-arch (which reads PRD.md), not discover.
+    { seq: 1, step: 'discover', file: '01-discover.md', inputs: [] },
     {
       seq: 2,
       step: 'plan-arch',
@@ -208,17 +213,22 @@ describe('pipeline acceptance — reference product', () => {
     }
   });
 
-  test('editing the PRD by hand re-opens the chain from /discover', () => {
+  test('editing the PRD by hand re-opens the chain from /plan-arch, not /discover', () => {
     const id = createRun(repo, { product: 'Repair Tracker', id: '2026-07-22-p004' }).id;
     const plan = planFor(id, components);
     driveAll(repo, id, plan);
 
-    // A hand edit to the PRD: 01-discover recorded its hash, so the chain re-opens from the top.
+    // A hand edit to the PRD. discover records no inputs, so it stays done (re-running it would
+    // clobber this very edit). plan-arch reads PRD.md, so the chain re-opens there — the design
+    // half is reconsidered, the human's requirements edit is preserved.
     writeFileSync(join(repo, 'PRD.md'), `${readFileSync(join(repo, 'PRD.md'), 'utf-8')}\n<!-- edit -->\n`);
 
     const resume = findResumePoint(repo, runDir(repo, id), plan as PlanStep[]);
-    expect(resume).toMatchObject({ done: false, index: 0 });
-    if (!resume.done) expect(resume.reason).toMatch(/PRD\.md changed/);
+    expect(resume).toMatchObject({ done: false, index: 1 });
+    if (!resume.done) {
+      expect(resume.step.file).toBe('02-plan-arch.md');
+      expect(resume.reason).toMatch(/PRD\.md changed/);
+    }
   });
 
   test('hard gates fire on the irreversible ship step and on the product escalation triggers', () => {
@@ -269,6 +279,20 @@ describe('pipeline acceptance — reference product', () => {
       tokens_out: 0,
     });
     expect(budgetStatus(readRun(repo, id), warn).warn).toBe(true);
+  });
+
+  test('a run created before discover is stamped unknown, then backfilled once the PRD name resolves', () => {
+    // Simulate the real ordering: orchestrator opens the run before /discover fills the PRD.
+    const id = createRun(repo, { product: 'unknown', id: '2026-07-22-p008' }).id;
+    expect(isPlaceholderProduct(readRun(repo, id).product)).toBe(true);
+
+    // discover writes the PRD (name is 'Repair Tracker' in the fixture), then backfills.
+    setRunProduct(repo, id, 'Repair Tracker');
+    expect(readRun(repo, id).product).toBe('Repair Tracker');
+
+    // Backfill is a one-way latch: a later placeholder never overwrites a real name.
+    setRunProduct(repo, id, 'unknown');
+    expect(readRun(repo, id).product).toBe('Repair Tracker');
   });
 
   test('the run is re-runnable: a fresh run id completes the same chain against the same repo', () => {

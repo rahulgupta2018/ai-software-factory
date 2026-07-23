@@ -18,11 +18,13 @@ import {
   budgetStatus,
   createRun,
   findResumePoint,
+  isPlaceholderProduct,
   listArtifacts,
   listRuns,
   readRun,
   requestStop,
   runDir,
+  setRunProduct,
   writeArtifact,
   type PlanStep,
 } from '../lib/run.ts';
@@ -131,6 +133,15 @@ function cmdArtifact(): void {
   const inputs = flag('inputs')?.split(',').map((s) => s.trim()).filter(Boolean);
   const file = writeArtifact({ repoRoot: cwd, id, seq, step, inputs, body, file: flag('file') });
   console.log(`run — wrote ${relative(cwd, runDir(cwd, id))}/${file}`);
+
+  // Backfill the run's product name: a run is created before /discover writes the PRD, so it is
+  // stamped 'unknown'. By the time an artifact is written the PRD usually resolves a real name.
+  const wasPlaceholder = isPlaceholderProduct(readRun(cwd, id).product);
+  const resolved = productName();
+  setRunProduct(cwd, id, resolved);
+  if (wasPlaceholder && !isPlaceholderProduct(resolved)) {
+    console.log(`run — product resolved to "${resolved}"`);
+  }
 }
 
 function cmdResume(): void {

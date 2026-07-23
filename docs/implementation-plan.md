@@ -121,20 +121,30 @@ skills, not an unguided model.
 
 ### 3.1 The lifecycle pipeline
 
-```
- THINK        PLAN                 BUILD            REVIEW          TEST         SHIP            REFLECT
- ─────        ────                 ─────            ──────          ────         ────            ───────
-/discover  → /plan-product   →  (craft skills)  → /review     →  /qa        → /ship        → /retro
-             /plan-arch          python-expert    /investigate    /qa-report   /deploy         /health
-             /plan-design        fullstack-dev    /security       /benchmark   /canary         /learn
-             /spec               tdd + contracts  /second-opinion              /document       /skill-smith
+```mermaid
+flowchart TB
+    T["<b>THINK</b><br/>/discover"]
+    P["<b>PLAN</b><br/>/plan-product · /plan-arch<br/>/plan-design · /spec"]
+    B["<b>BUILD</b><br/>craft skills<br/>python-expert · fullstack-dev<br/>tdd + typed-contracts"]
+    R["<b>REVIEW</b><br/>/review · /investigate<br/>/security · /second-opinion"]
+    Q["<b>TEST</b><br/>/qa · /qa-report · /benchmark"]
+    S["<b>SHIP</b><br/>/ship · /deploy<br/>/canary · /document"]
+    F["<b>REFLECT</b><br/>/retro · /health<br/>/learn · /skill-smith"]
 
- └─ writes/updates PRD.md ┘  └─ writes plan+tests ─┘  └ fixes/flags ┘ └ verifies ┘ └ ships PR ┘  └ improves ┘
-        artifact              artifact              artifact         artifact      artifact       artifact
+    T -->|"PRD.md"| P
+    P -->|"plan + tests"| B
+    B -->|"code"| R
+    R -->|"fixes / flags"| Q
+    Q -->|"verified"| S
+    S -->|"shipped PR"| F
+    F -.->|"improves skills"| T
+```
 ```
 
-Every arrow is an **artifact handoff** (a markdown doc or JSON in `.factory/runs/<id>/`). A skill
-never re-derives what the previous one already decided.
+Every arrow is an **artifact handoff** — a markdown doc or JSON in `.factory/runs/<id>/` (PRD.md,
+plan + tests, code, review/security findings, QA report, the shipped PR, retro learnings). A skill
+never re-derives what the previous one already decided; the dashed loop feeds REFLECT's learnings
+back into the next THINK.
 
 ### 3.2 Three layers
 

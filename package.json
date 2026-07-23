@@ -1,6 +1,6 @@
 {
   "name": "ai-software-factory",
-  "version": "0.30.0",
+  "version": "0.32.0",
   "private": true,
   "description": "Product-agnostic AI engineering workflow: a team of specialist agents that turn a PRD into shipped software.",
   "type": "module",

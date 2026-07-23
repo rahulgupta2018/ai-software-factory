@@ -20,10 +20,23 @@ import { join, resolve } from 'node:path';
 import { parseFrontmatter } from './frontmatter.ts';
 import { parseYamlObject } from './yaml.ts';
 
-/** Keys a human authors in PRD.md frontmatter. */
-export const PRD_KEYS = ['product', 'domain', 'meta'] as const;
+/**
+ * Keys a human authors in PRD.md frontmatter. Mirrors every `x-owner: PRD.md` property in
+ * project-context.schema.json — including the knowledge-domain grounding keys `/discover` elicits
+ * for regulated products (jurisdictions, authority_hierarchy, sources, glossary, confidence_tiers).
+ */
+export const PRD_KEYS = [
+  'product',
+  'domain',
+  'meta',
+  'jurisdictions',
+  'authority_hierarchy',
+  'sources',
+  'glossary',
+  'confidence_tiers',
+] as const;
 
-/** Keys /plan-arch and tooling write to .factory/stack.yaml. */
+/** Keys /plan-arch and tooling write to .factory/stack.yaml (every `x-owner: .factory/stack.yaml`). */
 export const STACK_KEYS = [
   'tech_stack',
   'commands',
@@ -31,6 +44,8 @@ export const STACK_KEYS = [
   'guardrails',
   'escalation_policy',
   'tech_bindings',
+  'compliance_rules',
+  'tenancy',
 ] as const;
 
 /** Keys nobody authors — sync-context derives them for library compatibility. */

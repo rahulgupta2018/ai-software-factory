@@ -79,9 +79,10 @@ Activate when:
   scope back to a shippable V1. Ask "what would make this a must-have, not a nice-to-have?"
 - **Problem before solution.** Nail the problem and the user before enumerating features. A
   feature list without a sharp problem is a wish list.
-- **PRD.md is the artifact.** Everything you learn lands in the product's `PRD.md` — frontmatter
-  for product identity, body for requirements. You draft it; later `/plan-*` skills refine it.
-  The machine half (`.factory/stack.yaml`) belongs to `/plan-arch` and stays empty until then.
+- **Two artifacts.** The durable one is `PRD.md` — frontmatter for product identity, body for
+  requirements; you draft it, later `/plan-*` skills refine it. The run-scoped one is
+  `01-discover.md`, the interrogation record `/plan-arch` reads. The machine half
+  (`.factory/stack.yaml`) belongs to `/plan-arch` and stays empty until then.
 
 ## Workflow
 
@@ -95,6 +96,9 @@ Freedom level: **medium** — follow the sequence, adapt the questions to the id
    - The strongest version: what would make this a 10-star product?
    - Goals & non-goals: what must be true; what's explicitly out.
    - Constraints: budget, timeline, existing systems, compliance.
+   - Domain grounding **(regulated / knowledge domains only)**: which jurisdictions apply, the
+     authority hierarchy (e.g. statute → regulation → regulator guidance → best practice), and the
+     primary sources that govern the domain. Skip entirely for ordinary consumer products.
 3. **Reframe.** Reflect back the sharpest version of the product. Name the one job it must nail.
 4. **Prioritise features into lanes:** V1 (must ship), Fast-follow, Later.
 5. **Define success metrics.** Concrete and measurable.
@@ -102,9 +106,23 @@ Freedom level: **medium** — follow the sequence, adapt the questions to the id
    - Body: fill sections 1–10.
    - Frontmatter: set `product.name/code/description`, `status: in-design`, and `domain` if the
      product has one.
+   - **Regulated / knowledge domains only:** also set `jurisdictions`, `authority_hierarchy`, and
+     `sources` in the frontmatter — all human-owned (PRD.md), and what the vendored knowledge craft
+     skills bind to. Omit them for ordinary products; don't invent a legal frame that isn't there.
    - **Never touch `.factory/stack.yaml`.** Tech stack and commands are `/plan-arch`'s to write;
-     writing them here is an ownership violation and `fac sync-context` will reject it.
-7. **Persist & hand off.** Save `PRD.md` and run `fac sync-context`. Point the user to
+     writing them here is an ownership violation and `fac sync-context` will reject it. (Note
+     `compliance_rules` is stack-owned — it is `/plan-arch`'s to record, not yours.)
+7. **Record the discovery as a run artifact.** Under an active run, write `01-discover.md` — the
+   interrogation record `/plan-arch` reads: the sharpened problem, the personas, the options you
+   weighed, why this V1, and the open questions.
+
+   `fac run artifact --seq 1 --step discover --body-file discover-notes.md`
+
+   **Pass no `--inputs`.** Discover's input is the idea in the conversation, not a file, so it has
+   nothing upstream to go stale against. `PRD.md` is discover's *output* — recording it as an input
+   would make a later human PRD edit re-run discover and clobber that edit. A PRD edit re-opens
+   `/plan-arch`, not `/discover`.
+8. **Persist & hand off.** Save `PRD.md`, run `fac sync-context`, then point the user to
    `/plan-product` (scope review) or `/plan-arch` (architecture).
 
 ## Practical Guidance
@@ -129,7 +147,8 @@ Output: PRD.md draft — problem (repairs slip through email/phone), personas (l
 ## Guidelines
 
 1. Never write code or pick a tech stack in `/discover`.
-2. Always produce or update a `PRD.md` — the session isn't done until the artifact exists.
+2. Always produce or update a `PRD.md`, and record `01-discover.md` under an active run — the
+   session isn't done until both artifacts exist.
 3. Every feature is tagged V1 / Fast-follow / Later. No unprioritised feature lists.
 4. Set `product.status: in-design` when you hand off.
 
@@ -145,6 +164,8 @@ Output: PRD.md draft — problem (repairs slip through email/phone), personas (l
 - `plan-arch` — reads the PRD and writes `.factory/stack.yaml` (`tech_stack.components[]`,
   `commands`).
 - `strategy-advisor` (craft) — option generation and trade-off framing during interrogation.
+- Run harness (`fac run`) — records the interrogation as `01-discover.md` with no staleness
+  inputs; a later PRD edit re-opens `/plan-arch`, not this step.
 
 ## References
 

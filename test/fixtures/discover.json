@@ -1,0 +1,37 @@
+{
+  "skill": "discover",
+  "intent": "The pipeline's front door: interrogates a raw idea, nails the problem and user before features, drafts the human half of PRD.md with prioritised V1 scope and status in-design, records a 01-discover run artifact, and never leaks into tech-stack decisions.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "produces-prd-in-design",
+      "criterion": "Produces/updates PRD.md and sets status to in-design at handoff.",
+      "weight": 3,
+      "anchors": { "require_all": ["PRD.md", "in-design"] }
+    },
+    {
+      "name": "problem-before-features",
+      "criterion": "Sharpens the problem and the strongest version before enumerating features.",
+      "weight": 2,
+      "anchors": { "any": ["Problem before solution", "10-star"], "min_any": 1 }
+    },
+    {
+      "name": "prioritised-lanes",
+      "criterion": "Every feature is tagged into V1 / Fast-follow / Later lanes.",
+      "weight": 2,
+      "anchors": { "require_all": ["V1", "Fast-follow"] }
+    },
+    {
+      "name": "no-stack-leak",
+      "criterion": "Captures constraints only; never picks a language, framework, or tech stack.",
+      "weight": 2,
+      "anchors": { "any": ["Never write code or pick a tech stack", "capture constraints", "not stack decisions"], "min_any": 1 }
+    },
+    {
+      "name": "records-run-artifact",
+      "criterion": "Wires into the run harness: writes 01-discover.md via `fac run artifact`.",
+      "weight": 2,
+      "anchors": { "require_all": ["01-discover", "fac run artifact"] }
+    }
+  ]
+}

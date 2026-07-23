@@ -345,6 +345,25 @@ export function setRunStatus(repoRoot: string, id: string, status: RunMeta['stat
   return run;
 }
 
+/** Product names that mean "not yet known" — a run created before /discover filled the PRD. */
+export function isPlaceholderProduct(name: string | undefined): boolean {
+  return !name || name.trim() === '' || name === 'unknown';
+}
+
+/**
+ * Backfill the run's product name once it becomes known. A run is created before `/discover` writes
+ * the PRD, so it is stamped `unknown`; the first step that resolves a real name (discover, once it
+ * has written the PRD) calls this. No-op unless the stored name is a placeholder and `name` is real.
+ */
+export function setRunProduct(repoRoot: string, id: string, name: string): RunMeta {
+  const run = readRun(repoRoot, id);
+  if (isPlaceholderProduct(run.product) && !isPlaceholderProduct(name)) {
+    run.product = name;
+    writeRun(repoRoot, run);
+  }
+  return run;
+}
+
 // ── Artifacts ────────────────────────────────────────────────────────────────
 
 export interface WriteArtifactOpts {

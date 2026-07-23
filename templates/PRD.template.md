@@ -17,6 +17,21 @@ product:
 # Optional — one-line domain statement; frames domain-knowledge craft skills.
 # domain: ""
 
+# Optional — regulated / knowledge domains only. Human-owned; `/discover` fills these when the
+# product has a legal or regulatory frame, and the vendored knowledge craft skills bind to them.
+# Delete for ordinary products.
+# jurisdictions: ["England", "United Kingdom"]
+# authority_hierarchy:
+#   - "Primary legislation"
+#   - "Regulator standards & statutory guidance"
+#   - "Best-practice guidance"
+# sources:
+#   primary:
+#     - name: "<statute or authoritative source>"
+#       url: "https://..."
+#       authority: "Primary legislation"
+#       access: public
+
 meta:
   version: "0.1.0"
   owner: ""

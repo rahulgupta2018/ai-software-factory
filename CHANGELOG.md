@@ -3,6 +3,67 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.32.0.0] — 2026-07-23
+
+**`/discover` can now scope a regulated product, runs are named as soon as their product is, and the Product Strategist no longer carries a browser it never used.**
+
+Rounding out the THINK phase before the Factory takes its first job. Discover can now capture the
+legal frame of a regulated product, a run stops showing up as "unknown", and an unused tool grant
+is gone.
+
+### Added
+- **Domain grounding in `/discover`.** For regulated or knowledge-domain products, discover now
+  interrogates the jurisdictions, authority hierarchy, and primary sources that govern the domain,
+  and writes them into `PRD.md` — where the vendored knowledge craft skills read them. Ordinary
+  consumer products skip it entirely; discover is told not to invent a legal frame that isn't there.
+  The PRD template now shows these optional keys.
+
+### Changed
+- **The two-file ownership model is complete.** Every knowledge-domain key the schema marks
+  human-owned (`jurisdictions`, `authority_hierarchy`, `sources`, `glossary`, `confidence_tiers`)
+  is now recognised as belonging in `PRD.md`, and the stack-owned `compliance_rules` and `tenancy`
+  as belonging in `.factory/stack.yaml`. `fac sync-context` flags either one written to the wrong
+  file, instead of silently ignoring it.
+- **The Product Strategist agent no longer requests browser access** — neither `/discover` nor
+  `/plan-product` used it, so the grant is dropped.
+
+### Fixed
+- **A run is no longer stuck showing `product: unknown`.** Because a run is opened before
+  `/discover` writes the product name, it started life unnamed; it now backfills the real name the
+  moment discover records its first artifact, and never lets a placeholder overwrite a real name.
+
+## [0.31.0.0] — 2026-07-23
+
+**The pipeline's front door is wired in and watched. `/discover` now records its own run artifact, a hand-edited PRD no longer risks being overwritten, and the front door finally has an eval.**
+
+`/discover` — the first step of every product — was the one core skill that never wrote itself
+into the run harness. It drafted `PRD.md` and stopped, so `fac run resume` would report "resume at
+discover (missing)" forever and the run could not advance past THINK. It now writes a
+`01-discover.md` interrogation record like every other step, so a run actually progresses.
+
+That artifact carries **no staleness inputs**, on purpose. Discover's input is your idea in the
+conversation, not a file, and `PRD.md` is its *output* — so a later hand edit to the PRD re-opens
+`/plan-arch` (which reads the PRD), not `/discover`. Re-running discover would have rewritten the
+very edit you just made; now it can't.
+
+And the front door — the highest-variance step, turning a vague idea into a structured PRD — now
+has the eval coverage every other core skill already had.
+
+### Added
+- **`/discover` records `01-discover.md`** — the interrogation record (problem, personas, options
+  weighed, why this V1, open questions) that `/plan-arch` reads, written via `fac run artifact`.
+- **Eval coverage for `/discover`** — a Tier-2 discipline rubric (`test/fixtures/discover.json`:
+  produces an in-design PRD, problem-before-features, prioritised V1/Fast-follow/Later, no
+  tech-stack leak, records its run artifact) and a Tier-3 gate scenario
+  (`test/fixtures/e2e/discover.json`: a one-line idea is interrogated, not answered with a stack).
+
+### Fixed
+- **A run could not leave THINK.** `/discover` never produced the `01-discover.md` the resume model
+  keys off, so the first step looked perpetually unstarted. It now writes it.
+- **A hand-edited PRD could be clobbered.** Discover's run artifact recorded no inputs, so editing
+  `PRD.md` re-opens `/plan-arch` rather than re-running discover over your edit. The pipeline
+  acceptance test now asserts this cascade.
+
 ## [0.30.0.0] — 2026-07-23
 
 **Build knowledge products in the pipeline — ontology design and grounded, cited retrieval are now vendored.**

@@ -212,6 +212,29 @@ describe('PRD / stack ownership split', () => {
       checkOwnership({ ...base, prd: { product: { name: 'x' }, meta: {} }, stack: { tech_stack: {}, commands: {} } }),
     ).toEqual([]);
   });
+
+  test('domain-grounding keys are PRD-owned: allowed in PRD.md, flagged in stack.yaml', () => {
+    // /discover writes these for regulated products (fix #4). The ownership model now knows them.
+    expect(
+      checkOwnership({
+        ...base,
+        prd: { product: { name: 'x' }, jurisdictions: ['England'], authority_hierarchy: ['statute'], sources: {} },
+        stack: {},
+      }),
+    ).toEqual([]);
+
+    const leaked = checkOwnership({ ...base, prd: { product: { name: 'x' } }, stack: { jurisdictions: ['England'] } });
+    expect(leaked).toHaveLength(1);
+    expect(leaked[0].file).toBe('stack.yaml');
+    expect(leaked[0].key).toBe('jurisdictions');
+  });
+
+  test('compliance_rules is stack-owned: flagged if it leaks into PRD.md', () => {
+    const issues = checkOwnership({ ...base, prd: { product: { name: 'x' }, compliance_rules: [] }, stack: {} });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('PRD.md');
+    expect(issues[0].key).toBe('compliance_rules');
+  });
 });
 
 describe('compatibility bridge', () => {

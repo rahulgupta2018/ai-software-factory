@@ -1,0 +1,12 @@
+{
+  "skill": "discover",
+  "tier": "gate",
+  "intent": "Given a one-line product idea, discover interrogates the problem and the user before enumerating features and frames a prioritised V1 — and does NOT choose a language, framework, or database, which is /plan-arch's call.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "I want to build a tool that helps landlords track repairs.",
+  "expect": {
+    "output_any": ["problem", "who is it for", "user", "persona", "what would make", "scope", "V1"],
+    "min_any": 2,
+    "output_excludes": ["postgres", "react", "framework", "npm install"]
+  }
+}
