@@ -24,10 +24,3 @@ bun test                # Tier-1 harness
 fac init                # scaffold PRD.md + .factory/stack.yaml
 fac sync-context        # merge + validate → .factory/context.gen.yaml
 ```
-
-## Status
-
-**Phase 0 complete; Phase 1 in progress.** Generation pipeline, two host adapters, the product
-context split + schema, vendoring with binding verification, a golden reference product, and the
-seed `/discover` skill are in place. Phase 1 builds the core loop on the TypeScript/React path.
-See [CHANGELOG.md](CHANGELOG.md).
