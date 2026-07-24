@@ -49,7 +49,7 @@ Activate when:
 ## Core Concepts
 
 - **The investigation is the artifact.** The reproduction, the hypotheses tried and rejected, the
-  isolated cause, and the proposed fix are recorded as a run artifact (`NN-investigate.md`) so the
+  isolated cause, and the proposed fix are recorded as a sub-sequenced run artifact (`05a-investigate.md`) so the
   next person (or agent) doesn't re-derive it.
 - **Reproduce first.** A bug you can't reproduce, you can't confirm you fixed. Establish a reliable
   repro (or the smallest failing test) before hypothesising.
@@ -76,10 +76,14 @@ Freedom level: **low** — the method is disciplined; the order is load-bearing.
    cause in one sentence and the evidence that confirms it.
 6. **Scope the minimal fix.** Propose the smallest change that removes the cause (not the symptom),
    and name a regression test that fails before / passes after.
-7. **Write the investigation as a run artifact.** Under an active run:
+7. **Write the investigation as a run artifact.** An investigation is a **branch artifact** with a
+   sub-sequence seq — the next free letter under the step that surfaced the bug (e.g. `5a` after a
+   `/qa` failure, `4a` after `/review`):
    ```bash
-   fac run artifact --step investigate --inputs <repro-or-log> --body-file investigation.md
+   fac run artifact --seq 5a --step investigate --body-file investigation.md
    ```
+   **No `--inputs`:** the repro/log is ephemeral (a stack trace or a failing run), not a file to
+   hash — like `/discover`, the investigation has nothing upstream to go stale against.
 8. **Hand off.** Point the build loop at the fix: `tdd-red-green-refactor` writes the failing
    regression test, the Implementer makes it pass, then `/review`.
 
@@ -103,7 +107,7 @@ Steps:  repro made deterministic by asserting after the mutation resolves →
         (c) key collision. Test (a): invalidate → still stale (reject). Test (b): await
         refetch → correct (confirm). Root cause: optimistic update applied, refetch keyed
         on stale filter so it no-ops.
-Output: run artifact NN-investigate.md — cause in one line + evidence; minimal fix (key the
+Output: run artifact 05a-investigate.md — cause in one line + evidence; minimal fix (key the
         refetch on the active filter); regression test that fails before / passes after.
 Handoff → tdd-red-green-refactor writes the test, Implementer applies the fix, /review.
 ```
@@ -135,7 +139,7 @@ Handoff → tdd-red-green-refactor writes the test, Implementer applies the fix,
 - `qa` / `qa-report` — feed bugs into `/investigate`; it explains them.
 - `security` — a vulnerability confirmed as an incident routes here for root-cause; a class-level
   hunt stays in `/security`.
-- Run harness (`fac run`) — records the investigation as `NN-investigate.md`.
+- Run harness (`fac run`) — records the investigation as a sub-sequenced `05a-investigate.md`.
 
 ## References
 

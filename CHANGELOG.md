@@ -3,6 +3,36 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.35.0.0] — 2026-07-24
+
+**The REVIEW phase records its artifacts correctly — `/review` stops colliding with the build, the audit/debug/second-opinion commands actually run, and the egress-screening skill is finally tested.**
+
+REVIEW had the same broken run-artifact commands that PLAN and BUILD did, plus one worse: `/review`
+wrote into the build's slot. All four review skills now record where they belong, and the phase's
+most safety-critical skill — the one that sends data to an external model — now has an eval that
+checks it screens first.
+
+### Added
+- **Eval coverage for the REVIEW holes** — a Tier-2 rubric for `/review` (fixed priority order,
+  security hard-gate, safe-auto-fix-only) and for `/second-opinion` (mandatory egress redaction,
+  three modes, advisory-only), plus Tier-3 gate scenarios for `/security` and `/second-opinion`.
+  Every one is proven to fail when its discipline is stripped.
+
+### Fixed
+- **`/review` wrote `03-review.md`, colliding with the build artifacts.** It now records
+  `04-review.md` (`--seq 4`), its correct slot after the builds, and is filed under the `Review`
+  layer instead of `Build`.
+- **`/security`, `/investigate`, and `/second-opinion` gave run-artifact commands the CLI rejected**
+  (missing `--seq`; `/security` and `/investigate` also passed literal `<scope>`/`<repro-or-log>`
+  placeholders). They now record as branch artifacts — `04a-security.md`, `05a-investigate.md`,
+  `02a-second-opinion.md` — with real inputs.
+- **`/review` recorded the wrong staleness input.** It now records the `03-build-*.md` artifacts it
+  reviewed (the phase handoff), so a re-build re-opens the review — instead of a placeholder pointing
+  at the working tree.
+- **`/second-opinion` was filed under the wrong layer** (`Ops`) — corrected to `Review`.
+- **`/review` could skip QA on handoff.** The default path is now `/review → /qa → /ship`; a change
+  with no runnable surface still clears straight to `/ship`.
+
 ## [0.34.0.0] — 2026-07-24
 
 **BUILD is now a real phase: the code-producing step records its work, reads the design it's handed, is evaluated like every other phase, and a product finally gets the skill versions it pins.**

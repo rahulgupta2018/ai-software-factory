@@ -1,0 +1,37 @@
+{
+  "skill": "second-opinion",
+  "intent": "Cross-model consult: sends a plan/diff/decision to a different model, but routes every outbound byte through the redaction guard first (HIGH secrets hard-block), runs in review/challenge/consult modes, stays advisory (never edits code or makes the call), and records the consult + decision.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "mandatory-redaction",
+      "criterion": "Every outbound byte passes the redaction guard first; a HIGH secret hard-blocks.",
+      "weight": 3,
+      "anchors": { "require_all": ["redact", "HIGH"], "any": ["redactForSink", "fac redact"], "min_any": 1 }
+    },
+    {
+      "name": "three-modes",
+      "criterion": "Runs in explicit review / challenge / consult modes.",
+      "weight": 2,
+      "anchors": { "any": ["challenge", "consult"], "min_any": 2 }
+    },
+    {
+      "name": "advisory-not-authoritative",
+      "criterion": "Advisory only — the other model informs the call, it doesn't make it or edit code.",
+      "weight": 2,
+      "anchors": { "any": ["Advisory", "does not apply changes", "never edits", "doesn't make it"], "min_any": 1 }
+    },
+    {
+      "name": "external-model",
+      "criterion": "Dispatches to a different, external model for a genuinely independent read.",
+      "weight": 2,
+      "anchors": { "any": ["different model", "cross-model", "external"], "min_any": 1 }
+    },
+    {
+      "name": "records-consult",
+      "criterion": "Records the consult as a run artifact and a durable decision.",
+      "weight": 1,
+      "anchors": { "any": ["fac run artifact", "fac decision"], "min_any": 1 }
+    }
+  ]
+}

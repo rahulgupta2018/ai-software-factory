@@ -49,7 +49,7 @@ Activate when:
 ## Core Concepts
 
 - **The audit is the artifact.** Scope, threat model, findings (with severity/evidence/fix), and
-  residual risk are recorded as a run artifact (`NN-security.md`).
+  residual risk are recorded as a sub-sequenced run artifact (`04a-security.md`).
 - **Two lenses, one pass.** Walk the **OWASP Top 10** (injection, broken auth, broken access
   control, cryptographic failures, SSRF, misconfig, vulnerable dependencies, integrity/SSRF, logging
   gaps) and **STRIDE** (Spoofing, Tampering, Repudiation, Information disclosure, Denial of service,
@@ -98,10 +98,13 @@ Freedom level: **low** — the coverage is a checklist; skipping a category is a
    anything you can't exploit to an informational note (the FP gate).
 7. **Rank and fix.** Severity = impact × exploitability. For each finding, give evidence (file +
    line) and a specific remediation.
-8. **Write the audit as a run artifact.** Under an active run:
+8. **Write the audit as a run artifact.** A security audit is a **branch artifact** with a
+   sub-sequence seq — the next free letter under the step it follows (`4a` after `/review`, step 4):
    ```bash
-   fac run artifact --step security --inputs <scope> --body-file security-audit.md
+   fac run artifact --seq 4a --step security --inputs .factory/runs/$RUN/03-build-<component>.md --body-file security-audit.md
    ```
+   Record the built artifacts under audit as inputs so a re-build re-opens the audit; **omit
+   `--inputs`** for a standalone whole-codebase audit (nothing upstream to hash).
 9. **Hand off / gate.** Critical/High findings on a change bound for production are a **hard gate**
    (`escalation_policy`): stop, report, and require a fix before `/deploy`. A public endpoint that
    fails the transport (TLS) policy is likewise a hard gate `/deploy` re-checks mechanically.
@@ -123,7 +126,7 @@ Input:  diff adds a repairs search endpoint building a Cypher query by string co
 Audit:  trust boundary = HTTP query param → Neo4j. OWASP A03 Injection + STRIDE Tampering.
         Exploit confirmed: `" OR 1=1 //` returns all tenants' repairs (also breaks tenant
         isolation per guardrails).
-Output: run artifact NN-security.md — finding CRITICAL: Cypher injection + cross-tenant leak,
+Output: run artifact 04a-security.md — finding CRITICAL: Cypher injection + cross-tenant leak,
         evidence (file:line), fix (parameterised query + tenant scope in WHERE). One Medium:
         error response leaks stack trace. FP gate dropped a "verbose logging" note to
         informational (no exploit path).
@@ -158,7 +161,7 @@ Gate:   Critical on a production-bound change → hard stop before /deploy.
 - `review` — may invoke `/security` for security-sensitive diffs; `/security` returns findings.
 - `investigate` — a confirmed, exploited vulnerability routes there for incident root-cause.
 - `deploy` — Critical/High findings are a hard gate before it runs.
-- Run harness (`fac run`) — records the audit as `NN-security.md`.
+- Run harness (`fac run`) — records the audit as a sub-sequenced `04a-security.md`.
 
 ## References
 

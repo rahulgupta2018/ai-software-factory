@@ -1,0 +1,12 @@
+{
+  "skill": "security",
+  "tier": "gate",
+  "intent": "Given a change to audit, the security pass maps trust boundaries and walks OWASP + STRIDE, reports each finding as a concrete exploit path with a severity and fix, and drops no-exploit worries to notes — it does not rubber-stamp and it does not flood with theoretical 'consider' noise.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "Audit this change: a repairs search endpoint that builds a database query by concatenating the user's query-string parameter.",
+  "expect": {
+    "output_any": ["injection", "OWASP", "STRIDE", "trust boundary", "severity", "parameterise"],
+    "min_any": 2,
+    "output_excludes": ["looks fine, no security concerns", "let's start coding"]
+  }
+}

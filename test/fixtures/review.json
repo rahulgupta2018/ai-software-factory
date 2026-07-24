@@ -1,0 +1,37 @@
+{
+  "skill": "review",
+  "intent": "Pre-landing diff review: reviews the change in a fixed priority order (Security → Performance → Correctness → Maintainability → Testing), auto-fixes only behaviour-preserving issues and flags the rest, hard-gates on security findings, and records a 04-review.md artifact.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "priority-order",
+      "criterion": "Reviews in the fixed order: Security → Performance → Correctness → Maintainability → Testing.",
+      "weight": 3,
+      "anchors": { "require_all": ["Security", "Performance", "Correctness", "Maintainability", "Testing"] }
+    },
+    {
+      "name": "security-hard-gate",
+      "criterion": "An unresolved security finding is a hard gate; /ship does not proceed past it.",
+      "weight": 2,
+      "anchors": { "require_all": ["hard gate"] }
+    },
+    {
+      "name": "auto-fix-safe-only",
+      "criterion": "Auto-fixes only behaviour-preserving changes; flags anything that alters design/behaviour.",
+      "weight": 2,
+      "anchors": { "any": ["behaviour-preserving", "flag"], "min_any": 1 }
+    },
+    {
+      "name": "diff-scoped",
+      "criterion": "Reviews the diff against the base, not the whole repo.",
+      "weight": 2,
+      "anchors": { "any": ["git diff", "the diff"], "min_any": 1 }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the report as the 04-review.md run artifact (not 03, which collides with builds).",
+      "weight": 1,
+      "anchors": { "require_all": ["fac run artifact", "04-review"] }
+    }
+  ]
+}

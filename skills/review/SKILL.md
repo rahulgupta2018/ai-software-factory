@@ -10,8 +10,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Build
+  last_updated: 2026-07-24
+  layer: Review
   priority: V1
 ---
 
@@ -83,9 +83,10 @@ Activate when:
   (`git diff <base>...HEAD`), not the whole repo. Scope keeps the review sharp and re-runnable.
 - **Priority order is fixed.** Security → Performance → Correctness → Maintainability → Testing.
   Higher-priority findings are addressed first; a security finding outranks a style nit every time.
-- **The report is the artifact.** Findings land in `.factory/runs/<id>/NN-review.md` with
-  file/line references, severity, and a fix. The artifact records the diff's inputs so resume
-  re-runs the review when the code changes (make-like cascade).
+- **The report is the artifact.** Findings land in `.factory/runs/<id>/04-review.md` with
+  file/line references, severity, and a fix. Review reads the *diff*, but records the **build
+  artifacts it reviewed** (`03-build-*.md`) as its run inputs — so a re-build (a new diff) re-opens
+  the review (make-like cascade).
 - **Auto-fix the safe, flag the rest.** Apply mechanical, low-risk fixes (obvious bugs, missing
   error handling at boundaries, lint) directly. Anything that changes behaviour or design gets
   flagged for the author, not silently rewritten.
@@ -115,13 +116,17 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
    idiom- and MASVS-level findings). Treat failures as findings.
 5. **Apply safe auto-fixes.** Mechanical, behaviour-preserving fixes only. Re-run the checks.
 6. **Write the report artifact.** Record findings with severity, `path:line`, and a fix under an
-   active run:
+   active run. Record the **build artifacts you reviewed** as inputs (not the working-tree files),
+   so a re-build re-opens the review:
    ```bash
-   fac run artifact --seq 3 --step review --inputs <changed-files> --body-file review.md
+   fac run artifact --seq 4 --step review --inputs .factory/runs/$RUN/03-build-<component>.md --body-file review.md
    ```
+   `--seq 4`: review is the fourth linear step (`04-review.md`), after the builds (`03-build-*`) —
+   never `--seq 3`, which would collide with a build artifact.
 7. **Gate.** If any unresolved **security** finding remains, this is a **hard gate** — stop and
    surface it; do not hand off to `/ship`. Otherwise, routine findings are advisory.
-8. **Hand off.** Point the user to `/qa` (exercise the app) or `/ship` (land the change).
+8. **Hand off.** Hand a clean change to `/qa` to exercise the running app (then `/ship`). A change
+   with no runnable surface (a pure refactor / back-end-only slice) clears straight to `/ship`.
 
 ## Practical Guidance
 
@@ -136,7 +141,7 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
 ```
 Input:  diff on feature/repair-status — adds a Postgres query built by string concatenation and
         a new endpoint with no authz check.
-Output: 03-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 → parameterise;
+Output: 04-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 → parameterise;
         SECURITY (high): missing authz at repairs/routes.ts:18 → require session role.
         Auto-fixed: lint + an unhandled Promise rejection. Hard gate raised — /ship blocked
         until the two security findings are resolved.
@@ -163,7 +168,7 @@ Output: 03-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 �
 - `fullstack-developer` / `python-expert` / `java-quarkus-expert` / `flutter-dart-expert` (craft) —
   write the code `/review` inspects.
 - `code-reviewer` (ported craft) — the indexed rule catalogue `/review` applies.
-- Run harness (`fac run`) — stores the review report; resume re-runs review when the diff changes.
+- Run harness (`fac run`) — stores the review report; resume re-runs review when a build artifact changes.
 - `qa` — exercises the running app after review.
 - `ship` — the landing step gated by this review.
 
@@ -171,5 +176,5 @@ Output: 03-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 �
 
 - Rule catalogue: ported `code-reviewer` skill (`vendor-skills/code-reviewer/`)
 - Commands + guardrails: merged product context (`.factory/context.gen.yaml`)
-- Run artifacts: `.factory/runs/<id>/NN-review.md`
+- Run artifacts: `.factory/runs/<id>/04-review.md`
 - Related skills: `qa`, `ship`, `investigate`, `security`

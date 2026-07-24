@@ -32,11 +32,13 @@ findings are a hard gate.
    severity, and a concrete fix.
 4. Run the component checks; fold failures into the findings.
 5. Auto-fix the mechanical, behaviour-preserving issues; re-run the checks.
-6. Write the review report as a run artifact (`fac run artifact --step review`).
+6. Write the review report as a run artifact (`fac run artifact --seq 4 --step review`, recording
+   the `03-build-*.md` artifacts reviewed as inputs).
 7. If a security finding is unresolved, stop (hard gate). Otherwise hand off to **qa-engineer**.
 
 ## Artifact contract
 
-- **Consumes:** the implementer's diff (changed-file list) and the merged context.
-- **Produces:** `NN-review.md` — findings (severity, `path:line`, fix), checks run, auto-fixes.
+- **Consumes:** the implementer's diff (changed-file list) and the merged context; records the
+  `03-build-*.md` build artifacts as run inputs (the phase handoff), so a re-build re-opens review.
+- **Produces:** `04-review.md` — findings (severity, `path:line`, fix), checks run, auto-fixes.
 - **Handoff:** to `qa-engineer` when clean of security findings; back to `implementer` otherwise.

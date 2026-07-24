@@ -5,8 +5,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-24
+  layer: Review
   priority: FF
 ---
 
@@ -104,9 +104,11 @@ Freedom level: **medium** — frame, screen, send, synthesise.
 3. **Send to the configured model** (host-configured external reviewer) with the screened prompt.
 4. **Synthesise, don't parrot.** Weigh the response against the in-model view; call out where they
    agree (higher confidence), where they diverge (dig in), and what you'd actually change.
-5. **Record the consult and any resulting decision:**
+5. **Record the consult and any resulting decision.** A consult is a **branch artifact** with a
+   sub-sequence seq — the next free letter under the step you're consulting on (e.g. `2a` on a plan,
+   `4a` on a review):
    ```bash
-   fac run artifact --step second-opinion --body-file second-opinion.md
+   fac run artifact --seq 2a --step second-opinion --body-file second-opinion.md
    fac decision log --decision "…" --rationale "second-opinion: …" --scope repo --source agent --confidence 7
    ```
 
@@ -119,7 +121,7 @@ Steps:  Frame: "argue why this token-rotation design is wrong." Screen the plan 
         fac redact → 1 MEDIUM (an example bearer token) redacted; clean to send. Send to Codex.
         Response: flags a race between rotation and in-flight requests the in-model plan missed.
 Output: second-opinion.md — both models like the rotation cadence; the external one surfaces a
-        rotation/in-flight race → add a grace window. Logged as a decision. NN-second-opinion.md
+        rotation/in-flight race → add a grace window. Logged as a decision. 02a-second-opinion.md
         recorded.
 Handoff → /plan-arch folds the grace window into the design.
 ```
@@ -150,7 +152,7 @@ Handoff → /plan-arch folds the grace window into the design.
 - `review` — the in-model counterpart; `/second-opinion` adds the external, cross-model read.
 - `fac decision` — records a durable outcome from the consult.
 - Host config — supplies the external model (e.g. Codex); the skill stays model-agnostic.
-- Run harness (`fac run`) — records the consult as `NN-second-opinion.md`.
+- Run harness (`fac run`) — records the consult as a sub-sequenced `02a-second-opinion.md`.
 
 ## References
 
