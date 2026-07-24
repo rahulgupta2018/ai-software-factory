@@ -71,8 +71,8 @@ on a stack.
 ## When to Activate
 
 Activate when:
-- A `PRD.md` draft exists (`status: draft`/`in-review`) and needs a decision-quality review before
-  architecture.
+- A `PRD.md` exists (`status: draft` or `in-design`) and needs a decision-quality review before
+  architecture. (`/discover` hands off at `in-design`; a hand-authored PRD may still be `draft`.)
 - The user asks "is this the right thing to build", "review the plan/PRD", "should we cut scope",
   or "what's the 10-star version".
 
@@ -88,7 +88,7 @@ Activate when:
 ## Core Concepts
 
 - **The review is the artifact.** Mode, scores, the sharpened problem/scope, and next steps are
-  recorded as a run artifact (`NN-plan-product.md`) and fold back into `PRD.md`.
+  recorded as a run artifact (`01a-plan-product.md`) and fold back into `PRD.md`.
 - **Three modes, pick one.** **Expand** — find the bigger, better product hiding in a timid ask.
   **Hold** — the scope is right; pressure-test assumptions and de-risk. **Reduce** — cut to the
   irreducible V1 that still delivers the core value.
@@ -113,9 +113,11 @@ Freedom level: **medium** — the mode and scoring are fixed; the judgement is y
    metrics), each with the concrete gap to a 10.
 5. **Decide and sharpen.** Recommend the path; rewrite the problem statement, user, and V1 scope in
    the PRD's own terms.
-6. **Write the review as a run artifact.** Under an active run:
+6. **Write the review as a run artifact.** A plan-product review sits between `/discover` (01) and
+   `/plan-arch` (02), so it is a **branch artifact** with a sub-sequence seq — the next free letter
+   under step 1:
    ```bash
-   fac run artifact --step plan-product --inputs PRD.md --body-file plan-review.md
+   fac run artifact --seq 1a --step plan-product --inputs PRD.md --body-file plan-review.md
    ```
 7. **Hand off.** A sharpened, settled PRD goes to `/plan-arch` (stack) and, if it has a UI,
    `/plan-design`.
@@ -137,7 +139,7 @@ Mode:   Reduce (scope too wide for a V1).
 Options (strategy-advisor): (a) full asset-management suite, (b) repairs-only tracker,
         (c) reminders-only. Criteria: time-to-value, defensibility, build cost.
 Scores: problem 7, ICP 5 (which housing role?), differentiation 6, scope realism 4, metrics 3.
-Output: run artifact NN-plan-product.md — recommend (b) repairs-only V1 for housing officers;
+Output: run artifact 01a-plan-product.md — recommend (b) repairs-only V1 for housing officers;
         sharpened problem + ICP + V1 scope + a success metric (median time-to-assign).
 Handoff → /plan-arch (stack), then /plan-design (it has a UI).
 ```
@@ -165,7 +167,7 @@ Handoff → /plan-arch (stack), then /plan-design (it has a UI).
 - `strategy-advisor` (craft) — supplies option generation and trade-off analysis.
 - `plan-arch` — receives the sharpened, settled PRD to design a stack.
 - `plan-design` — receives it downstream when there's a UI.
-- Run harness (`fac run`) — records the review as `NN-plan-product.md`.
+- Run harness (`fac run`) — records the review as `01a-plan-product.md`.
 
 ## References
 

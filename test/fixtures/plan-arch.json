@@ -1,0 +1,43 @@
+{
+  "skill": "plan-arch",
+  "intent": "The Factory's architect: reads the settled PRD and the discovery record, writes the machine-owned stack.yaml (languages, per-component frameworks, commands, craft-skill routing, guardrails/escalation), never touches the human half, and records the decision as a run artifact.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "writes-machine-half",
+      "criterion": "Produces the machine-owned .factory/stack.yaml — the architecture record.",
+      "weight": 3,
+      "anchors": { "require_all": ["stack.yaml", "machine"] }
+    },
+    {
+      "name": "ownership-enforced",
+      "criterion": "Writes only the machine half; never product/domain/meta (an ownership violation).",
+      "weight": 2,
+      "anchors": { "any": ["ownership violation", "Never touch"], "min_any": 1 }
+    },
+    {
+      "name": "language-routing",
+      "criterion": "Routes each component's language to the matching craft skill, mobile included.",
+      "weight": 2,
+      "anchors": { "require_all": ["Language routing"], "any": ["flutter-dart-expert", "java-quarkus-expert", "python-expert"], "min_any": 2 }
+    },
+    {
+      "name": "reads-discovery-record",
+      "criterion": "Consumes the THINK handoff — PRD.md plus the 01-discover.md interrogation record.",
+      "weight": 2,
+      "anchors": { "require_all": ["01-discover"], "any": ["discovery record"], "min_any": 1 }
+    },
+    {
+      "name": "guardrails-and-escalation",
+      "criterion": "Sets guardrails/escalation and per-component commands from the PRD's risk surface.",
+      "weight": 2,
+      "anchors": { "any": ["escalation_policy", "warn_tokens"], "min_any": 1 }
+    },
+    {
+      "name": "records-run-artifact",
+      "criterion": "Records the architecture rationale as a run artifact (02-plan-arch.md).",
+      "weight": 2,
+      "anchors": { "require_all": ["fac run artifact", "02-plan-arch"] }
+    }
+  ]
+}

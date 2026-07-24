@@ -51,6 +51,12 @@ const REFERENCE_PRODUCT_JAVA = join(import.meta.dir, '..', 'examples', 'referenc
 interface Component {
   name: string;
   language: string;
+  framework?: string;
+}
+
+/** A component has a UI surface (and therefore a design spec) when it is a React or Flutter app. */
+function hasUI(c: Component): boolean {
+  return c.framework === 'react' || c.framework === 'flutter';
 }
 
 /** A single step the orchestrator drives: what it writes and what it read to write it. */
@@ -68,11 +74,22 @@ interface DriveStep {
  */
 function planFor(id: string, components: Component[]): DriveStep[] {
   const runRel = (file: string) => `.factory/runs/${id}/${file}`;
+  const anyUI = components.some(hasUI);
+
+  // /plan-design is a gating step when any component has a UI: it writes 02a-plan-design.md, and
+  // the UI-component builds record it as an input so a design change re-opens exactly those builds.
+  const designStep: DriveStep[] = anyUI
+    ? [{ seq: 2, step: 'plan-design', file: '02a-plan-design.md', inputs: ['PRD.md', '.factory/stack.yaml'] }]
+    : [];
+
   const buildSteps: DriveStep[] = components.map((c) => ({
     seq: 3,
     step: `build-${c.name}`,
     file: `03-build-${c.name}.md`,
-    inputs: [runRel('02-plan-arch.md')],
+    // Every build reads the architecture; a UI component also reads the UI spec (design→build).
+    inputs: hasUI(c)
+      ? [runRel('02-plan-arch.md'), runRel('02a-plan-design.md')]
+      : [runRel('02-plan-arch.md')],
   }));
   const buildFiles = buildSteps.map((s) => runRel(s.file));
   return [
@@ -83,9 +100,13 @@ function planFor(id: string, components: Component[]): DriveStep[] {
     {
       seq: 2,
       step: 'plan-arch',
+      // plan-arch reads what it is HANDED — PRD.md + the discovery record — and WRITES stack.yaml.
+      // stack.yaml is its output, not an input: recording it would make a stack edit re-run the
+      // step that wrote it (the same self-referential trap discover had with PRD.md).
       file: '02-plan-arch.md',
-      inputs: ['PRD.md', '.factory/stack.yaml', runRel('01-discover.md')],
+      inputs: ['PRD.md', runRel('01-discover.md')],
     },
+    ...designStep,
     ...buildSteps,
     { seq: 4, step: 'review', file: '04-review.md', inputs: buildFiles },
     { seq: 5, step: 'qa', file: '05-qa.md', inputs: buildFiles },
@@ -156,6 +177,7 @@ describe('pipeline acceptance — reference product', () => {
     expect(present).toEqual([
       '01-discover.md',
       '02-plan-arch.md',
+      '02a-plan-design.md', // web + mobile are UI surfaces, so a design spec gates their builds
       '03-build-api.md',
       '03-build-mobile.md',
       '03-build-reminders.md',
@@ -195,18 +217,20 @@ describe('pipeline acceptance — reference product', () => {
 
     // Re-run /plan-arch with a new result (simulating a corrected architecture). Its hash changes,
     // so the first build step that recorded it as input goes stale — the cascade is automatic.
+    // (plan-design, at index 2, reads PRD + stack — not plan-arch — so it stays fresh.)
     writeArtifact({
       repoRoot: repo,
       id,
       seq: 2,
       step: 'plan-arch',
       file: '02-plan-arch.md',
-      inputs: ['PRD.md', '.factory/stack.yaml', `.factory/runs/${id}/01-discover.md`],
+      inputs: ['PRD.md', `.factory/runs/${id}/01-discover.md`],
       body: '# plan-arch\n\nrevised architecture.\n',
     });
 
     const resume = findResumePoint(repo, runDir(repo, id), plan as PlanStep[]);
-    expect(resume).toMatchObject({ done: false, index: 2 }); // 03-build-api, the first build step
+    // discover(0), plan-arch(1), plan-design(2), build-api(3) — the first build is the first stale.
+    expect(resume).toMatchObject({ done: false, index: 3 });
     if (!resume.done) {
       expect(resume.step.file).toBe('03-build-api.md');
       expect(resume.reason).toMatch(/02-plan-arch\.md changed/);
@@ -263,12 +287,12 @@ describe('pipeline acceptance — reference product', () => {
         file: s.file,
         step: s.step,
         status: 'ok',
-        tokens_in: 20000,
-        tokens_out: 20000,
+        tokens_in: 18000,
+        tokens_out: 18000,
       }),
     );
 
-    // 9 steps × 40k = 360k — under the 400k threshold, so no warning.
+    // 10 steps × 36k = 360k — under the 400k threshold, so no warning.
     expect(budgetStatus(readRun(repo, id), warn).warn).toBe(false);
     // Push spend past the threshold: it warns, it does not throw or halt.
     recordStep(repo, id, {
@@ -309,6 +333,76 @@ describe('pipeline acceptance — reference product', () => {
     // Two independent completed runs coexist — not a one-off.
     expect(existsSync(join(runDir(repo, first), '06-ship.md'))).toBe(true);
     expect(existsSync(join(runDir(repo, second), '06-ship.md'))).toBe(true);
+  });
+
+  test('advisory branch artifacts get a sub-sequence slot and do not change resume', () => {
+    // A plan-product review (01a, between discover and plan-arch) and a spec slice (02b, between
+    // plan-arch and build) are advisory — they fold into the PRD/build and are NOT resume-gating.
+    // (plan-design is different: it gates the UI builds, so it lives in the plan proper.)
+    const id = createRun(repo, { product: 'Repair Tracker', id: '2026-07-22-p009' }).id;
+    driveAll(repo, id, planFor(id, components));
+
+    writeArtifact({ repoRoot: repo, id, seq: '1a', step: 'plan-product', inputs: ['PRD.md'], body: '# review\n' });
+    writeArtifact({ repoRoot: repo, id, seq: '2b', step: 'spec', inputs: ['PRD.md'], body: '# spec\n' });
+
+    const files = listArtifacts(repo, id).map((a) => a.file);
+    // Sub-sequence artifacts are listed and sorted into place — not dropped by the name filter.
+    expect(files).toContain('01a-plan-product.md');
+    expect(files).toContain('02b-spec.md');
+    expect(files.indexOf('01-discover.md')).toBeLessThan(files.indexOf('01a-plan-product.md'));
+    expect(files.indexOf('01a-plan-product.md')).toBeLessThan(files.indexOf('02-plan-arch.md'));
+    expect(files.indexOf('02a-plan-design.md')).toBeLessThan(files.indexOf('02b-spec.md'));
+    expect(files.indexOf('02b-spec.md')).toBeLessThan(files.indexOf('03-build-api.md'));
+
+    // Advisory branch artifacts are NOT part of the linear resume plan — resume stays done.
+    expect(findResumePoint(repo, runDir(repo, id), planFor(id, components) as PlanStep[])).toEqual({ done: true });
+  });
+
+  test('design→build handoff: the web build records the UI spec, so a design change re-opens it', () => {
+    const id = createRun(repo, { product: 'Repair Tracker', id: '2026-07-22-p010' }).id;
+    const runRel = (f: string) => `.factory/runs/${id}/${f}`;
+
+    writeArtifact({ repoRoot: repo, id, seq: 1, step: 'discover', inputs: [], body: '# discover\n' });
+    writeArtifact({
+      repoRoot: repo,
+      id,
+      seq: 2,
+      step: 'plan-arch',
+      inputs: ['PRD.md', runRel('01-discover.md')],
+      body: '# arch\n',
+    });
+    writeArtifact({
+      repoRoot: repo,
+      id,
+      seq: '2a',
+      step: 'plan-design',
+      inputs: ['PRD.md', '.factory/stack.yaml'],
+      body: '# ui spec v1\n',
+    });
+    // The web build reads BOTH the architecture and the UI spec — that is the design→build handoff.
+    writeArtifact({
+      repoRoot: repo,
+      id,
+      seq: 3,
+      step: 'build-web',
+      inputs: [runRel('02-plan-arch.md'), runRel('02a-plan-design.md')],
+      body: '# web build\n',
+    });
+
+    const fresh = listArtifacts(repo, id).find((a) => a.file === '03-build-web.md');
+    expect(fresh?.staleReasons).toEqual([]);
+
+    // Revise the UI spec. Because the web build recorded it as an input, the build goes stale.
+    writeArtifact({
+      repoRoot: repo,
+      id,
+      seq: '2a',
+      step: 'plan-design',
+      inputs: ['PRD.md', '.factory/stack.yaml'],
+      body: '# ui spec v2 — revised tokens\n',
+    });
+    const afterDesignChange = listArtifacts(repo, id).find((a) => a.file === '03-build-web.md');
+    expect(afterDesignChange?.staleReasons.some((r) => r.includes('02a-plan-design.md'))).toBe(true);
   });
 });
 

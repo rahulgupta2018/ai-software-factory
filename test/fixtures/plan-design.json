@@ -1,0 +1,43 @@
+{
+  "skill": "plan-design",
+  "intent": "The Factory's designer: for a web or mobile UI surface, composes the design craft skills into a scored, AI-slop-checked UI spec; reads the stack but never writes it; designs each surface to its platform (web via Tailwind/shadcn, mobile via Flutter/Material); records the spec as a run artifact the build reads.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "ui-spec-artifact",
+      "criterion": "Produces a UI spec recorded as a run artifact (02a-plan-design.md).",
+      "weight": 3,
+      "anchors": { "require_all": ["UI spec"], "any": ["02a-plan-design"], "min_any": 1 }
+    },
+    {
+      "name": "wrap-not-rederive",
+      "criterion": "Composes the design craft skills rather than re-deriving them.",
+      "weight": 2,
+      "anchors": { "any": ["frontend-design", "modern-css-design-systems", "ux-designer", "visualization-expert"], "min_any": 2 }
+    },
+    {
+      "name": "score-and-slop-check",
+      "criterion": "Scores 0–10 per dimension and runs the AI-slop check as a gate.",
+      "weight": 2,
+      "anchors": { "require_all": ["AI-slop"], "any": ["distinctiveness", "score"], "min_any": 1 }
+    },
+    {
+      "name": "web-and-mobile-surfaces",
+      "criterion": "Handles web and mobile surfaces distinctly; mobile routes to Flutter/Material.",
+      "weight": 2,
+      "anchors": { "require_all": ["mobile"], "any": ["flutter", "Material 3", "Cupertino"], "min_any": 1 }
+    },
+    {
+      "name": "reads-not-writes-stack",
+      "criterion": "Reads the stack; never writes tech_stack/commands (that is /plan-arch's).",
+      "weight": 2,
+      "anchors": { "any": ["Never write", "reads it", "never writes it"], "min_any": 1 }
+    },
+    {
+      "name": "records-run-artifact",
+      "criterion": "Records the UI spec via the run harness so the build resumes from it.",
+      "weight": 1,
+      "anchors": { "require_all": ["fac run artifact"] }
+    }
+  ]
+}

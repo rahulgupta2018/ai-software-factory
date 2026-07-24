@@ -49,7 +49,7 @@ Activate when:
 ## Core Concepts
 
 - **The spec is the artifact.** Problem, scope, acceptance criteria, edge cases, and tasks are
-  recorded as a run artifact (`NN-spec.md`), input-hashed so a changed request re-runs the spec.
+  recorded as a sub-sequenced run artifact (`02b-spec.md`); when it records `PRD.md` as an input, a changed PRD re-runs the spec.
 - **Acceptance criteria are testable behaviours.** Each criterion reads as a concrete
   observable ("given X, when Y, then Z"), so it maps 1:1 to a test the build loop writes.
 - **Scope is a boundary, both sides.** An explicit non-goals / out-of-scope list is as important
@@ -73,10 +73,14 @@ Freedom level: **medium** — sharpen the intent; the shape (criteria + scope + 
    defer (with a note), or out-of-scope.
 5. **Break down the work** (`project-planner`) into ordered, independently landable tasks with
    dependencies flagged.
-6. **Write the spec as a run artifact.** Under an active run:
+6. **Write the spec as a run artifact.** A spec sharpens one slice, so it is a **branch artifact**
+   with a sub-sequence seq — the next free letter under the step it follows (typically `/plan-arch`,
+   step 2). Multiple slices take successive letters (`2b`, `2c`, …):
    ```bash
-   fac run artifact --step spec --inputs <request-or-PRD.md> --body-file spec.md
+   fac run artifact --seq 2b --step spec --inputs PRD.md --body-file spec.md
    ```
+   Pass `--inputs PRD.md` when a PRD exists; **omit `--inputs`** for a standalone slice — the request
+   is chat intent, not a file, so there is nothing upstream to hash.
 7. **Hand off.** The Implementer builds the tasks; `tdd-red-green-refactor` turns each acceptance
    criterion into a failing test first.
 
@@ -100,7 +104,7 @@ Spec:   problem: managers need repair records for reporting.
         >10k rows → streamed, not buffered.
         edge cases: no permission → 403; export while a filter changes → snapshot at click.
         tasks: 1) export endpoint (streamed) 2) button + filter wiring 3) tests.
-Output: run artifact NN-spec.md. Handoff → Implementer + tdd (each criterion → a test).
+Output: run artifact 02b-spec.md. Handoff → Implementer + tdd (each criterion → a test).
 ```
 
 ## Guidelines
@@ -126,7 +130,7 @@ Output: run artifact NN-spec.md. Handoff → Implementer + tdd (each criterion �
 - `plan-arch` — owns the stack; `/spec` defines behaviour and verification, not the stack.
 - `project-planner` (craft) — supplies the task breakdown mechanics.
 - `tdd-red-green-refactor` — turns each acceptance criterion into a failing test.
-- Run harness (`fac run`) — records the spec as `NN-spec.md`; a changed request re-runs it.
+- Run harness (`fac run`) — records the spec as a sub-sequenced `02x-spec.md`; a changed PRD re-runs it.
 
 ## References
 

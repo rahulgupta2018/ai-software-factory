@@ -15,7 +15,7 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { loadManifest, libraryDir, sha256, hashDir, VENDOR_DIR } from './vendor.ts';
+import { loadManifest, libraryDir, sha256, hashDir, VENDOR_DIR, type Manifest } from './vendor.ts';
 import { loadProductContext, mergeContext } from '../lib/context.ts';
 import { SCHEMA_PATH } from '../lib/schema.ts';
 import { parseFrontmatter } from '../lib/frontmatter.ts';
@@ -186,12 +186,44 @@ function main() {
     }
   }
 
+  // Pin drift: the reference product's skills[] version pins must match the vendored versions.
+  // Otherwise a product declares a version it does not get (the Implementer loads whatever is
+  // vendored) — and the fixture's pins silently rot, as tdd/typed-service-contracts did.
+  for (const problem of checkProductPins(context, manifest)) {
+    failed++;
+    console.error(`  ✗ ${problem}`);
+  }
+
   const summary = `\nvendor:check — ${names.length} vendored skill(s), ${failed} failed, ${warned} warning(s).`;
   if (failed > 0) {
     console.error(summary);
     process.exit(1);
   }
   console.log(summary);
+}
+
+/**
+ * Compare a product's `skills[]` version pins against the vendored manifest. A pin that names a
+ * vendored skill but pins a different version is drift — the product won't get what it declares.
+ * Exported and pure for testing.
+ */
+export function checkProductPins(context: Json | null, manifest: Manifest): string[] {
+  if (!context) return [];
+  const skills = Array.isArray(context.skills) ? (context.skills as Json[]) : [];
+  const problems: string[] = [];
+  for (const entry of skills) {
+    const name = typeof entry.name === 'string' ? entry.name : '';
+    const pinned = typeof entry.version === 'string' ? entry.version : undefined;
+    if (!name || !pinned) continue; // workflow skills (e.g. discover) carry no version pin
+    const vendored = manifest.vendored[name]?.version;
+    if (vendored && pinned !== vendored) {
+      problems.push(
+        `reference product pins ${name} @ ${pinned} but the vendored version is ${vendored} ` +
+          `— update the fixture pin (the Implementer loads the vendored version, not the pin).`,
+      );
+    }
+  }
+  return problems;
 }
 
 if (import.meta.main) main();

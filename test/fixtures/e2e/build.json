@@ -1,0 +1,12 @@
+{
+  "skill": "build",
+  "tier": "gate",
+  "intent": "Given a designed stack, the build loop implements the V1 test-first, routes each component to its language craft skill and its own test runner, and records a per-component build artifact — it does not edit the stack or design, and it does not skip the tests.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "The Repair Tracker stack is designed (a TypeScript API, a React web app, a Python reminders worker, and a Flutter mobile app) and the UI spec is written. Build the V1.",
+  "expect": {
+    "output_any": ["03-build", "test-first", "pytest", "flutter test", "component"],
+    "min_any": 2,
+    "output_excludes": ["edit stack.yaml", "skip the tests", "here is the entire codebase"]
+  }
+}

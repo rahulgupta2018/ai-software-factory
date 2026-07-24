@@ -1,0 +1,12 @@
+{
+  "skill": "plan-arch",
+  "tier": "gate",
+  "intent": "Given a settled PRD, plan-arch designs the machine half — components, per-component language/framework, commands, and craft-skill routing — and writes .factory/stack.yaml; it plans the build, it does not implement it, and it does not edit the human-owned PRD identity.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "The Repair Tracker PRD is settled (a TypeScript API, a React web app, and a Flutter mobile app). Design the architecture and write the stack.",
+  "expect": {
+    "output_any": ["stack.yaml", "tech_stack", "component", "framework", "flutter-dart-expert"],
+    "min_any": 2,
+    "output_excludes": ["here is the implementation", "let's start coding", "edit product.name"]
+  }
+}

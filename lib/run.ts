@@ -127,9 +127,33 @@ export function newRunId(now: Date = new Date(), suffix?: string): string {
   return `${day}-${rand}`;
 }
 
-/** Canonical artifact filename for a step at a 1-based sequence position: `02-plan-arch.md`. */
-export function artifactFilename(seq: number, step: string): string {
-  return `${String(seq).padStart(2, '0')}-${step}.md`;
+/**
+ * Parse a seq token: a positive integer, optionally with a lowercase sub-sequence letter.
+ * `"2"` → the linear step 2; `"2a"` → a branch artifact that sorts between steps 2 and 3.
+ *
+ * The linear pipeline (discover→plan-arch→build→review→qa→ship) uses bare integers. The optional,
+ * non-resume-gating PLAN artifacts — a plan-product review, a plan-design UI spec, a spec slice —
+ * don't occupy a linear slot, so they use `N<letter>` (e.g. `01a-plan-product`, `02a-plan-design`)
+ * which sorts adjacent to the step they follow without colliding with it.
+ */
+export function parseSeq(raw: string): { seq: number; sub: string } | null {
+  const m = /^(\d+)([a-z]?)$/.exec(raw.trim());
+  if (!m) return null;
+  const seq = Number(m[1]);
+  if (!Number.isInteger(seq) || seq < 1) return null;
+  return { seq, sub: m[2] };
+}
+
+/**
+ * Canonical artifact filename: `02-plan-arch.md`, or with a sub-sequence `02a-plan-product.md`.
+ * Throws on a malformed seq so a bad `fac run artifact --seq` fails loudly, not with a weird name.
+ */
+export function artifactFilename(seq: number | string, step: string): string {
+  const parsed = parseSeq(String(seq));
+  if (!parsed) {
+    throw new Error(`invalid seq '${seq}' — expected an integer, optionally + a letter (e.g. 2 or 2a)`);
+  }
+  return `${String(parsed.seq).padStart(2, '0')}${parsed.sub}-${step}.md`;
 }
 
 /** Render an artifact's full file contents: frontmatter block + body (newline-terminated). */
@@ -369,8 +393,8 @@ export function setRunProduct(repoRoot: string, id: string, name: string): RunMe
 export interface WriteArtifactOpts {
   repoRoot: string;
   id: string;
-  /** 1-based position in the plan; sets the filename prefix. */
-  seq: number;
+  /** Position in the plan: an integer step (`2`), or a sub-sequence branch artifact (`"2a"`). */
+  seq: number | string;
   step: string;
   /** Repo-root-relative paths this step consumed. Their current contents are hashed and recorded. */
   inputs?: string[];
@@ -419,7 +443,7 @@ export function listArtifacts(repoRoot: string, id: string): ArtifactStatus[] {
   const dir = runDir(repoRoot, id);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((f) => /^\d\d-.+\.md$/.test(f))
+    .filter((f) => /^\d\d[a-z]?-.+\.md$/.test(f))
     .sort()
     .map((file) => {
       const { fm } = parseArtifact(readFileSync(join(dir, file), 'utf-8'), file);

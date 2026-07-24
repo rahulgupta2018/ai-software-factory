@@ -6,7 +6,8 @@
  *
  *   fac run new [--product NAME] [--id ID]         create a run, print its id + dir
  *   fac run status [--id ID]                       run metadata, artifacts, staleness, budget
- *   fac run artifact --seq N --step S [--id ID]    write an artifact (body from --body-file or stdin)
+ *   fac run artifact --seq N[x] --step S [--id ID]  write an artifact (body from --body-file or stdin);
+ *              [--inputs a,b] [--file NN-step.md]    --seq is a step integer (2) or branch sub-seq (2a)
  *              [--inputs a,b] [--file NN-step.md]
  *   fac run resume --plan a,b,c [--id ID]          print the first missing/stale step
  *   fac run stop [--id ID]                         request a stop before the next step
@@ -21,6 +22,7 @@ import {
   isPlaceholderProduct,
   listArtifacts,
   listRuns,
+  parseSeq,
   readRun,
   requestStop,
   runDir,
@@ -121,9 +123,11 @@ function cmdStatus(): void {
 
 function cmdArtifact(): void {
   const id = flag('id') ?? latestRunId();
-  const seq = Number(flag('seq'));
+  const seq = flag('seq');
   const step = flag('step');
-  if (!Number.isInteger(seq) || seq < 1) fail('--seq must be a positive integer');
+  if (!seq || !parseSeq(seq)) {
+    fail('--seq must be a positive integer, optionally with a sub-sequence letter (e.g. 2 or 2a)');
+  }
   if (!step) fail('--step is required');
 
   const bodyFile = flag('body-file');
@@ -131,7 +135,7 @@ function cmdArtifact(): void {
   if (body.trim() === '') fail('artifact body is empty (pass --body-file or pipe on stdin)');
 
   const inputs = flag('inputs')?.split(',').map((s) => s.trim()).filter(Boolean);
-  const file = writeArtifact({ repoRoot: cwd, id, seq, step, inputs, body, file: flag('file') });
+  const file = writeArtifact({ repoRoot: cwd, id, seq: seq as string, step, inputs, body, file: flag('file') });
   console.log(`run — wrote ${relative(cwd, runDir(cwd, id))}/${file}`);
 
   // Backfill the run's product name: a run is created before /discover writes the PRD, so it is
@@ -200,8 +204,8 @@ switch (sub) {
       'fac run — manage a pipeline run\n\n' +
         '  new [--product NAME] [--id ID]              create a run\n' +
         '  status [--id ID]                            metadata, artifacts, staleness, budget\n' +
-        '  artifact --seq N --step S [--inputs a,b]    write an artifact (body: --body-file or stdin)\n' +
-        '           [--file NN-step.md] [--id ID]\n' +
+        '  artifact --seq N[x] --step S [--inputs a,b]  write an artifact (body: --body-file or stdin)\n' +
+        '           [--file NN-step.md] [--id ID]        --seq: step int (2) or branch sub-seq (2a)\n' +
         '  resume --plan a,b,c [--id ID]               print the first missing/stale step\n' +
         '  stop [--id ID]                              request a stop before the next step\n' +
         '  list                                        run ids, newest first',

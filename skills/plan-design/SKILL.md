@@ -1,11 +1,12 @@
 ---
 name: plan-design
 description: >-
-  Turns a settled PRD.md with a web/UI surface into a defensible UI spec — visual direction, a
-  design-token system, component inventory, user flows, accessibility floor, and any data-viz
-  — scored 0–10 per design dimension with an AI-slop check before the build loop. Activates
-  once the PRD's problem/users/V1 are settled and a component has a UI to design. Sits between
-  /plan-arch (the stack) and the build loop; owns the design record, not the implementation.
+  Turns a settled PRD.md with a web or mobile UI surface into a defensible UI spec — visual
+  direction, a design-token system, component inventory, user flows, accessibility floor, and
+  any data-viz — scored 0–10 per design dimension with an AI-slop check before the build loop.
+  Activates once the PRD's problem/users/V1 are settled and a component has a UI to design.
+  Sits between /plan-arch (the stack) and the build loop; owns the design record, not the
+  implementation.
 license: MIT
 metadata:
   author: AI Software Factory
@@ -89,11 +90,19 @@ Activate when:
 ## Core Concepts
 
 - **The UI spec is the artifact.** The design decision — direction, tokens, components, flows,
-  a11y, scores — is recorded as a run artifact (`NN-plan-design.md`) so the reasoning survives and
+  a11y, scores — is recorded as a run artifact (`02a-plan-design.md`) so the reasoning survives and
   the build loop resumes from it. It records the input hash of `PRD.md` (and the stack), so a PRD
   change re-runs design (make-like cascade).
 - **Design only where there's a UI.** If no component has a UI surface, `/plan-design` is a no-op
   — say so and hand back. Don't invent a design for an API-only product.
+- **Web and mobile are different surfaces.** The web branch composes `frontend-design` +
+  `modern-css-design-systems` (Tailwind v4, shadcn/Radix, container queries). A **mobile** component
+  (`framework: flutter`) is *not* web: design to the platform — Material 3 / Cupertino conventions,
+  platform navigation (tabs/bottom-nav, back behaviour), touch-target ergonomics, offline/empty/
+  error/sync states, and the security-visible UX from MASVS (no sensitive data in screenshots,
+  secure text entry). The token/direction thinking (`frontend-design`) still applies; the component
+  vocabulary is Flutter widgets, and implementation routes to `flutter-dart-expert`, not the web
+  craft skills. A11y is platform a11y (TalkBack/VoiceOver, dynamic type, contrast).
 - **Wrap, don't re-derive.** Direction comes from `frontend-design`, the token system and
   accessible components from `modern-css-design-systems`, flows/IA/WCAG from `ux-designer`, charts
   from `visualization-expert`. This skill sequences them and holds the quality bar.
@@ -109,16 +118,19 @@ Activate when:
 
 Freedom level: **medium** — follow the sequence, adapt the design to the brief.
 
-1. **Read context.** Load `PRD.md` (problem, users, brand cues, V1) and `.factory/stack.yaml`
-   (which components have a UI, the `css` binding). Confirm there is a UI to design; if not, stop
-   and hand back.
+1. **Read context.** Load `PRD.md` (problem, users, brand cues, V1) and `.factory/stack.yaml`.
+   Identify each UI surface and its platform: a **web** component (`framework: react`, a `css`
+   binding) or a **mobile** component (`framework: flutter`). Confirm there is a UI; if not, stop
+   and hand back. Design each surface to its platform.
 2. **Set the direction (`frontend-design`).** Ground it in the subject; produce a compact plan —
    palette (4–6 named values), a deliberate type pairing, a layout concept, and the one signature
-   element. Do the brainstorm-then-critique pass in thinking.
-3. **Systematise it (`modern-css-design-systems`).** Turn the direction into a token system
-   (colour/space/type/radius as custom properties, themed by value), a component inventory built
-   on accessible primitives (shadcn/Radix), theming/dark mode, and the responsive strategy
-   (container queries).
+   element. Do the brainstorm-then-critique pass in thinking. (Applies to web and mobile alike.)
+3. **Systematise it.** **Web** (`modern-css-design-systems`): a token system (colour/space/type/
+   radius as custom properties, themed by value), a component inventory on accessible primitives
+   (shadcn/Radix), theming/dark mode, and the responsive strategy (container queries). **Mobile**
+   (`framework: flutter`): a Material 3 / Cupertino theme, a Flutter widget inventory, platform
+   navigation, and offline/empty/error/sync states — implementation routes to `flutter-dart-expert`,
+   not the web craft skills.
 4. **Map flows + IA + a11y (`ux-designer`).** The primary user flows for the V1 features, the
    information architecture, and the accessibility floor (focus, contrast, reduced motion, labels).
 5. **Data-viz if needed (`visualization-expert`).** For any component that presents data, choose
@@ -127,14 +139,19 @@ Freedom level: **medium** — follow the sequence, adapt the design to the brief
    this design lands, with the concrete gap to close.
 7. **Run the AI-slop check.** Compare against the templated defaults; revise any axis that reads
    generic and record what changed and why.
-8. **Write the UI spec as a run artifact.** Under an active run:
+8. **Write the UI spec as a run artifact.** The UI spec sits between `/plan-arch` (02) and the build
+   (03), so it is a **branch artifact** with a sub-sequence seq (`2a`, the next free letter under
+   step 2 — never `3`, which is the build):
    ```bash
-   fac run artifact --seq 3 --step plan-design --inputs PRD.md,.factory/stack.yaml --body-file ui-spec.md
+   fac run artifact --seq 2a --step plan-design --inputs PRD.md,.factory/stack.yaml --body-file ui-spec.md
    ```
    The spec's tokens and component inventory are exactly what the web build (`fullstack-developer`
-   + `react-frontend-architect` + `modern-css-design-systems`) implements.
-9. **Hand off.** Point the build loop at the spec: implement the web component, then `/review`,
-   `/qa`, `/ship`.
+   + `react-frontend-architect` + `modern-css-design-systems`) implements. **The web build records
+   this artifact (`02a-plan-design.md`) as one of its inputs**, so a design change re-opens the
+   build (make-like cascade).
+9. **Hand off.** Point the build loop at the spec: implement the web component (`fullstack-developer`
+   + `react-frontend-architect` + `modern-css-design-systems`) or the mobile component
+   (`flutter-dart-expert`), then `/review`, `/qa`, `/ship`.
 
 ## Practical Guidance
 
@@ -154,7 +171,7 @@ Freedom level: **medium** — follow the sequence, adapt the design to the brief
 ```
 Input:  PRD.md — Repair Tracker (log/assign/track repairs, reminders), status: in-design.
         stack.yaml — web component: react + tailwind-v4.
-Output: run artifact 03-plan-design.md (ui-spec) —
+Output: run artifact 02a-plan-design.md (ui-spec) —
           direction: palette (5 named values), display/body/utility type pairing, layout concept,
                      signature = a "repair timeline" strip
           tokens:    color/space/type/radius as custom properties; dark mode by value-swap
@@ -194,10 +211,12 @@ Output: run artifact 03-plan-design.md (ui-spec) —
 - `modern-css-design-systems` — supplies the token system and accessible component inventory.
 - `ux-designer` — supplies user flows, IA, and the WCAG/accessibility process.
 - `visualization-expert` — supplies chart selection for data-presenting components.
-- Run harness (`fac run`) — records the UI spec as `NN-plan-design.md`; resume re-runs design when
+- `flutter-dart-expert` — implements the **mobile** UI spec (Flutter widgets, platform patterns,
+  MASVS); the design here routes mobile implementation to it, not the web craft skills.
+- Run harness (`fac run`) — records the UI spec as `02a-plan-design.md`; resume re-runs design when
   `PRD.md` changes.
-- The build loop (`fullstack-developer` + `react-frontend-architect` + `modern-css-design-systems`)
-  — implements the spec verbatim.
+- The build loop — implements the spec verbatim: web via `fullstack-developer` +
+  `react-frontend-architect` + `modern-css-design-systems`, mobile via `flutter-dart-expert`.
 
 ## References
 

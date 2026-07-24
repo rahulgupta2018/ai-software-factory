@@ -1,0 +1,43 @@
+{
+  "skill": "build",
+  "intent": "The build loop: implements V1 test-first one component at a time, routes each component to its language craft skill, runs the component's own test command, guards non-test commands, and records a per-component 03-build-<name>.md artifact (with its plan-arch/design/spec inputs) that review and QA resume from.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "per-component-artifact",
+      "criterion": "Records one 03-build-<name>.md run artifact per component so the run leaves BUILD.",
+      "weight": 3,
+      "anchors": { "require_all": ["03-build-", "fac run artifact"] }
+    },
+    {
+      "name": "records-plan-inputs",
+      "criterion": "Each build records plan-arch; UI builds also the UI spec; a slice also its spec.",
+      "weight": 2,
+      "anchors": { "require_all": ["02-plan-arch"], "any": ["02a-plan-design", "02b-spec"], "min_any": 2 }
+    },
+    {
+      "name": "language-routing",
+      "criterion": "Routes each component's language to the matching craft skill.",
+      "weight": 2,
+      "anchors": { "require_all": ["Language routing"], "any": ["flutter-dart-expert", "python-expert", "database-expert"], "min_any": 2 }
+    },
+    {
+      "name": "tdd-language-routed",
+      "criterion": "Test-first, running the component's own test command, not a hardcoded runner.",
+      "weight": 2,
+      "anchors": { "require_all": ["commands.<name>.test"], "any": ["test-first", "pytest", "flutter test"], "min_any": 1 }
+    },
+    {
+      "name": "command-guard",
+      "criterion": "Guards any command beyond test/lint/typecheck/build; a flagged one is a hard gate.",
+      "weight": 2,
+      "anchors": { "require_all": ["fac guard"], "any": ["hard gate"], "min_any": 1 }
+    },
+    {
+      "name": "reads-not-writes",
+      "criterion": "Never edits the stack, PRD, or UI spec — reads them; changes are notes to owners.",
+      "weight": 1,
+      "anchors": { "any": ["Never edit", "never edits", "note back to the architect", "note to"], "min_any": 1 }
+    }
+  ]
+}

@@ -20,8 +20,9 @@ of the pipeline reads.
 - Run `/plan-arch` to write `.factory/stack.yaml`: `tech_stack.components[]` (per-component
   language, framework, db), `commands` (test/build/lint/run per component), `skills[]`, and
   `guardrails`/`escalation_policy` bindings.
-- Choose each component's language deliberately (Java→Quarkus, TS/JS web→React, Python), knowing the
-  Implementer routes to the matching craft skill from that choice.
+- Choose each component's language deliberately (Java→Quarkus, TS/JS web→React, Python,
+  **Dart→Flutter for mobile**, SQL→database-expert), knowing the Implementer routes to the matching
+  craft skill from that choice (`flutter-dart-expert` for a mobile component).
 - For an **agent component built on Google ADK** (`framework: adk`), the Implementer routes to the
   vendored `adk-*` bundle; wire `vendor-skills/adk-agent/AGENTS.md`'s build order into the product's
   `AGENTS.md` so the ADK skills are discoverable, and list the `adk-*` skills in `skills[]`.

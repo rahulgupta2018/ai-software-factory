@@ -21,8 +21,9 @@ metadata:
 
 ## Overview
 
-`/plan-arch` is the Factory's architect. It reads a settled `PRD.md` and produces the
-**machine-owned half** of the product context: `.factory/stack.yaml`. That file names the
+`/plan-arch` is the Factory's architect. It reads a settled `PRD.md` **and the `01-discover.md`
+interrogation record** the THINK phase hands it (the options weighed, why this V1, the open
+questions), and produces the **machine-owned half** of the product context: `.factory/stack.yaml`. That file names the
 languages and components, the framework for each, the per-component commands (test/build/lint/
 typecheck), the craft skills the build loop will compose, and the guardrails and escalation
 policy the run harness enforces. It is the single writer of `tech_stack`, `commands`, `skills`,
@@ -59,8 +60,17 @@ Activate when:
   cache, queue); explicit values win over derived ones.
 - **Skills are the build team.** `skills[]` lists the craft skills the build loop composes. Every
   `${ctx.*}` a vendored skill references must resolve from the merged context, so pick skills the
-  stack actually populates. Prefer the vendored TypeScript path (`fullstack-developer`,
-  `tdd-red-green-refactor`, `typed-service-contracts`) unless the PRD forces otherwise.
+  stack actually populates.
+- **Language routing.** Each component's `language`/`framework` selects the craft skill the build
+  loop loads. List the matching skills in `skills[]`:
+  - TypeScript/React **web** → `fullstack-developer` + `react-frontend-architect` + `modern-css-design-systems`
+  - TypeScript **API** → `fullstack-developer` + `typed-service-contracts`
+  - **Java/Quarkus** → `java-quarkus-expert`
+  - **Python** → `python-expert`
+  - **Dart/Flutter (mobile)** → `flutter-dart-expert` (iOS + Android from one codebase; MASVS)
+  - **SQL/Postgres** → `database-expert`
+  - Google-ADK agent (`framework: adk`) → the vendored `adk-*` bundle
+  `tdd-red-green-refactor` and `typed-service-contracts` apply across languages via their dialects.
 - **Guardrails and escalation are load-bearing.** `guardrails.budget.warn_tokens` feeds the run
   harness's measure-and-warn; `escalation_policy.triggers` decide which gates are *hard* (never
   batched). Set them from the PRD's risk surface, not boilerplate.
@@ -69,31 +79,39 @@ Activate when:
 
 Freedom level: **medium** — follow the sequence, adapt the stack to the PRD.
 
-1. **Read context.** Load `PRD.md` and any existing `.factory/stack.yaml` (per the config
-   protocol). If the stack is the untouched template, treat this as a fresh design.
-2. **Extract drivers from the PRD.** V1 features, personas, constraints (budget, timeline,
-   existing systems, compliance), and the risk surface (what's irreversible or sensitive).
+1. **Read context.** Load `PRD.md`, the discovery record (`.factory/runs/<id>/01-discover.md`) if
+   one exists, and any existing `.factory/stack.yaml` (per the config protocol). If the stack is
+   the untouched template, treat this as a fresh design.
+2. **Extract drivers from the PRD and the discovery record.** V1 features, personas, constraints
+   (budget, timeline, existing systems, compliance), the risk surface (what's irreversible or
+   sensitive), and the options/open questions `/discover` already weighed — don't re-litigate them.
 3. **Choose the shape.** Decide languages and components (e.g. `api`, `web`, `db`). For each
    component pick a framework and, where relevant, db/css. Default to the vendored TypeScript/
    React path; justify any deviation against the PRD.
 4. **Define commands per component.** `test`, `build`, `lint`, `typecheck`, plus a top-level
    `deploy`. These are what the build loop and `/qa`/`/ship` actually run — get them right.
-5. **Select craft skills.** List the skills the build loop composes in `skills[]`. Confirm each
-   skill's `${ctx.*}` references resolve from the stack you just chose (run `fac vendor:check`).
+5. **Select craft skills.** List the skills the build loop composes in `skills[]`. For each, make
+   sure the `${ctx.*}` keys it binds are populated by the stack you chose — verify against the
+   merged `.factory/context.gen.yaml` (after `fac sync-context`). Note `fac vendor:check` does *not*
+   validate your product: it checks the Factory's own vendored skills against the Factory reference
+   product.
 6. **Set guardrails + escalation.** From the PRD's risk surface: `budget.warn_tokens`,
    `pii_handling`, `secrets`, `prohibited_data`, and `escalation_policy.triggers` (the
    operations that must stop and ask — these become hard gates).
 7. **Write `.factory/stack.yaml`.** The machine half only. **Never touch `PRD.md`'s frontmatter
    keys** (`product`, `domain`, `meta`) — that is an ownership violation.
 8. **Sync + validate.** Run `fac sync-context` (merges → `.factory/context.gen.yaml` +
-   `.agents/project-context.yaml`, Ajv-validated) and `fac vendor:check` (bindings resolve).
+   `.agents/project-context.yaml`, Ajv-validated), then inspect the merged context to confirm every
+   `skills[]` entry's `${ctx.*}` keys are present.
 9. **Record the decision as a run artifact.** Under an active run, write the architecture
    rationale so the build loop resumes from it and the "why" survives:
    ```bash
-   fac run artifact --seq 2 --step plan-arch --inputs PRD.md --body-file arch-notes.md
+   fac run artifact --seq 2 --step plan-arch --inputs PRD.md,.factory/runs/$RUN/01-discover.md --body-file arch-notes.md
    ```
-   The artifact records the input hash of `PRD.md`; if the PRD later changes, resume re-runs
-   `plan-arch` (make-like cascade).
+   Record **what plan-arch reads** — `PRD.md` and the discovery record — as inputs; a change to
+   either re-runs `plan-arch` (make-like cascade). Do **not** list `.factory/stack.yaml`: that is
+   plan-arch's own *output*, and recording it would make a stack edit re-run the step that wrote it.
+   When there is no discovery record (a hand-authored PRD), use just `--inputs PRD.md`.
 10. **Hand off.** Point the user to the build loop: implement V1 features, then `/review`,
     `/qa`, `/ship`.
 
@@ -124,14 +142,15 @@ Output: .factory/stack.yaml —
           guardrails.budget.warn_tokens: 400000
           escalation_policy.triggers: ["schema migration on live data",
                                        "anything touching contractor payments"]
-        + run artifact 02-plan-arch.md (rationale, inputs: PRD.md). Handoff → build loop.
+        + run artifact 02-plan-arch.md (rationale, inputs: PRD.md + 01-discover.md). Handoff → build loop.
 ```
 
 ## Guidelines
 
 1. Write only the machine half. Never set `product`, `domain`, or `meta` — `sync-context` rejects it.
 2. Every component has a framework and a full command set. No component without runnable commands.
-3. Every skill in `skills[]` must have its `${ctx.*}` references resolve — run `fac vendor:check`.
+3. Every skill in `skills[]` must have its `${ctx.*}` keys populated by the stack — verify against
+   the merged `.factory/context.gen.yaml`, not `fac vendor:check` (a Factory-repo check).
 4. Always run `fac sync-context` after writing the stack; leave the context validated and green.
 5. Record the architecture decision as a run artifact under an active run.
 
@@ -140,8 +159,9 @@ Output: .factory/stack.yaml —
 1. **Leaking into the PRD**: setting `product`/`domain`/`meta` is an ownership violation that
    `sync-context` blocks. Constraints live in `PRD.md` (owned by `/discover`); stack decisions
    live here.
-2. **Skills that don't bind**: adding a craft skill whose `${ctx.*}` the stack doesn't populate
-   fails `vendor:check`. Pick skills the stack supports, or extend the stack.
+2. **Skills that don't bind**: a craft skill whose `${ctx.*}` the stack doesn't populate has
+   nothing to read at build time. Pick skills the stack supports, or extend the stack; verify
+   against the merged `.factory/context.gen.yaml`.
 3. **Placeholder commands**: a `commands` entry that isn't runnable breaks `/qa` and `/ship`.
    Make it real or make it a V1 task.
 4. **Over-scoped stack**: a component per idea inflates build/test/run cost. Ship the smallest V1.
@@ -149,12 +169,14 @@ Output: .factory/stack.yaml —
 
 ## Integration
 
-- `discover` — writes the PRD this skill reads; owns `product`/`domain`/`meta`.
+- `discover` — writes the PRD **and the `01-discover.md` interrogation record** this skill reads; owns `product`/`domain`/`meta`.
 - `sync-context` (`fac sync-context`) — merges `PRD.md` + `.factory/stack.yaml` into the derived
   context; enforces ownership; Ajv-validates.
-- `vendor:check` (`fac vendor:check`) — confirms every selected skill's `${ctx.*}` resolves.
-- Run harness (`fac run`) — records the architecture decision as `NN-plan-arch.md`; resume
-  re-runs this step when `PRD.md` changes.
+- `vendor:check` (`fac vendor:check`) — a *Factory-repo* integrity check (vendored skills intact,
+  bindings resolve against the Factory reference product). It does **not** validate your product's
+  stack — use the merged `.factory/context.gen.yaml` for that.
+- Run harness (`fac run`) — records the architecture decision as `02-plan-arch.md`; resume
+  re-runs this step when `PRD.md` or the discovery record changes.
 - `fullstack-developer`, `tdd-red-green-refactor`, `typed-service-contracts` (craft) — implement
   the stack this skill selects.
 

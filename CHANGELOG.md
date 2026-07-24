@@ -3,6 +3,83 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.34.0.0] — 2026-07-24
+
+**BUILD is now a real phase: the code-producing step records its work, reads the design it's handed, is evaluated like every other phase, and a product finally gets the skill versions it pins.**
+
+BUILD was the one phase with no workflow skill — which is exactly why it couldn't finish a run
+(nothing wrote the build artifact the review/QA loop reads) and why nothing measured it. It now has
+a `/build` skill that wires it into the run, one build artifact per component, and quality evals —
+full parity with THINK, PLAN, and the rest.
+
+### Added
+- **`/build` workflow skill** — the build loop: implements the V1 test-first one component at a
+  time, routes each component to its language craft skill (TS/React, Python, Java, Dart/Flutter,
+  database, ADK), runs the component's own test command, and records a per-component
+  `03-build-<name>.md` artifact. It reads the architecture, the UI spec, and any slice spec, and
+  records each as an input so an upstream change re-opens exactly that build.
+- **Eval coverage for BUILD** — a Tier-2 discipline rubric (`test/fixtures/build.json`) and a
+  Tier-3 gate scenario (`test/fixtures/e2e/build.json`), both proven to fail when the discipline is
+  dropped. The highest-risk phase is no longer unmeasured.
+- **Pin-drift check** — `fac vendor:check` now flags a product whose `skills[]` version pin differs
+  from the vendored version, so a fixture pin can't silently rot again.
+
+### Fixed
+- **A run could not leave BUILD.** The Implementer never wrote `03-build-<name>.md`, so
+  `fac run resume` reported "build missing" forever and `/review`/`/qa` had nothing to read. `/build`
+  now records one per component.
+- **The build ignored the design.** The Implementer's contract didn't consume the UI spec, so a
+  web/mobile build could throw away the whole design phase. It now records `02a-plan-design.md` (and
+  a slice's `02b-spec.md`) as inputs, and the acceptance test drives the design→build handoff.
+- **A product didn't get the skill versions it pinned.** The reference products pinned
+  `tdd-red-green-refactor` and `typed-service-contracts` at `1.1.0`/`1.2.0` while the vendored
+  versions — the ones carrying the pytest/JUnit/Flutter test dialects — were `1.3.0`. Pins updated
+  and now checked.
+- **Build commands ran unguarded.** `/build` and the Implementer now classify any command beyond
+  test/lint/typecheck/build with `fac guard`; a flagged command (a deploy, a migration) is a hard
+  gate.
+
+## [0.33.0.0] — 2026-07-23
+
+**The PLAN phase is runnable end-to-end: its review commands work, the architect reads what discovery produced, mobile is a first-class surface, and the two design skills that had no eval now do.**
+
+Before the Factory takes its first job, PLAN got the same hardening THINK did. The optional PLAN
+steps — a plan-product review, a plan-design UI spec, a spec slice — used a run-artifact command
+that the CLI rejected; they now have a real place in a run. `/plan-arch` reads the discovery
+record it is handed instead of ignoring it, and no longer treats the stack it writes as its own
+input. Mobile (Flutter/Dart) is routed and designed, not silently dropped. And `/plan-arch` and
+`/plan-design` — the two most consequential PLAN skills — finally have quality evals.
+
+### Added
+- **Sub-sequence run artifacts.** Optional/branch steps that don't occupy a linear slot record as
+  `01a-plan-product.md`, `02a-plan-design.md`, `02b-spec.md` — sorted into place next to the step
+  they follow. `fac run artifact --seq` now accepts a step integer (`2`) or a branch sub-sequence
+  (`2a`).
+- **Mobile is a first-class surface.** `/plan-arch` routes a Flutter/Dart component to
+  `flutter-dart-expert` (and documents routing for every language); `/plan-design` designs a mobile
+  surface to its platform (Material 3 / Cupertino, platform navigation, offline states, MASVS)
+  rather than applying web craft to it.
+- **Eval coverage for `/plan-arch` and `/plan-design`** — a Tier-2 discipline rubric each, plus a
+  Tier-3 gate scenario for `/plan-arch`. Both prove they fail when the discipline is dropped.
+
+### Fixed
+- **`/plan-product` and `/spec` gave a run-artifact command the CLI rejected** (no `--seq`; `/spec`
+  also passed a literal `<request-or-PRD.md>` placeholder). Both now record correctly as branch
+  artifacts.
+- **`/plan-arch` never read the discovery record.** It now consumes `PRD.md` + `01-discover.md` (the
+  THINK handoff), so the architecture decision builds on what discovery weighed instead of ignoring
+  it.
+- **`/plan-arch` recorded its own output as an input.** It no longer lists the `stack.yaml` it
+  writes among its inputs — that trap would have made a stack edit re-run the step that wrote it.
+- **`/plan-design` collided with the build at `seq 3`.** The UI spec now records at `2a`, between
+  the architecture and the build, and the build records it as an input so a design change re-opens
+  the build.
+- **`/plan-product` activated on a status that doesn't exist** (`in-review`) — corrected to the
+  real `draft` / `in-design`.
+- **`/plan-arch` told you to run `fac vendor:check` to validate your stack**, which it can't — that
+  command checks the Factory's own reference product. The guidance now points at the merged
+  `.factory/context.gen.yaml` for product-scoped binding checks.
+
 ## [0.32.0.0] — 2026-07-23
 
 **`/discover` can now scope a regulated product, runs are named as soon as their product is, and the Product Strategist no longer carries a browser it never used.**

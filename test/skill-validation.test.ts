@@ -14,7 +14,7 @@ import { validateContext } from '../lib/schema.ts';
 import { checkOwnership, deriveTechBindings, mergeContext, loadProductContext } from '../lib/context.ts';
 import { renderSkill, skillNames, templatePath } from '../scripts/gen-skill-docs.ts';
 import { checkSkill } from '../scripts/skill-check.ts';
-import { extractCtxRefs, pathInSchema, pathInContext } from '../scripts/vendor-check.ts';
+import { extractCtxRefs, pathInSchema, pathInContext, checkProductPins } from '../scripts/vendor-check.ts';
 import { SCHEMA_PATH } from '../lib/schema.ts';
 import {
   acquireLock,
@@ -22,6 +22,7 @@ import {
   budgetStatus,
   createRun,
   findResumePoint,
+  parseSeq,
   gateTier,
   isStopRequested,
   listArtifacts,
@@ -299,6 +300,25 @@ describe('vendor binding checks', () => {
     expect(pathInContext({ product: { name: 'x' } }, ['tech_bindings'])).toBe(false);
     expect(pathInContext({ tech_bindings: {} }, ['tech_bindings'])).toBe(false);
   });
+
+  test('flags a product skills[] version pin that drifted from the vendored version', () => {
+    const manifest = {
+      source: '',
+      vendored: { 'tdd-red-green-refactor': { version: '1.3.0', vendored_at: '', sha256: '' } },
+    };
+    // A matching pin (and an unversioned workflow skill) is clean.
+    expect(
+      checkProductPins(
+        { skills: [{ name: 'tdd-red-green-refactor', version: '1.3.0' }, { name: 'discover', priority: 'V1' }] },
+        manifest,
+      ),
+    ).toEqual([]);
+    // A drifted pin is flagged with both versions — the bug tdd/typed-service-contracts had.
+    const drift = checkProductPins({ skills: [{ name: 'tdd-red-green-refactor', version: '1.1.0' }] }, manifest);
+    expect(drift).toHaveLength(1);
+    expect(drift[0]).toContain('1.1.0');
+    expect(drift[0]).toContain('1.3.0');
+  });
 });
 
 describe('run harness — pure', () => {
@@ -309,6 +329,27 @@ describe('run harness — pure', () => {
 
   test('artifact filename is zero-padded and named', () => {
     expect(artifactFilename(2, 'plan-arch')).toBe('02-plan-arch.md');
+  });
+
+  test('sub-sequence seq names a branch artifact that sorts between linear steps', () => {
+    expect(artifactFilename('1a', 'plan-product')).toBe('01a-plan-product.md');
+    expect(artifactFilename('2a', 'plan-design')).toBe('02a-plan-design.md');
+    // Sorts strictly between its neighbours: 01-… < 01a-… < 02-…
+    expect(['01-discover.md', '01a-plan-product.md', '02-plan-arch.md'].slice().sort()).toEqual([
+      '01-discover.md',
+      '01a-plan-product.md',
+      '02-plan-arch.md',
+    ]);
+  });
+
+  test('parseSeq accepts integers and sub-sequences, rejects junk (negative case)', () => {
+    expect(parseSeq('2')).toEqual({ seq: 2, sub: '' });
+    expect(parseSeq('2a')).toEqual({ seq: 2, sub: 'a' });
+    expect(parseSeq('0')).toBeNull();
+    expect(parseSeq('2ab')).toBeNull();
+    expect(parseSeq('a2')).toBeNull();
+    expect(parseSeq('')).toBeNull();
+    expect(() => artifactFilename('nope', 'x')).toThrow(/invalid seq/);
   });
 
   test('artifact frontmatter + body round-trips', () => {
