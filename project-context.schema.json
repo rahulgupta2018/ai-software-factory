@@ -4,14 +4,18 @@
   "title": "Product Context (merged PRD.md + .factory/stack.yaml)",
   "description": "Contract for the machine context a product exposes to Factory skills. A product is authored in TWO files split by author: PRD.md frontmatter (human-owned: product, domain, meta) and .factory/stack.yaml (machine-owned, written by /plan-arch: tech_stack, commands, skills, guardrails, escalation_policy, tech_bindings). `fac sync-context` merges them, derives the compatibility aliases, validates the result against this schema, and writes .factory/context.gen.yaml. Each property carries an `x-owner` annotation naming the file that authors it. This schema is a genuine superset of the agent-skills project-context schema: every key that library defines is reproduced below so vendored craft skills bind unchanged.",
   "type": "object",
-  "required": ["product"],
+  "required": [
+    "product"
+  ],
   "additionalProperties": true,
   "properties": {
     "product": {
       "type": "object",
       "x-owner": "PRD.md",
       "description": "Product identity. Authored by a human in PRD.md frontmatter.",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -19,11 +23,21 @@
           "minLength": 1,
           "description": "Product name. Non-empty — an untouched template must not validate."
         },
-        "code": { "type": "string", "description": "Short code/slug." },
-        "description": { "type": "string" },
+        "code": {
+          "type": "string",
+          "description": "Short code/slug."
+        },
+        "description": {
+          "type": "string"
+        },
         "status": {
           "type": "string",
-          "enum": ["draft", "in-design", "in-build", "shipped"],
+          "enum": [
+            "draft",
+            "in-design",
+            "in-build",
+            "shipped"
+          ],
           "default": "draft"
         }
       }
@@ -32,12 +46,20 @@
       "type": "object",
       "x-owner": "derived",
       "description": "COMPAT ALIAS — do not author. Derived from `product` by `fac sync-context` because the agent-skills library requires a `project` key. Vendored craft skills bind to this.",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string" },
-        "code": { "type": "string" },
-        "description": { "type": "string" }
+        "name": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     },
     "domain": {
@@ -49,7 +71,9 @@
       "type": "object",
       "x-owner": ".factory/stack.yaml",
       "description": "Languages allowed for this product and the per-component choices made at design time by /plan-arch. Drives Implementer craft-skill routing.",
-      "required": ["languages"],
+      "required": [
+        "languages"
+      ],
       "additionalProperties": false,
       "properties": {
         "languages": {
@@ -57,7 +81,16 @@
           "description": "Allowed language set for this product.",
           "items": {
             "type": "string",
-            "enum": ["java", "quarkus", "javascript", "typescript", "react", "python", "dart", "sql"]
+            "enum": [
+              "java",
+              "quarkus",
+              "javascript",
+              "typescript",
+              "react",
+              "python",
+              "dart",
+              "sql"
+            ]
           }
         },
         "components": {
@@ -65,18 +98,44 @@
           "description": "Per-component language/framework choices, filled by /plan-arch.",
           "items": {
             "type": "object",
-            "required": ["name", "language"],
+            "required": [
+              "name",
+              "language"
+            ],
             "additionalProperties": false,
             "properties": {
-              "name": { "type": "string", "description": "Component name, e.g. 'api', 'web'." },
+              "name": {
+                "type": "string",
+                "description": "Component name, e.g. 'api', 'web'."
+              },
               "language": {
                 "type": "string",
-                "enum": ["java", "quarkus", "javascript", "typescript", "react", "python", "dart", "sql"]
+                "enum": [
+                  "java",
+                  "quarkus",
+                  "javascript",
+                  "typescript",
+                  "react",
+                  "python",
+                  "dart",
+                  "sql"
+                ]
               },
-              "framework": { "type": "string", "description": "e.g. 'quarkus', 'react', 'hono'." },
-              "css": { "type": "string", "description": "e.g. 'tailwind-v4', 'vanilla-extract', 'css-modules'." },
-              "db": { "type": "string", "description": "e.g. 'postgres'." },
-              "notes": { "type": "string" }
+              "framework": {
+                "type": "string",
+                "description": "e.g. 'quarkus', 'react', 'hono'."
+              },
+              "css": {
+                "type": "string",
+                "description": "e.g. 'tailwind-v4', 'vanilla-extract', 'css-modules'."
+              },
+              "db": {
+                "type": "string",
+                "description": "e.g. 'postgres'."
+              },
+              "notes": {
+                "type": "string"
+              }
             }
           }
         }
@@ -88,17 +147,31 @@
       "description": "Per-component command config (read -> ask -> persist). Keys are component names plus optional top-level 'deploy'.",
       "additionalProperties": {
         "oneOf": [
-          { "type": "string" },
+          {
+            "type": "string"
+          },
           {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "test": { "type": "string" },
-              "build": { "type": "string" },
-              "lint": { "type": "string" },
-              "format": { "type": "string" },
-              "run": { "type": "string" },
-              "typecheck": { "type": "string" }
+              "test": {
+                "type": "string"
+              },
+              "build": {
+                "type": "string"
+              },
+              "lint": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "run": {
+                "type": "string"
+              },
+              "typecheck": {
+                "type": "string"
+              }
             }
           }
         ]
@@ -110,96 +183,289 @@
       "description": "Concrete infrastructure a skill may target. `fac sync-context` derives entries from tech_stack.components[] (per-component stack, plus `db`); values authored here win over derived ones. Required by library skills that bind ${ctx.tech_bindings}.",
       "additionalProperties": true,
       "properties": {
-        "graph_store": { "type": "string" },
-        "vector_index": { "type": "string" },
-        "llm": { "type": "string" },
-        "embedding_model": { "type": "string" },
-        "cache": { "type": "string", "description": "Caching layer, e.g. 'redis', 'none'. Audited for cache-poisoning / authz-bypass (OWASP A01/A05)." },
-        "orchestrator": { "type": "string" },
-        "hosting": { "type": "string" },
-        "db": { "type": "string" },
-        "auth": { "type": "string", "description": "Authn/authz provider or strategy, e.g. 'auth0', 'oidc', 'session-cookie', 'jwt'. Audited by /security (access management, RBAC, tokens — OWASP A01/A07, API BOLA/BFLA)." },
-        "crypto": { "type": "string", "description": "Encryption / key-management binding, e.g. 'aws-kms', 'libsodium', 'webcrypto'. The Factory rolls no crypto itself; audited for weak/rolled-your-own crypto (OWASP A02)." },
-        "session": { "type": "string", "description": "Session strategy, e.g. 'stateless-jwt', 'redis-session', 'signed-cookie'. Audited for fixation / weak lifetime (OWASP A07)." },
-        "tls": { "type": "string", "description": "Transport security posture for public endpoints, e.g. 'lets-encrypt', 'acm', 'cloudflare'. /deploy hard-gates a public deploy on a valid chain + min TLS version + HSTS via lib/tls-verify.ts (OWASP A02/A05)." },
+        "graph_store": {
+          "type": "string"
+        },
+        "vector_index": {
+          "type": "string"
+        },
+        "llm": {
+          "type": "string"
+        },
+        "embedding_model": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string",
+          "description": "Caching layer, e.g. 'redis', 'none'. Audited for cache-poisoning / authz-bypass (OWASP A01/A05)."
+        },
+        "orchestrator": {
+          "type": "string"
+        },
+        "hosting": {
+          "type": "string"
+        },
+        "db": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string",
+          "description": "Authn/authz provider or strategy, e.g. 'auth0', 'oidc', 'session-cookie', 'jwt'. Audited by /security (access management, RBAC, tokens — OWASP A01/A07, API BOLA/BFLA)."
+        },
+        "crypto": {
+          "type": "string",
+          "description": "Encryption / key-management binding, e.g. 'aws-kms', 'libsodium', 'webcrypto'. The Factory rolls no crypto itself; audited for weak/rolled-your-own crypto (OWASP A02)."
+        },
+        "session": {
+          "type": "string",
+          "description": "Session strategy, e.g. 'stateless-jwt', 'redis-session', 'signed-cookie'. Audited for fixation / weak lifetime (OWASP A07)."
+        },
+        "tls": {
+          "type": "string",
+          "description": "Transport security posture for public endpoints, e.g. 'lets-encrypt', 'acm', 'cloudflare'. /deploy hard-gates a public deploy on a valid chain + min TLS version + HSTS via lib/tls-verify.ts (OWASP A02/A05)."
+        },
         "mobile_release": {
           "type": "object",
-          "description": "Per-store app-store release bindings (Phase 6). Records bundle_id/application_id, the release track, the release tool (fastlane/EAS/Codemagic), and WHICH CI holds the signing material \u2014 never the secret value (custody principle, \u00a76.2). /deploy hard-gates a store submission and verifies the release manifest (format, monotonic build, valid track, no embedded secret) via lib/mobile-release-verify.ts.",
-          "additionalProperties": true,
+          "description": "Per-store app-store release bindings (Phase 6). Records bundle_id/application_id, the release track, the release tool (fastlane/EAS/Codemagic), and WHICH CI holds the signing material — never the secret value (custody principle, §6.2). /deploy hard-gates a store submission and verifies the release manifest (format, monotonic build, valid track, no embedded secret) via lib/mobile-release-verify.ts.",
+          "additionalProperties": false,
           "properties": {
-            "apple": { "type": "object", "additionalProperties": true, "description": "Apple App Store: bundle_id, track (testflight|app-store), tool, and the CI that holds the distribution cert + provisioning profile + ASC API key." },
-            "google": { "type": "object", "additionalProperties": true, "description": "Google Play: application_id, track (internal|closed|production), tool, and the CI that holds the upload keystore + Play service-account JSON (prefer Play App Signing)." }
+            "apple": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Apple App Store: bundle_id, track (testflight|app-store), tool, and the CI that holds the distribution cert + provisioning profile + ASC API key."
+            },
+            "google": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Google Play: application_id, track (internal|closed|production), tool, and the CI that holds the upload keystore + Play service-account JSON (prefer Play App Signing)."
+            }
           }
         },
         "supply_chain": {
           "type": "object",
-          "description": "Supply-chain security bindings (Phase 7, Track 1). Records the SCA scanner (osv-scanner/npm-audit/pip-audit/trivy), the severity policy the gate enforces, and the SBOM format. The scan + SBOM run in CI; /security normalises the output and /ship + /deploy hard-gate on a fix-available finding at or above the threshold via lib/sca-report.ts (custody principle \u2014 the Factory runs no scanner and fetches no advisory feed itself).",
-          "additionalProperties": true,
+          "description": "Supply-chain security bindings (Phase 7, Track 1). Records the SCA scanner (osv-scanner/npm-audit/pip-audit/trivy), the severity policy the gate enforces, and the SBOM format. The scan + SBOM run in CI; /security normalises the output and /ship + /deploy hard-gate on a fix-available finding at or above the threshold via lib/sca-report.ts (custody principle — the Factory runs no scanner and fetches no advisory feed itself).",
+          "additionalProperties": false,
           "properties": {
-            "sca_tool": { "type": "string", "enum": ["osv-scanner", "npm-audit", "pip-audit", "trivy"], "description": "The dependency-vulnerability scanner, chosen per language/ecosystem. osv-scanner is multi-ecosystem (npm, PyPI, Pub, ...)." },
-            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Findings at or above this severity are gate candidates. Default: high." },
-            "require_fix_available": { "type": "boolean", "description": "When true (default), a finding only blocks if a fix exists \u2014 an unfixable CVE warns but never holds the release." },
-            "sbom_format": { "type": "string", "enum": ["cyclonedx", "spdx"], "description": "The Software Bill of Materials format the build emits." }
+            "sca_tool": {
+              "type": "string",
+              "enum": [
+                "osv-scanner",
+                "npm-audit",
+                "pip-audit",
+                "trivy"
+              ],
+              "description": "The dependency-vulnerability scanner, chosen per language/ecosystem. osv-scanner is multi-ecosystem (npm, PyPI, Pub, ...)."
+            },
+            "block_severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "description": "Findings at or above this severity are gate candidates. Default: high."
+            },
+            "require_fix_available": {
+              "type": "boolean",
+              "description": "When true (default), a finding only blocks if a fix exists — an unfixable CVE warns but never holds the release."
+            },
+            "sbom_format": {
+              "type": "string",
+              "enum": [
+                "cyclonedx",
+                "spdx"
+              ],
+              "description": "The Software Bill of Materials format the build emits."
+            }
           }
         },
         "sast": {
           "type": "object",
-          "description": "Static Application Security Testing bindings (Phase 7, Track 2). Records the static analyzer (semgrep/codeql) and the severity the gate enforces. The scan runs in CI; /security normalises the output (SARIF or semgrep JSON) and gates on a finding at or above the threshold via lib/sast-report.ts \u2014 advisory in /review, gating in /security. No fix-available axis: the vulnerable code is yours to fix.",
-          "additionalProperties": true,
+          "description": "Static Application Security Testing bindings (Phase 7, Track 2). Records the static analyzer (semgrep/codeql) and the severity the gate enforces. The scan runs in CI; /security normalises the output (SARIF or semgrep JSON) and gates on a finding at or above the threshold via lib/sast-report.ts — advisory in /review, gating in /security. No fix-available axis: the vulnerable code is yours to fix.",
+          "additionalProperties": false,
           "properties": {
-            "tool": { "type": "string", "enum": ["semgrep", "codeql"], "description": "The static analyzer. semgrep (rulesets) or CodeQL (where available). Both can emit SARIF." },
-            "format": { "type": "string", "enum": ["semgrep", "sarif"], "description": "The analyzer's output shape lib/sast-report.ts parses. SARIF covers CodeQL and `semgrep --sarif`." },
-            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Findings at or above this severity gate. Default: high." }
+            "tool": {
+              "type": "string",
+              "enum": [
+                "semgrep",
+                "codeql"
+              ],
+              "description": "The static analyzer. semgrep (rulesets) or CodeQL (where available). Both can emit SARIF."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "semgrep",
+                "sarif"
+              ],
+              "description": "The analyzer's output shape lib/sast-report.ts parses. SARIF covers CodeQL and `semgrep --sarif`."
+            },
+            "block_severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "description": "Findings at or above this severity gate. Default: high."
+            }
           }
         },
         "provenance": {
           "type": "object",
-          "description": "Artifact-signing + build-provenance bindings (Phase 7, Track 3). Records the keyless signer (cosign/Sigstore), the attestation format (SLSA provenance), and the expected identity/issuer/builder/source a verifier must confirm. Signing + attestation run in CI; the Factory holds no signing key (keyless OIDC, custody principle \u00a76.2). /deploy hard-gates a release, verifying the attestation against these expectations via lib/provenance-verify.ts.",
-          "additionalProperties": true,
+          "description": "Artifact-signing + build-provenance bindings (Phase 7, Track 3). Records the keyless signer (cosign/Sigstore), the attestation format (SLSA provenance), and the expected identity/issuer/builder/source a verifier must confirm. Signing + attestation run in CI; the Factory holds no signing key (keyless OIDC, custody principle §6.2). /deploy hard-gates a release, verifying the attestation against these expectations via lib/provenance-verify.ts.",
+          "additionalProperties": false,
           "properties": {
-            "signer": { "type": "string", "enum": ["cosign", "sigstore"], "description": "The keyless signer. cosign (Sigstore) signs with a short-lived Fulcio cert bound to an OIDC identity \u2014 no long-lived key." },
-            "attestation_format": { "type": "string", "enum": ["slsa-provenance", "in-toto"], "description": "The build-provenance attestation format. SLSA provenance records what built the artifact and from which source." },
-            "expected_identity": { "type": "string", "description": "The OIDC certificate identity the signature must carry, e.g. the release workflow URI. Exact match unless identity_is_regex." },
-            "identity_is_regex": { "type": "boolean", "description": "When true, expected_identity is a regular-expression source string." },
-            "expected_issuer": { "type": "string", "description": "The OIDC issuer, e.g. https://token.actions.githubusercontent.com." },
-            "expected_builder_id": { "type": "string", "description": "The SLSA provenance builder id, e.g. https://github.com/actions/runner." },
-            "expected_source_uri": { "type": "string", "description": "The source repo URI the provenance must attest, e.g. git+https://github.com/org/repo." },
-            "require_transparency_log": { "type": "boolean", "description": "When true (default), the signature must be recorded in a transparency log (Rekor)." },
-            "require_keyless": { "type": "boolean", "description": "When true (default), reject a long-lived-key signature \u2014 keyless OIDC signing only." }
+            "signer": {
+              "type": "string",
+              "enum": [
+                "cosign",
+                "sigstore"
+              ],
+              "description": "The keyless signer. cosign (Sigstore) signs with a short-lived Fulcio cert bound to an OIDC identity — no long-lived key."
+            },
+            "attestation_format": {
+              "type": "string",
+              "enum": [
+                "slsa-provenance",
+                "in-toto"
+              ],
+              "description": "The build-provenance attestation format. SLSA provenance records what built the artifact and from which source."
+            },
+            "expected_identity": {
+              "type": "string",
+              "description": "The OIDC certificate identity the signature must carry, e.g. the release workflow URI. Exact match unless identity_is_regex."
+            },
+            "identity_is_regex": {
+              "type": "boolean",
+              "description": "When true, expected_identity is a regular-expression source string."
+            },
+            "expected_issuer": {
+              "type": "string",
+              "description": "The OIDC issuer, e.g. https://token.actions.githubusercontent.com."
+            },
+            "expected_builder_id": {
+              "type": "string",
+              "description": "The SLSA provenance builder id, e.g. https://github.com/actions/runner."
+            },
+            "expected_source_uri": {
+              "type": "string",
+              "description": "The source repo URI the provenance must attest, e.g. git+https://github.com/org/repo."
+            },
+            "require_transparency_log": {
+              "type": "boolean",
+              "description": "When true (default), the signature must be recorded in a transparency log (Rekor)."
+            },
+            "require_keyless": {
+              "type": "boolean",
+              "description": "When true (default), reject a long-lived-key signature — keyless OIDC signing only."
+            }
           }
         },
         "ci": {
           "type": "object",
-          "description": "CI/CD pipeline bindings (Phase 7, Track 4). Records the CI provider and the hardening baseline a generated pipeline must meet: least-privilege permissions, OIDC/keyless cloud auth (no long-lived secret), pinned action SHAs, and the required security steps (SCA/SBOM/SAST/sign). /pipeline generates the workflow and /security audits an existing one; both check it via lib/pipeline-lint.ts (custody principle \u2014 the Factory holds no push secret).",
-          "additionalProperties": true,
+          "description": "CI/CD pipeline bindings (Phase 7, Track 4). Records the CI provider and the hardening baseline a generated pipeline must meet: least-privilege permissions, OIDC/keyless cloud auth (no long-lived secret), pinned action SHAs, and the required security steps (SCA/SBOM/SAST/sign). /pipeline generates the workflow and /security audits an existing one; both check it via lib/pipeline-lint.ts (custody principle — the Factory holds no push secret).",
+          "additionalProperties": false,
           "properties": {
-            "provider": { "type": "string", "enum": ["github-actions"], "description": "The CI/CD provider. GitHub Actions first; the mechanism-vs-parameters model lets a second provider be a binding, not a rewrite." },
-            "oidc_identity": { "type": "string", "description": "The OIDC subject the pipeline authenticates as, e.g. the release workflow URI federated to the cloud/registry \u2014 no long-lived secret." },
-            "require_oidc": { "type": "boolean", "description": "When true (default), the pipeline must request `id-token: write` for keyless auth." },
-            "require_pinned_actions": { "type": "boolean", "description": "When true (default), every third-party `uses:` must be pinned to a full 40-hex commit SHA." },
-            "required_steps": { "type": "array", "items": { "type": "string" }, "description": "Substrings that must each appear in at least one pipeline step, e.g. the SCA/SAST/sign commands wired as required checks." }
+            "provider": {
+              "type": "string",
+              "enum": [
+                "github-actions"
+              ],
+              "description": "The CI/CD provider. GitHub Actions first; the mechanism-vs-parameters model lets a second provider be a binding, not a rewrite."
+            },
+            "oidc_identity": {
+              "type": "string",
+              "description": "The OIDC subject the pipeline authenticates as, e.g. the release workflow URI federated to the cloud/registry — no long-lived secret."
+            },
+            "require_oidc": {
+              "type": "boolean",
+              "description": "When true (default), the pipeline must request `id-token: write` for keyless auth."
+            },
+            "require_pinned_actions": {
+              "type": "boolean",
+              "description": "When true (default), every third-party `uses:` must be pinned to a full 40-hex commit SHA."
+            },
+            "required_steps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Substrings that must each appear in at least one pipeline step, e.g. the SCA/SAST/sign commands wired as required checks."
+            }
           }
         },
         "container_scan": {
           "type": "object",
-          "description": "Container-image scanning + base-image hardening bindings (Phase 7, Track 5 \u2014 optional, for products that ship a Docker image). Records the image scanner (trivy/grype), the severity policy, and the hardening rules. The scan runs in CI; /security normalises the output and gates on a fix-available finding at/above the threshold via lib/container-scan.ts, and lints the image config (non-root user, pinned base image).",
-          "additionalProperties": true,
+          "description": "Container-image scanning + base-image hardening bindings (Phase 7, Track 5 — optional, for products that ship a Docker image). Records the image scanner (trivy/grype), the severity policy, and the hardening rules. The scan runs in CI; /security normalises the output and gates on a fix-available finding at/above the threshold via lib/container-scan.ts, and lints the image config (non-root user, pinned base image).",
+          "additionalProperties": false,
           "properties": {
-            "scanner": { "type": "string", "enum": ["trivy", "grype"], "description": "The container-image vulnerability scanner." },
-            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Image vulns at or above this severity are gate candidates. Default: high." },
-            "require_fix_available": { "type": "boolean", "description": "When true (default), a vuln only blocks if a fix exists \u2014 an unfixable one warns." },
-            "forbid_root": { "type": "boolean", "description": "When true (default), an image that runs as root fails the hardening lint." },
-            "require_pinned_base": { "type": "boolean", "description": "When true (default), the base image must be pinned by digest (FROM img@sha256:...), not a tag." }
+            "scanner": {
+              "type": "string",
+              "enum": [
+                "trivy",
+                "grype"
+              ],
+              "description": "The container-image vulnerability scanner."
+            },
+            "block_severity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "description": "Image vulns at or above this severity are gate candidates. Default: high."
+            },
+            "require_fix_available": {
+              "type": "boolean",
+              "description": "When true (default), a vuln only blocks if a fix exists — an unfixable one warns."
+            },
+            "forbid_root": {
+              "type": "boolean",
+              "description": "When true (default), an image that runs as root fails the hardening lint."
+            },
+            "require_pinned_base": {
+              "type": "boolean",
+              "description": "When true (default), the base image must be pinned by digest (FROM img@sha256:...), not a tag."
+            }
           }
         },
         "dast": {
           "type": "object",
-          "description": "Dynamic Application Security Testing bindings (Phase 7, Track 5 \u2014 optional). Records the DAST scanner (OWASP ZAP baseline) and the risk policy. The scan runs in CI against a deployed preview; /security normalises the ZAP output and gates on a confirmed alert at/above the risk threshold via lib/dast-report.ts.",
-          "additionalProperties": true,
+          "description": "Dynamic Application Security Testing bindings (Phase 7, Track 5 — optional). Records the DAST scanner (OWASP ZAP baseline) and the risk policy. The scan runs in CI against a deployed preview; /security normalises the ZAP output and gates on a confirmed alert at/above the risk threshold via lib/dast-report.ts.",
+          "additionalProperties": false,
           "properties": {
-            "scanner": { "type": "string", "enum": ["zap"], "description": "The DAST scanner. OWASP ZAP baseline scan against a running preview." },
-            "block_risk": { "type": "string", "enum": ["low", "medium", "high"], "description": "Alerts at or above this risk gate. Default: high." },
-            "min_confidence": { "type": "string", "enum": ["false-positive", "low", "medium", "high", "confirmed"], "description": "Alerts below this confidence are treated as noise and never gate. Default: low." }
+            "scanner": {
+              "type": "string",
+              "enum": [
+                "zap"
+              ],
+              "description": "The DAST scanner. OWASP ZAP baseline scan against a running preview."
+            },
+            "block_risk": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "description": "Alerts at or above this risk gate. Default: high."
+            },
+            "min_confidence": {
+              "type": "string",
+              "enum": [
+                "false-positive",
+                "low",
+                "medium",
+                "high",
+                "confirmed"
+              ],
+              "description": "Alerts below this confidence are treated as noise and never gate. Default: low."
+            }
           }
         }
       }
@@ -210,15 +476,39 @@
       "description": "Manifest of skills this product has adopted, with optional per-skill overrides.",
       "items": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "description": "Skill folder name (Layer 1 workflow or vendored craft)." },
-          "version": { "type": "string", "description": "Pinned version copied from source (craft skills)." },
-          "enabled": { "type": "boolean", "default": true },
-          "layer": { "type": "string", "description": "Architecture layer this skill maps to." },
-          "priority": { "type": "string", "enum": ["V1", "FF", "Later"] },
-          "overrides": { "type": "object", "additionalProperties": true }
+          "name": {
+            "type": "string",
+            "description": "Skill folder name (Layer 1 workflow or vendored craft)."
+          },
+          "version": {
+            "type": "string",
+            "description": "Pinned version copied from source (craft skills)."
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "layer": {
+            "type": "string",
+            "description": "Architecture layer this skill maps to."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "V1",
+              "FF",
+              "Later"
+            ]
+          },
+          "overrides": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       }
     },
@@ -228,16 +518,33 @@
       "description": "Safety/data-handling switches skills consult.",
       "additionalProperties": true,
       "properties": {
-        "pii_handling": { "type": "string", "description": "e.g. 'detect_and_stop', 'strip', 'allow'." },
-        "secrets": { "type": "string", "description": "e.g. 'never_log'." },
-        "prohibited_data": { "type": "array", "items": { "type": "string" } },
+        "pii_handling": {
+          "type": "string",
+          "description": "e.g. 'detect_and_stop', 'strip', 'allow'."
+        },
+        "secrets": {
+          "type": "string",
+          "description": "e.g. 'never_log'."
+        },
+        "prohibited_data": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "budget": {
           "type": "object",
           "description": "Per-run cost budget (plan §8.1). Warns, does not halt, until a measured baseline exists.",
           "additionalProperties": false,
           "properties": {
-            "warn_tokens": { "type": "integer", "minimum": 1 },
-            "warn_wall_ms": { "type": "integer", "minimum": 1 }
+            "warn_tokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "warn_wall_ms": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         }
       }
@@ -248,9 +555,18 @@
       "description": "When and how to escalate / defer to humans.",
       "additionalProperties": false,
       "properties": {
-        "triggers": { "type": "array", "items": { "type": "string" } },
-        "action": { "type": "string" },
-        "disclaimer": { "type": "string" }
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "action": {
+          "type": "string"
+        },
+        "disclaimer": {
+          "type": "string"
+        }
       }
     },
     "meta": {
@@ -258,24 +574,35 @@
       "x-owner": "PRD.md",
       "additionalProperties": false,
       "properties": {
-        "version": { "type": "string" },
-        "last_updated": { "type": "string" },
-        "owner": { "type": "string" },
-        "schema_version": { "type": "string" }
+        "version": {
+          "type": "string"
+        },
+        "last_updated": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        }
       }
     },
-
     "jurisdictions": {
       "type": "array",
       "x-owner": "PRD.md",
       "description": "LIBRARY KEY — applicable jurisdictions/regions, most-relevant first.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "authority_hierarchy": {
       "type": "array",
       "x-owner": "PRD.md",
       "description": "LIBRARY KEY — source-authority tiers, ORDERED highest to lowest.",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "minItems": 1
     },
     "sources": {
@@ -286,17 +613,36 @@
         "type": "array",
         "items": {
           "oneOf": [
-            { "type": "string" },
+            {
+              "type": "string"
+            },
             {
               "type": "object",
-              "required": ["name"],
+              "required": [
+                "name"
+              ],
               "additionalProperties": false,
               "properties": {
-                "name": { "type": "string" },
-                "url": { "type": "string" },
-                "authority": { "type": "string" },
-                "access": { "type": "string", "enum": ["public", "licensed", "internal"] },
-                "notes": { "type": "string" }
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "authority": {
+                  "type": "string"
+                },
+                "access": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "licensed",
+                    "internal"
+                  ]
+                },
+                "notes": {
+                  "type": "string"
+                }
               }
             }
           ]
@@ -309,8 +655,15 @@
       "description": "LIBRARY KEY — domain terminology the agent should use/expand.",
       "additionalProperties": false,
       "properties": {
-        "ref": { "type": "string" },
-        "terms": { "type": "object", "additionalProperties": { "type": "string" } }
+        "ref": {
+          "type": "string"
+        },
+        "terms": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       }
     },
     "compliance_rules": {
@@ -319,15 +672,32 @@
       "description": "LIBRARY KEY — non-negotiable rules skills must honour.",
       "items": {
         "oneOf": [
-          { "type": "string" },
+          {
+            "type": "string"
+          },
           {
             "type": "object",
-            "required": ["id", "rule"],
+            "required": [
+              "id",
+              "rule"
+            ],
             "additionalProperties": false,
             "properties": {
-              "id": { "type": "string" },
-              "rule": { "type": "string" },
-              "severity": { "type": "string", "enum": ["blocking", "high", "medium", "low"] }
+              "id": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "blocking",
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              }
             }
           }
         ]
@@ -337,7 +707,9 @@
       "type": "object",
       "x-owner": "PRD.md",
       "description": "LIBRARY KEY — authority level to user-facing confidence label.",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "tenancy": {
       "type": "object",
@@ -345,8 +717,12 @@
       "description": "LIBRARY KEY — tenancy/isolation model.",
       "additionalProperties": true,
       "properties": {
-        "model": { "type": "string" },
-        "isolation": { "type": "string" }
+        "model": {
+          "type": "string"
+        },
+        "isolation": {
+          "type": "string"
+        }
       }
     }
   }

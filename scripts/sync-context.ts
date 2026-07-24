@@ -16,7 +16,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { loadProductContext, checkOwnership, mergeContext, STACK_RELATIVE } from '../lib/context.ts';
-import { validateContext } from '../lib/schema.ts';
+import { validateContext, nearMissBindingKeys } from '../lib/schema.ts';
 import { stringifyYaml } from '../lib/yaml.ts';
 
 function main() {
@@ -46,6 +46,15 @@ function main() {
     console.error('sync-context — merged context fails project-context.schema.json:');
     for (const e of errors) console.error(`  ✗ ${e}`);
     process.exit(1);
+  }
+
+  // A mistyped security-binding NAME is silently accepted (tech_bindings stays open for custom
+  // infra), so the gate it meant to declare never runs — a fail-open. Warn on likely typos.
+  for (const { key, suggestion } of nearMissBindingKeys(merged.tech_bindings)) {
+    console.warn(
+      `sync-context — ⚠ tech_bindings.${key} looks like a typo of '${suggestion}'; ` +
+        `if so, the '${suggestion}' security gate is not being applied. Rename it or remove it.`,
+    );
   }
 
   const body = stringifyYaml(merged);

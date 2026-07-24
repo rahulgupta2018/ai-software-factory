@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   DEFAULT_PIPELINE_POLICY,
   lintPipeline,
+  requiredStepsForBindings,
   type PipelinePolicy,
 } from '../lib/pipeline-lint';
 
@@ -145,5 +146,41 @@ describe('lintPipeline — the hardening baseline', () => {
     expect(DEFAULT_PIPELINE_POLICY.requireOidc).toBe(true);
     expect(DEFAULT_PIPELINE_POLICY.requirePinnedActions).toBe(true);
     expect(DEFAULT_PIPELINE_POLICY.maxTopLevelPermission).toBe('read');
+  });
+});
+
+describe('requiredStepsForBindings — a declared gate auto-requires its CI step', () => {
+  test('maps each declared gate to its tool token, including the optional container/DAST gates', () => {
+    const steps = requiredStepsForBindings({
+      supply_chain: { sca_tool: 'osv-scanner' },
+      sast: { tool: 'semgrep' },
+      provenance: { signer: 'cosign' },
+      container_scan: { scanner: 'trivy' },
+      dast: { scanner: 'zap' },
+    });
+    expect(steps).toEqual(['osv-scanner', 'semgrep', 'cosign', 'trivy', 'zap']);
+  });
+
+  test('an undeclared gate contributes no required step (only what the product opted into)', () => {
+    expect(requiredStepsForBindings({ sast: { tool: 'codeql' } })).toEqual(['codeql']);
+    expect(requiredStepsForBindings({})).toEqual([]);
+    expect(requiredStepsForBindings(null)).toEqual([]);
+  });
+
+  test('falls back to the canonical tool when a declared gate names none', () => {
+    // A gate declared as an empty/partial map still requires its default scanner step.
+    expect(requiredStepsForBindings({ container_scan: { block_severity: 'high' }, dast: { block_risk: 'high' } })).toEqual(
+      ['trivy', 'zap'],
+    );
+  });
+
+  test('these feed lintPipeline: a declared gate whose step is absent from CI is a finding', () => {
+    const required = requiredStepsForBindings({ container_scan: { scanner: 'trivy' } });
+    const workflow = {
+      permissions: { contents: 'read', 'id-token': 'write' },
+      jobs: { build: { steps: [{ run: 'osv-scanner --format json' }] } },
+    };
+    const verdict = lintPipeline(workflow, { ...DEFAULT_PIPELINE_POLICY, requiredSteps: required });
+    expect(verdict.findings.some((f) => f.risk === 'missing-required-step')).toBe(true);
   });
 });

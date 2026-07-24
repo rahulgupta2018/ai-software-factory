@@ -235,14 +235,24 @@ describe('evaluateScaReport — the severity policy gates the release', () => {
   test('with requireFixAvailable=false, a no-fix critical still BLOCKS', () => {
     const v = evaluateScaReport(
       [vuln({ severity: 'critical', fixAvailable: false, fixedVersion: undefined })],
-      { blockSeverity: 'critical', requireFixAvailable: false },
+      { blockSeverity: 'critical', requireFixAvailable: false, gateUnknownSeverity: true },
     );
     expect(v.pass).toBe(false);
   });
 
-  test('an unknown-severity finding never trips a real threshold', () => {
-    const v = evaluateScaReport([vuln({ severity: 'unknown', fixAvailable: true })], { blockSeverity: 'low', requireFixAvailable: true });
-    expect(v.pass).toBe(true);
+  test('an unknown-severity finding gates by default when fixable (a severity-less scanner fails closed)', () => {
+    // Default policy: ungradeable + fix-available → blocks (pip-audit no longer silently passes).
+    expect(evaluateScaReport([vuln({ severity: 'unknown', fixAvailable: true })]).pass).toBe(false);
+    // Ungradeable but no fix → warn, not block (can't hold a release on an unfixable CVE).
+    expect(evaluateScaReport([vuln({ severity: 'unknown', fixAvailable: false })]).pass).toBe(true);
+    // Opt out → unknown never trips a real threshold (old behaviour).
+    expect(
+      evaluateScaReport([vuln({ severity: 'unknown', fixAvailable: true })], {
+        blockSeverity: 'low',
+        requireFixAvailable: true,
+        gateUnknownSeverity: false,
+      }).pass,
+    ).toBe(true);
   });
 
   test('an empty scan passes', () => {
@@ -252,7 +262,7 @@ describe('evaluateScaReport — the severity policy gates the release', () => {
   });
 
   test('the default policy is fix-available High', () => {
-    expect(DEFAULT_SCA_POLICY).toEqual({ blockSeverity: 'high', requireFixAvailable: true });
+    expect(DEFAULT_SCA_POLICY).toEqual({ blockSeverity: 'high', requireFixAvailable: true, gateUnknownSeverity: true });
   });
 });
 

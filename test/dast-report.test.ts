@@ -21,13 +21,16 @@ function alert(overrides: Partial<DastAlert> = {}): DastAlert {
 }
 
 describe('normalizeDastRisk — ZAP riskcode / label to the common scale', () => {
-  test('maps 3/2/1 and labels, else informational', () => {
+  test('maps 3/2/1/0 and labels; missing/unrecognised fails closed to high', () => {
     expect(normalizeDastRisk('3')).toBe('high');
     expect(normalizeDastRisk('High')).toBe('high');
     expect(normalizeDastRisk('2')).toBe('medium');
     expect(normalizeDastRisk('1')).toBe('low');
     expect(normalizeDastRisk('0')).toBe('informational');
-    expect(normalizeDastRisk(undefined)).toBe('informational');
+    expect(normalizeDastRisk('informational')).toBe('informational');
+    // Missing / unrecognised → fail closed (a real ZAP alert always carries a 0–3 riskcode).
+    expect(normalizeDastRisk(undefined)).toBe('high');
+    expect(normalizeDastRisk('bogus')).toBe('high');
   });
 });
 

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 
 import { parseYamlObject, stringifyYaml } from '../lib/yaml.ts';
 import { parseFrontmatter, renderFrontmatter } from '../lib/frontmatter.ts';
-import { validateContext } from '../lib/schema.ts';
+import { validateContext, nearMissBindingKeys } from '../lib/schema.ts';
 import { checkOwnership, deriveTechBindings, mergeContext, loadProductContext } from '../lib/context.ts';
 import { renderSkill, skillNames, templatePath } from '../scripts/gen-skill-docs.ts';
 import { checkSkill } from '../scripts/skill-check.ts';
@@ -164,6 +164,24 @@ describe('context schema', () => {
 
   test('accepts a valid context', () => {
     expect(validateContext(valid).ok).toBe(true);
+  });
+
+  test('a typo\'d policy key inside a security binding is rejected (schema is tightened)', () => {
+    const good = validateContext({ ...valid, tech_bindings: { sast: { tool: 'semgrep', block_severity: 'high' } } });
+    expect(good.ok).toBe(true);
+    const typo = validateContext({ ...valid, tech_bindings: { sast: { tool: 'semgrep', block_severty: 'high' } } });
+    expect(typo.ok).toBe(false);
+    expect(typo.errors.join(' ')).toContain('block_severty');
+    // A genuinely-custom infra binding is still allowed (tech_bindings stays open).
+    expect(validateContext({ ...valid, tech_bindings: { hosting: 'fly.io', my_thing: 'ok' } }).ok).toBe(true);
+  });
+
+  test('nearMissBindingKeys flags a mistyped security-binding NAME, leaves exact/custom keys alone', () => {
+    const miss = nearMissBindingKeys({ supply_chian: {}, provenence: {}, hosting: 'fly.io' });
+    expect(miss.find((m) => m.key === 'supply_chian')?.suggestion).toBe('supply_chain');
+    expect(miss.find((m) => m.key === 'provenence')?.suggestion).toBe('provenance');
+    expect(miss.some((m) => m.key === 'hosting')).toBe(false); // unrelated custom key — no warning
+    expect(nearMissBindingKeys({ supply_chain: {}, container_scan: {} })).toEqual([]); // exact names
   });
 
   test('rejects a missing product', () => {

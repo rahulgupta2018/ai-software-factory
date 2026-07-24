@@ -36,11 +36,17 @@ export interface ImageScanPolicy {
   blockSeverity: ImageBlockSeverity;
   /** When true (default), only a fix-available vuln at/above the threshold gates. */
   requireFixAvailable: boolean;
+  /**
+   * When true (default), a vuln the scanner reported but couldn't grade (`unknown` severity) is a
+   * gate candidate rather than silently below-threshold — it still respects `requireFixAvailable`.
+   */
+  gateUnknownSeverity: boolean;
 }
 
 export const DEFAULT_IMAGE_SCAN_POLICY: ImageScanPolicy = {
   blockSeverity: 'high',
   requireFixAvailable: true,
+  gateUnknownSeverity: true,
 };
 
 export interface ImageScanResult {
@@ -160,14 +166,15 @@ export function evaluateImageScan(
   const threshold = SEVERITY_RANK[policy.blockSeverity];
   const blocking: ImageScanResult[] = [];
   for (const vuln of vulns) {
-    if (SEVERITY_RANK[vuln.severity] < threshold) continue;
+    const ungradeable = vuln.severity === 'unknown' && policy.gateUnknownSeverity;
+    if (SEVERITY_RANK[vuln.severity] < threshold && !ungradeable) continue;
     if (policy.requireFixAvailable && !vuln.fixAvailable) continue;
     blocking.push({
       vuln,
       blocking: true,
-      reason: `${vuln.severity} \u2265 ${policy.blockSeverity}${
-        policy.requireFixAvailable ? ' with a fix available' : ''
-      }`,
+      reason: ungradeable
+        ? `unknown severity \u2014 gating pending triage${policy.requireFixAvailable ? ' with a fix available' : ''}`
+        : `${vuln.severity} \u2265 ${policy.blockSeverity}${policy.requireFixAvailable ? ' with a fix available' : ''}`,
     });
   }
   return { pass: blocking.length === 0, policy, total: vulns.length, vulns, blocking };

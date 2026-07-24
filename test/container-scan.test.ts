@@ -107,8 +107,19 @@ describe('evaluateImageScan — the severity gate', () => {
     expect(verdict.pass).toBe(false);
   });
 
-  test('an unknown-severity vuln never trips the gate', () => {
-    expect(evaluateImageScan([vuln({ severity: 'unknown', fixAvailable: true })]).pass).toBe(true);
+  test('an unknown-severity vuln gates by default when fixable (pending triage)', () => {
+    // Fail closed: an ungradeable vuln with a fix available blocks.
+    expect(evaluateImageScan([vuln({ severity: 'unknown', fixAvailable: true })]).pass).toBe(false);
+    // No fix → warn, not block (can't hold a release on an unfixable vuln).
+    expect(evaluateImageScan([vuln({ severity: 'unknown', fixAvailable: false })]).pass).toBe(true);
+    // Opt out → unknown never trips a threshold again.
+    expect(
+      evaluateImageScan([vuln({ severity: 'unknown', fixAvailable: true })], {
+        blockSeverity: 'high',
+        requireFixAvailable: true,
+        gateUnknownSeverity: false,
+      }).pass,
+    ).toBe(true);
   });
 
   test('an empty scan passes', () => {

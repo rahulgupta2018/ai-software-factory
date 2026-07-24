@@ -98,10 +98,12 @@ tech_bindings:
     oidc_identity: https://github.com/example/reference-product/.github/workflows/release.yml@refs/heads/main
     require_oidc: true              # keyless cloud/registry auth — id-token: write, no long-lived secret
     require_pinned_actions: true    # every third-party uses: pinned to a full commit SHA
-    required_steps:                 # the supply-chain steps (Tracks 1–3) wired as required checks
-      - osv-scanner
-      - semgrep
-      - cosign
+    required_steps:                 # every declared gate's CI step (auto-derivable via requiredStepsForBindings)
+      - osv-scanner                 # supply_chain (Track 1)
+      - semgrep                     # sast (Track 2)
+      - cosign                      # provenance (Track 3)
+      - trivy                       # container_scan (Track 5) — a declared gate must have its step
+      - zap                         # dast (Track 5)
 
   # Phase 7 (Track 5, optional) — container-image scan + base-image hardening. The scan runs in CI;
   # /security gates on a fix-available finding at/above block_severity via lib/container-scan.ts.

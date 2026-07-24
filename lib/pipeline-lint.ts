@@ -123,6 +123,33 @@ function isThirdPartyAction(uses: string): boolean {
 }
 
 /**
+ * Derive the CI steps a pipeline must contain from the security gates a product *declares*.
+ *
+ * Each Phase-7 gate is only real if CI actually runs its scan; the pipeline audit's `requiredSteps`
+ * is what enforces that. Rather than leave it to the operator to remember, this maps the declared
+ * `tech_bindings` gates to the tool token their CI step must reference — so declaring a gate
+ * automatically requires its step (closing the "gate declared but scan never wired in" fail-open).
+ * Reads the tool name from each binding, falling back to the canonical scanner when absent. Pure and
+ * tolerant of partial input.
+ */
+export function requiredStepsForBindings(bindings: unknown): string[] {
+  const b = asRecord(bindings);
+  const steps: string[] = [];
+  const requireFrom = (gate: string, field: string, fallback: string): void => {
+    const binding = asRecord(b[gate]);
+    if (Object.keys(binding).length === 0) return; // gate not declared
+    const tool = asString(binding[field]).trim() || fallback;
+    if (!steps.includes(tool)) steps.push(tool);
+  };
+  requireFrom('supply_chain', 'sca_tool', 'osv-scanner');
+  requireFrom('sast', 'tool', 'semgrep');
+  requireFrom('provenance', 'signer', 'cosign');
+  requireFrom('container_scan', 'scanner', 'trivy');
+  requireFrom('dast', 'scanner', 'zap');
+  return steps;
+}
+
+/**
  * Lint a parsed CI/CD workflow against the hardening `policy`, accumulating every failed rule.
  * `pass` is true only when there are no findings.
  */

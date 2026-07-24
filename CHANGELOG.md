@@ -3,6 +3,45 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.44.0.0] — 2026-07-24
+
+**The Phase-7 security gates now fail *closed*: a scan that didn't run, a finding the scanner couldn't grade, and a gate declared but never wired into CI all block the release instead of silently passing.**
+
+The DevSecOps gates were well-built but leaned fail-open in a few places — the worst property a
+security gate can have. A code review of the REVIEW-phase security machinery closed them. A gate a
+misconfigured CI could bypass by simply not producing a report now blocks; an ungradeable finding
+now blocks pending triage; and declaring a gate now forces its scan step into the pipeline.
+
+### Fixed
+- **A skipped scan no longer passes as "clean".** SAST, DAST, and container-image gates returned a
+  clean verdict when their report was *absent* — indistinguishable from "the scan ran and found
+  nothing". They now require proof the scan ran (`lib/scan-liveness.ts`); a missing report on a
+  declared gate is a hard gate. (SCA already had this via its mandatory non-empty SBOM.)
+- **An ungradeable finding no longer slips through.** A finding the scanner emitted but couldn't
+  grade (`unknown` severity — e.g. pip-audit, which reports none) now gates by default, pending
+  triage, rather than sitting silently below every threshold. It still respects fix-availability, so
+  a severity-less scanner fails closed on a *fixable* CVE instead of passing everything. Opt out with
+  `gateUnknownSeverity: false`. This also settles the pip-audit gap — its findings now block.
+- **A malformed DAST risk fails closed.** An unrecognised OWASP ZAP risk value now normalises to
+  `high` (it gates) instead of `informational` (it didn't) — matching the confidence side.
+- **Declaring a gate now requires its CI step.** `requiredStepsForBindings` derives the pipeline's
+  required steps from the security gates a product declares, so a declared SAST/SCA/container/DAST/
+  provenance gate whose scan is never wired into CI is a finding — the backstop that keeps a
+  declared gate from being silently skipped. The reference product now requires all five.
+- **A typo'd security-binding key can't silently disable a gate.** The `tech_bindings` security
+  sub-schemas (`supply_chain`, `sast`, `dast`, `container_scan`, `provenance`, `ci`,
+  `mobile_release`) reject unknown policy keys, so a mistyped `block_severty` fails validation; and a
+  mistyped binding *name* (e.g. `supply_chian`) is surfaced as a near-miss warning by `sync-context`.
+- **`/pipeline` recorded its artifact with a broken command and had no owner or eval.** It now
+  records `02c-pipeline.md` (`--seq 2c`), is owned by the Release Engineer (no longer orphaned), and
+  has Tier-2 + Tier-3 evals that fail when its hardening discipline is stripped.
+
+### For contributors
+- New `lib/scan-liveness.ts` (fail-closed on an absent scan) and `lib/schema.ts` gains
+  `nearMissBindingKeys` + a bounded `editDistance`. `sast`/`sca`/`container` policies gain
+  `gateUnknownSeverity`; `pipeline-lint` gains `requiredStepsForBindings`. Every change carries a
+  Tier-1 negative case; the security sub-schemas are tightened to `additionalProperties: false`.
+
 ## [0.43.0.0] — 2026-07-24
 
 **`/security` now closes the runtime half of DevSecOps: a container-image scan (Trivy/Grype) plus base-image hardening, and a DAST scan (OWASP ZAP) against a running preview — both gating. Phase 7 is complete.**

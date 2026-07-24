@@ -79,13 +79,19 @@ function asString(value: unknown): string {
   return '';
 }
 
-/** Normalise a ZAP `riskcode` (0..3) or risk label to the common scale. */
+/**
+ * Normalise a ZAP `riskcode` (0..3) or risk label to the common scale. An *explicit* informational
+ * (riskcode 0) is informational; a missing or unrecognised risk fails **closed** (→ high) rather
+ * than silently informational — matching the confidence side, which already gates on the unknown
+ * default. A real ZAP alert always carries a 0–3 riskcode, so this only bites on malformed input.
+ */
 export function normalizeDastRisk(raw: unknown): DastRisk {
   const s = asString(raw).toLowerCase().trim();
   if (s === '3' || s === 'high') return 'high';
   if (s === '2' || s === 'medium') return 'medium';
   if (s === '1' || s === 'low') return 'low';
-  return 'informational';
+  if (s === '0' || s === 'informational' || s === 'info') return 'informational';
+  return 'high';
 }
 
 /** Normalise a ZAP `confidence` (0..4) or label to the common scale. */

@@ -1,0 +1,37 @@
+{
+  "skill": "pipeline",
+  "intent": "Generates/hardens the CI/CD workflow to a fixed baseline — least-privilege permissions, keyless OIDC (no long-lived secret), SHA-pinned actions, and every declared security gate wired as a required step — then gates on its own lint (lib/pipeline-lint.ts), the same one /security audits with.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "least-privilege-permissions",
+      "criterion": "Top-level permissions are least-privilege (contents: read); no write-all.",
+      "weight": 2,
+      "anchors": { "require_all": ["least-privilege", "contents: read"] }
+    },
+    {
+      "name": "keyless-oidc-no-secret",
+      "criterion": "Keyless OIDC auth (id-token: write); no long-lived cloud/registry secret.",
+      "weight": 3,
+      "anchors": { "require_all": ["id-token: write", "keyless", "long-lived"] }
+    },
+    {
+      "name": "pinned-actions",
+      "criterion": "Every third-party action pinned to a full commit SHA.",
+      "weight": 2,
+      "anchors": { "require_all": ["commit SHA"] }
+    },
+    {
+      "name": "gates-as-required-steps",
+      "criterion": "The declared security gates are wired as required pipeline steps.",
+      "weight": 2,
+      "anchors": { "require_all": ["required_steps"] }
+    },
+    {
+      "name": "lint-is-the-gate",
+      "criterion": "Generation isn't done until the pipeline hardening lint is clean (hard gate).",
+      "weight": 3,
+      "anchors": { "require_all": ["lib/pipeline-lint.ts"] }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 ---
 name: release-engineer
 description: Lands a reviewed, QA'd change — runs checks, opens a PR, deploys and verifies.
-loads_skills: [ship, deploy]
+loads_skills: [ship, deploy, pipeline]
 allowed_tools: [Bash, git, gh]
 handoff_from: qa-engineer
 handoff_to: doc-writer

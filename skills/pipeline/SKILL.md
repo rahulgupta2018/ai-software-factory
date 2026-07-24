@@ -88,7 +88,7 @@ Activate when:
 ## Core Concepts
 
 - **The workflow file is the artifact.** The generated/hardened `.github/workflows/*.yml` and the
-  lint verdict are recorded as a run artifact (`NN-pipeline.md`) — an auditable record of what the
+  lint verdict are recorded as a sub-sequenced run artifact (`02c-pipeline.md`) — an auditable record of what the
   pipeline grants and which gates it runs.
 - **Custody: keyless, no long-lived secret.** Cloud/registry auth is **OIDC-federated** — the
   pipeline requests `id-token: write` and exchanges it for a short-lived token. The Factory never
@@ -134,9 +134,11 @@ Freedom level: **low** — the hardening baseline is fixed; generate to it, don'
 5. **Branch-protection guidance.** Note which pipeline jobs should be **required status checks** on
    the protected branch (the SCA/SAST/build gates), so a red gate blocks merge — the Factory
    generates the workflow; enabling branch protection is a one-time repo setting the human confirms.
-6. **Write the pipeline log as a run artifact.** Under an active run:
+6. **Write the pipeline log as a run artifact.** CI/CD setup is a one-off, so it is a **branch
+   artifact** with a sub-sequence seq — the next free letter under the step it follows (`2c` at
+   design time, once the stack is settled):
    ```bash
-   fac run artifact --step pipeline --inputs .factory/stack.yaml --body-file pipeline.md
+   fac run artifact --seq 2c --step pipeline --inputs .factory/stack.yaml --body-file pipeline.md
    ```
    Record the workflow path, the lint verdict (clean), and the required-check guidance.
 
@@ -162,7 +164,7 @@ Steps:  read context → generate release.yml (permissions: contents: read; buil
         id-token: write; osv-scanner + SBOM step; semgrep --sarif step; cosign sign --yes step;
         actions/checkout pinned to a SHA) → lint via lib/pipeline-lint.ts → clean → note the three
         gate jobs as required status checks.
-Output: run artifact NN-pipeline.md — workflow path, clean lint verdict, required-check guidance.
+Output: run artifact 02c-pipeline.md — workflow path, clean lint verdict, required-check guidance.
 Fail path: a first draft used secrets.AWS_SECRET_ACCESS_KEY → lint flagged long-lived-secret →
         replaced with aws-actions/configure-aws-credentials via OIDC → re-lint clean.
 ```
@@ -199,7 +201,7 @@ Fail path: a first draft used secrets.AWS_SECRET_ACCESS_KEY → lint flagged lon
 - `deploy` — runs the release the pipeline produces; the provenance/transport gates it enforces are
   fed by this pipeline's sign/attest steps.
 - `ship` — lands the workflow-file change as a normal PR.
-- Run harness (`fac run`) — records the pipeline + lint verdict as `NN-pipeline.md`.
+- Run harness (`fac run`) — records the pipeline + lint verdict as a sub-sequenced `02c-pipeline.md`.
 
 ## References
 

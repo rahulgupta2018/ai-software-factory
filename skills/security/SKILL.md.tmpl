@@ -128,26 +128,38 @@ Freedom level: **low** — the coverage is a checklist; skipping a category is a
 6. **Run the supply-chain gate (§Phase 7).** Take CI's dependency-scan JSON and SBOM and evaluate
    them via `lib/sca-report.ts` against `tech_bindings.supply_chain` (`sca_tool`, `block_severity`,
    `require_fix_available`, `sbom_format`): normalise the scan, and treat a **fix-available** finding
-   at or above the threshold as a hard gate; confirm a non-empty SBOM was produced. Record the
-   blocking findings in the audit. A severity-less scanner (pip-audit) can't drive a severity gate —
-   prefer osv-scanner/Trivy for a Python severity policy.
-7. **Run the static-analysis (SAST) gate (§Phase 7).** Take CI's analyzer output (semgrep JSON or
-   SARIF/CodeQL) and evaluate it via `lib/sast-report.ts` against `tech_bindings.sast`
-   (`tool`, `format`, `block_severity`): normalise the findings and treat a finding at or above the
-   threshold (default High) as a gate — there is no fix-available escape, the code is yours to fix.
-   Record the blocking findings in the audit. `/review` surfaces these as advisory; here they gate.
+   at or above the threshold as a hard gate; confirm a non-empty SBOM was produced (`verifySbom` —
+   this is SCA's scan-liveness proof). Record the blocking findings in the audit. A severity-less
+   scanner (pip-audit) emits `unknown` severity: those findings now **fail closed** — a fixable one
+   gates pending triage (an unfixable one still only warns). That's safe but noisy; **prefer
+   osv-scanner/Trivy** for a *graded* Python severity policy rather than all-or-nothing triage.
+7. **Run the static-analysis (SAST) gate (§Phase 7).** **First confirm the scan ran** — a SAST
+   report must have been produced (`verifyScanRan('SAST', present)` in `lib/scan-liveness.ts`); an
+   absent report is a **hard gate**, never a silent pass (a skipped scan is not a clean scan). Then
+   take CI's analyzer output (semgrep JSON or SARIF/CodeQL) and evaluate it via `lib/sast-report.ts`
+   against `tech_bindings.sast` (`tool`, `format`, `block_severity`): normalise the findings and
+   treat a finding at or above the threshold (default High) as a gate — there is no fix-available
+   escape, the code is yours to fix. A finding the analyzer emitted but couldn't grade (`unknown`
+   severity) gates pending triage by default. Record the blocking findings in the audit. `/review`
+   surfaces these as advisory; here they gate.
 8. **Audit the CI/CD pipeline (§Phase 7).** If the product has a pipeline, parse its
    `.github/workflows/*.yml` and evaluate it via `lib/pipeline-lint.ts` against `tech_bindings.ci`:
    flag an over-broad `permissions:`, a missing `id-token: write` (no OIDC), a long-lived cloud/
-   registry secret, an unpinned action, or a missing required security step. Report each as a
-   finding; `/pipeline` owns generating/fixing the workflow, `/security` audits it.
-9. **Run the runtime & image gates when they apply (§Phase 7, Track 5).** If the product ships a
-   **container image**, evaluate CI's Trivy/Grype scan via `lib/container-scan.ts` against
+   registry secret, an unpinned action, or a missing required security step. **Derive the required
+   steps from the gates the product declares** — `requiredStepsForBindings(tech_bindings)` — and
+   union them into the policy's `required_steps`, so *every declared gate's scan must be wired into
+   CI* (a declared SAST/SCA/container/DAST/provenance gate whose step is missing is a finding). This
+   is what backstops the scan-liveness check (step 7/9): a gate you declare can't be silently
+   skipped. Report each; `/pipeline` owns generating/fixing the workflow, `/security` audits it.
+9. **Run the runtime & image gates when they apply (§Phase 7, Track 5).** For each gate the product
+   *declares*, **first confirm the scan ran** (`verifyScanRan` in `lib/scan-liveness.ts`) — an
+   absent report on a declared gate is a hard gate, not a pass. If the product ships a **container
+   image**, evaluate CI's Trivy/Grype scan via `lib/container-scan.ts` against
    `tech_bindings.container_scan` (a fix-available image vuln at/above the threshold gates) and lint
    the image config (non-root user, pinned base image). If it exposes a **running preview**, evaluate
    CI's OWASP ZAP report via `lib/dast-report.ts` against `tech_bindings.dast` (a confirmed alert
-   at/above the risk threshold gates; a false-positive never does). Skip either scan the product
-   doesn't have.
+   at/above the risk threshold gates; a false-positive never does). Skip a gate only when the product
+   genuinely has no image / no preview — a *declared* gate whose scan is missing blocks.
 10. **Confirm exploitability.** For each candidate, establish the concrete path and impact. Drop
    anything you can't exploit to an informational note (the FP gate).
 11. **Rank and fix.** Severity = impact × exploitability. For each finding, give evidence (file +

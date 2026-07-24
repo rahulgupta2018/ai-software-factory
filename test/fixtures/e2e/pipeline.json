@@ -1,0 +1,12 @@
+{
+  "skill": "pipeline",
+  "tier": "gate",
+  "intent": "Asked to set up CI/CD, the skill generates a hardened GitHub Actions workflow — least-privilege token, keyless OIDC (no stored cloud secret), SHA-pinned actions, the security-gate steps wired in — and gates on its own hardening lint; it never reaches for a long-lived credential.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "Set up a hardened CI/CD pipeline for the repairs service (GitHub Actions, deploy to AWS).",
+  "expect": {
+    "output_any": ["id-token", "OIDC", "permissions", "pinned", "least-privilege"],
+    "min_any": 2,
+    "output_excludes": ["AWS_SECRET_ACCESS_KEY", "write-all", "@v4"]
+  }
+}

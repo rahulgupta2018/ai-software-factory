@@ -159,12 +159,17 @@ describe('evaluateSastReport — the severity gate', () => {
     expect(v.findings[0].blocking).toBe(false);
   });
 
-  test('an unknown-severity finding never trips the gate', () => {
-    expect(evaluateSastReport([finding({ severity: 'unknown' })]).pass).toBe(true);
+  test('an unknown-severity finding gates by default (pending triage), opt-out restores pass', () => {
+    // Fail closed: a finding the analyzer emitted but couldn't grade is not silently passed.
+    expect(evaluateSastReport([finding({ severity: 'unknown' })]).pass).toBe(false);
+    // Opt out → unknown sits below any real threshold again.
+    expect(
+      evaluateSastReport([finding({ severity: 'unknown' })], { blockSeverity: 'high', gateUnknownSeverity: false }).pass,
+    ).toBe(true);
   });
 
   test('a stricter Medium policy gates a Medium finding', () => {
-    const v = evaluateSastReport([finding({ severity: 'medium' })], { blockSeverity: 'medium' });
+    const v = evaluateSastReport([finding({ severity: 'medium' })], { blockSeverity: 'medium', gateUnknownSeverity: true });
     expect(v.pass).toBe(false);
   });
 

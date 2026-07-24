@@ -58,12 +58,20 @@ export interface ScaPolicy {
   blockSeverity: BlockSeverity;
   /** When true (default), a finding only blocks if a fix exists — you can't be forced to hold a release on an unfixable CVE. */
   requireFixAvailable: boolean;
+  /**
+   * When true (default), a vulnerability the scanner reported but could not grade (`unknown`
+   * severity — e.g. pip-audit, which emits none) is treated as a gate candidate rather than
+   * silently below-threshold. It still only blocks when a fix is available (per `requireFixAvailable`),
+   * so a severity-less scanner fails closed on a fixable CVE instead of passing everything.
+   */
+  gateUnknownSeverity: boolean;
 }
 
-/** The default supply-chain policy: block on a fix-available High or Critical. */
+/** The default supply-chain policy: block on a fix-available High/Critical or an ungradeable-but-fixable CVE. */
 export const DEFAULT_SCA_POLICY: ScaPolicy = {
   blockSeverity: 'high',
   requireFixAvailable: true,
+  gateUnknownSeverity: true,
 };
 
 /** A vulnerability paired with the policy verdict for it. */
@@ -242,7 +250,8 @@ export function evaluateScaReport(
 ): ScaVerdict {
   const threshold = SEVERITY_RANK[policy.blockSeverity];
   const findings: ScaFinding[] = vulns.map((vuln) => {
-    const meetsSeverity = SEVERITY_RANK[vuln.severity] >= threshold;
+    const ungradeable = vuln.severity === 'unknown' && policy.gateUnknownSeverity;
+    const meetsSeverity = SEVERITY_RANK[vuln.severity] >= threshold || ungradeable;
     if (!meetsSeverity) {
       return { vuln, blocking: false, reason: `${vuln.severity} is below the ${policy.blockSeverity} gate` };
     }
@@ -250,7 +259,10 @@ export function evaluateScaReport(
       return { vuln, blocking: false, reason: `${vuln.severity} but no fix available yet (warn, not block)` };
     }
     const fix = vuln.fixedVersion ? ` (fix: ${vuln.fixedVersion})` : ' (fix available)';
-    return { vuln, blocking: true, reason: `${vuln.severity} at or above the ${policy.blockSeverity} gate${policy.requireFixAvailable ? fix : ''}` };
+    const basis = ungradeable
+      ? `unknown severity — gating pending triage (scanner emitted no severity)`
+      : `${vuln.severity} at or above the ${policy.blockSeverity} gate`;
+    return { vuln, blocking: true, reason: `${basis}${policy.requireFixAvailable ? fix : ''}` };
   });
   const blocking = findings.filter((f) => f.blocking);
   return { pass: blocking.length === 0, policy, total: vulns.length, findings, blocking };

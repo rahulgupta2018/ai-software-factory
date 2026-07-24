@@ -53,11 +53,18 @@ export interface SastFinding {
 /** The gate policy: block at or above `blockSeverity`. No fix-available axis — the code is yours to fix. */
 export interface SastPolicy {
   blockSeverity: SastBlockSeverity;
+  /**
+   * When true (default), a finding the analyzer emitted but could not grade (`unknown` severity)
+   * gates pending triage — a security finding is never silently passed just because its severity
+   * label didn't map. Set false to restore "unknown is below any threshold" behaviour.
+   */
+  gateUnknownSeverity: boolean;
 }
 
-/** The default SAST policy: gate on a High or Critical static finding. */
+/** The default SAST policy: gate on a High or Critical static finding, and on an ungradeable one. */
 export const DEFAULT_SAST_POLICY: SastPolicy = {
   blockSeverity: 'high',
+  gateUnknownSeverity: true,
 };
 
 /** A finding paired with the policy verdict for it. */
@@ -182,6 +189,13 @@ export function evaluateSastReport(
 ): SastVerdict {
   const threshold = SEVERITY_RANK[policy.blockSeverity];
   const results: SastResult[] = findings.map((finding) => {
+    if (finding.severity === 'unknown' && policy.gateUnknownSeverity) {
+      return {
+        finding,
+        blocking: true,
+        reason: 'unknown severity — gating pending triage (the analyzer emitted this but could not grade it)',
+      };
+    }
     const blocking = SEVERITY_RANK[finding.severity] >= threshold;
     return {
       finding,
