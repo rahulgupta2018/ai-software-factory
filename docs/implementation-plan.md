@@ -992,13 +992,30 @@ gate proves the transport posture.
 
 ---
 
-### Phase 6 — Mobile store release + on-device QA 🔜 PLANNED (triggered, ~2–3 days)
+### Phase 6 — Mobile store release + on-device QA � IN PROGRESS (skill layer shipped v0.37.0.0; device-runner binary remaining)
 
 Phase 5 stops at a **built, secured, signed-ready** mobile artifact; it does not publish. This
 phase closes the gap from "release build on disk" to "live in the App Store / Play Store", and adds
 the **on-device functional QA** that `/qa` (Playwright, web-only) structurally cannot do. Like
 Phase 5 it is **on-demand**: build it the moment a product must actually ship a mobile app to a
 store, or must be QA'd on an emulator/simulator before it does.
+
+**Delivered so far (v0.37.0.0) — the skill + verifier layer.** The deterministic core and the skill
+wiring are in; the remaining work is the executable **device-runner binary** (Track 4) and the
+live store-upload plumbing behind the two deploy branches:
+
+- ✅ **`lib/mobile-release-verify.ts`** — pure, offline release-manifest verifier (present + signed
+  artifact, store-correct format, strictly-monotonic build number, valid track, no embedded
+  secret), with `test/mobile-release-verify.test.ts` (Tier-1, a negative case per rule).
+- ✅ **`/deploy` grew two store branches** — `deploy-apple` (`06a`) and `deploy-google` (`06b`),
+  each a hard gate, custody principle enforced, release verified via the helper.
+- ✅ **`/qa` grew native-mobile routing** — native-mobile components route to on-device
+  `integration_test` (+ optional Maestro/Patrol) through the `__FACTORY_DEVICE_RUNNER__` seam,
+  findings recorded in the same `05-qa.md` artifact.
+- ✅ **`tech_bindings.mobile_release`** schema binding + reference-product population, plus top-level
+  `deploy_apple` / `deploy_google` commands.
+- 🔲 **Remaining:** the `tools/mobile-device/` device-runner binary (Track 4) and the live
+  `fastlane`-backed store upload/verify execution the deploy branches call.
 
 **Custody principle (non-negotiable, inherits §6.2).** The Factory **holds no signing or store
 credentials** — Android keystore, iOS distribution cert + provisioning profile, App Store Connect
@@ -1012,7 +1029,9 @@ tooling, credential shapes, and review models — each its own `/deploy` mobile 
 skill), each an independent hard gate. Neither is a fork of the other; they share only the custody
 principle and the verify-the-track pattern.
 
-- **Track 1 — Apple App Store deployment.** A `/deploy` **Apple branch** (`deploy-apple`) that: builds a
+- **Track 1 — Apple App Store deployment.** ✅ *Skill wiring + verify shipped (v0.37.0.0);*
+  🔲 *live upload execution remaining.* A `/deploy` **Apple branch** (`deploy-apple`, artifact
+  `06a-deploy-apple.md`) that: builds a
   signed `.ipa` (`flutter build ipa` with an export-options plist referencing a CI-held distribution
   cert + provisioning profile), uploads to **App Store Connect / TestFlight** via `fastlane pilot`
   (or `xcrun altool`/`notarytool`), then **verifies the build lands** in the target track (App Store
@@ -1020,7 +1039,9 @@ principle and the verify-the-track pattern.
   irreversible public release: stop, show the version/build number + track, get explicit consent,
   then submit. Records `bundle_id`, build number, and TestFlight/App-Store track to `run.json`.
   Signing material + the App Store Connect API key are read from CI secrets only.
-- **Track 2 — Google Play deployment.** A `/deploy` **Google branch** (`deploy-google`) that: builds a
+- **Track 2 — Google Play deployment.** ✅ *Skill wiring + verify shipped (v0.37.0.0);*
+  🔲 *live upload execution remaining.* A `/deploy` **Google branch** (`deploy-google`, artifact
+  `06b-deploy-google.md`) that: builds a
   signed **`.aab`** (`flutter build appbundle --release`; Play requires AAB, not APK — note the
   reference product currently builds `apk` and must gain an `appbundle` build for this path),
   uploads to a **Play Console track** (internal → closed → production) via `fastlane supply` (or the
@@ -1028,32 +1049,239 @@ principle and the verify-the-track pattern.
   submission / promotion to production is a HARD GATE.** Records `application_id`, version code, and
   track to `run.json`. The upload keystore + Play service-account JSON are read from CI secrets only;
   prefer **Play App Signing** so Google holds the app-signing key.
-- **Track 3 — Mobile QE (on-device functional testing).** `/qa` drives a **web** browser via
-  `browse` (Playwright) and **cannot** exercise a native mobile app — a real gap. Add a
-  **`mobile-qa` capability**: route native-mobile components in `/qa` to run **`flutter test
-  integration_test`** on a launched **emulator/simulator** (headless in CI), with optional
-  **Maestro** or **Patrol** flows for cross-platform E2E user journeys. Same contract as web QA: a
-  bug is a deviation from a PRD V1 flow, each reproducible bug gets a regression test (red-first,
-  `flutter_test`/`integration_test`), and findings land in the same `NN-qa.md` run artifact. Follow
-  the `browse`/`design` mould — a thin runner with an **injectable device seam**
-  (`__FACTORY_DEVICE_RUNNER__`) so the logic is testable offline without a real emulator. QE runs
-  **before** either store track — you QA on an emulator, then you submit.
-- **Optional pure helper — `lib/mobile-release-verify.ts`** (in the `lib/tls-verify.ts` mould): a
-  pure, offline verifier of a release manifest — build/version number is **monotonic** vs the last
-  recorded release, artifact format matches the store (`.ipa`→Apple, `.aab`→Google), and the target
-  track is valid — tested against a fixture, no store network, no secrets. Backs both deploy gates.
-- **Context — `tech_bindings.mobile_release`.** Records per store: `bundle_id`/`application_id`, the
-  release **track** (testflight/internal/production), the release **tool** (fastlane/EAS/Codemagic),
-  and **which CI holds the signing material** (never the value). Schema-added like the Phase 5
-  `tls`/`auth` keys; the reference product's mobile component populates it so `vendor:check`/the
-  acceptance test resolve the bindings.
-- **Exit:** (1) a signed `.ipa` reaches an App Store Connect track and a signed `.aab` reaches a Play
-  Console track, each blocked behind an explicit-consent hard gate and each verified as landed
-  (proven by a `/deploy` mobile-branch negative test per store: a failing/absent build blocks); (2)
-  a native-mobile `/qa` run executes an `integration_test` flow on an emulator and files a bug-list
-  artifact (proven by a `mobile-qa` acceptance test with the device seam stubbed); (3) the Factory
-  never reads a signing secret from anywhere but CI (proven by a redaction-guard test over the
-  release path).
+- **Track 3 — Mobile QE routing (`/qa`).** ✅ *Shipped (v0.37.0.0).* `/qa` drives a **web** browser
+  via `browse` (Playwright) and **cannot** exercise a native mobile app — a real gap. `/qa` now
+  routes native-mobile components to run **`flutter test integration_test`** on a launched
+  **emulator/simulator** (headless in CI), with optional **Maestro** or **Patrol** flows for
+  cross-platform E2E user journeys, through the injectable device seam `__FACTORY_DEVICE_RUNNER__`.
+  Same contract as web QA: a bug is a deviation from a PRD V1 flow, each reproducible bug gets a
+  regression test (red-first, `flutter_test`/`integration_test`), and findings land in the same
+  `05-qa.md` run artifact. QE runs **before** either store track — you QA on an emulator, then you
+  submit. *(The seam is defined and the skill routes to it; the concrete runner that fulfils the
+  seam is Track 4.)*
+- **Track 4 — Device-runner binary (`tools/mobile-device/`).** ✅ *Shipped (v0.38.0.0) — the
+  executable half of
+  Track 3's seam.* A thin L3 tool (the `browse`/`design` mould) that **fulfils the
+  `__FACTORY_DEVICE_RUNNER__` contract**: launch/attach to an Android emulator or iOS simulator
+  (headless in CI), run `flutter test integration_test` (and optionally drive Maestro/Patrol flows),
+  stream structured pass/fail + failure artifacts (screenshots, logs) back to `/qa`, and tear the
+  device down. Ships with an **injected device seam** so the orchestration logic is unit-tested
+  offline against a **stubbed runner** (no real emulator in CI), exactly as `browse`/`design` split
+  a pure core from the real driver. Invoked via `fac mobile-device plan|check|run`; no signing
+  material touches it. The pure core (validate request → plan commands → parse `flutter --machine`
+  → interpret pass/fail vs infra error) is proven by `test/mobile-device.test.ts`.
+- **Optional pure helper — `lib/mobile-release-verify.ts`.** ✅ *Shipped (v0.37.0.0).* A pure,
+  offline verifier of a release manifest — build/version number is **monotonic** vs the last
+  recorded release, artifact format matches the store (`.ipa`→Apple, `.aab`→Google), the target
+  track is valid, and no signing secret is embedded — tested against a fixture, no store network, no
+  secrets. Backs both deploy gates.
+- **Context — `tech_bindings.mobile_release`.** ✅ *Shipped (v0.37.0.0).* Records per store:
+  `bundle_id`/`application_id`, the release **track** (testflight/internal/production), the release
+  **tool** (fastlane/EAS/Codemagic), and **which CI holds the signing material** (never the value).
+  Schema-added like the Phase 5 `tls`/`auth` keys; the reference product's mobile component populates
+  it so `vendor:check`/the acceptance test resolve the bindings.
+- **Exit:** (1) ✅ the release-manifest gate is proven — a failing/absent or malformed build blocks
+  (`test/mobile-release-verify.test.ts`, a negative case per rule); 🔲 a signed `.ipa` reaching a
+  live App Store Connect track and a signed `.aab` reaching a live Play Console track, each behind
+  the explicit-consent hard gate and each verified as landed, awaits the live upload execution
+  (product-CI, credential-gated); (2) ✅ a native-mobile `/qa` run executes an `integration_test`
+  flow on an emulator and files a bug-list artifact — the routing (`/qa`) and the runner
+  (`tools/mobile-device`) are shipped, proven by `test/mobile-device.test.ts` with the device seam
+  stubbed; (3) ✅ the Factory never reads a signing secret from anywhere but CI (custody principle
+  wired into both branches; redaction guard over the release path).
+
+---
+
+### Phase 7 — Supply-chain & CI/CD security (DevSecOps completion) ✅ SHIPPED (Tracks 1–5 complete; all exit criteria met)
+
+Security today is strongest at **design + transport + app** (§6.1–§6.3) and at **secret egress**
+(the redaction guard, §8). The gap is the *build / supply-chain / pipeline* half of DevSecOps: the
+Factory **assumes** a CI/CD pipeline and deploy target exist rather than **generating and hardening**
+them, and it has no first-class dependency-vulnerability, SBOM, or artifact-provenance capability.
+This phase closes that half. Like Phases 5–6 it is **on-demand**: build it the moment a product
+needs a supply-chain gate or a generated CI/CD pipeline, not before.
+
+**Delivered so far (v0.39.0.0) — Track 1, the supply-chain gate.** The deterministic SCA policy +
+SBOM check and its skill wiring are in; the scanner/SBOM execution runs in CI (custody principle):
+
+- ✅ **`lib/sca-report.ts`** — pure, offline normaliser + severity policy: parses osv-scanner /
+  npm-audit / pip-audit / Trivy JSON to a common finding list, gates on a **fix-available** finding
+  at/above the threshold, and checks a non-empty CycloneDX/SPDX SBOM — with `test/sca-report.test.ts`
+  (Tier-1, a negative case per rule: the fix-available critical that blocks, the below-threshold
+  and no-fix findings that warn, the absent/empty/mis-formatted SBOM that fails).
+- ✅ **`/security` grew a supply-chain sub-check** (workflow step + core concept), and **`/ship` /
+  `/deploy` hard-gate** on a fix-available finding at/above `block_severity` (or a missing SBOM).
+- ✅ **`tech_bindings.supply_chain`** schema binding (`sca_tool`, `block_severity`,
+  `require_fix_available`, `sbom_format`) + reference-product population.
+- 🔲 **Remaining (product-CI):** the live scanner + SBOM generation step the gate consumes.
+
+**Delivered so far (v0.40.0.0) — Track 3, the provenance gate.** The deterministic attestation
+verifier and its `/deploy` wiring are in; signing + attestation run in CI, keyless (custody):
+
+- ✅ **`lib/provenance-verify.ts`** — pure, offline verifier: takes the facts a
+  `cosign verify-attestation` / `slsa-verifier` run reports and confirms the signature is valid +
+  keyless, the subject digest matches the artifact being deployed, and the OIDC identity / issuer /
+  builder / source match the expected values, with a Rekor entry — accumulating every failed rule.
+  Covered by `test/provenance-verify.test.ts` (Tier-1, a negative case per rule: wrong
+  digest/identity/issuer/builder/source, the key-based signature, the missing transparency log).
+- ✅ **`/deploy` grew a provenance hard-gate** (core concept + workflow step between CI-green and
+  deploy): a missing, unverified, key-based, or mismatched attestation blocks the release.
+- ✅ **`tech_bindings.provenance`** schema binding (signer, attestation_format, expected
+  identity/issuer/builder/source, require_transparency_log, require_keyless) + reference population.
+- 🔲 **Remaining (product-CI):** the live cosign sign + SLSA attest + verify steps the gate consumes.
+
+**Delivered so far (v0.41.0.0) — Track 2, the static-analysis (SAST) gate.** The deterministic SAST
+policy and its `/security` + `/review` wiring are in; the analyzer runs in CI (custody principle):
+
+- ✅ **`lib/sast-report.ts`** — pure, offline normaliser + severity policy: parses semgrep JSON and
+  SARIF (CodeQL) to a common finding list (rule id, file, line, severity, CWE), honouring CodeQL's
+  numeric `security-severity` over the coarse SARIF level, and gates on a finding at/above
+  `block_severity` (default High) — **no fix-available axis**, the vulnerable code is yours to fix.
+  Covered by `test/sast-report.test.ts` (Tier-1, both formats, a negative case per rule, malformed
+  input that returns `[]` without throwing).
+- ✅ **`/security` grew a SAST hard-gate** (workflow step + core concept), and **`/review` surfaces
+  the same findings as advisory** — visible early, gating at `/security`.
+- ✅ **`tech_bindings.sast`** schema binding (`tool`, `format`, `block_severity`) + reference
+  population.
+- 🔲 **Remaining (product-CI):** the live semgrep/CodeQL scan step the gate consumes.
+
+**Delivered so far (v0.42.0.0) — Track 4, CI/CD pipeline generation + hardening.** The deterministic
+pipeline-hardening lint and the `/pipeline` generator + `/security` audit are in; the workflow the
+lint checks is the one CI runs:
+
+- ✅ **`lib/pipeline-lint.ts`** — pure, offline hardening lint: takes an already-parsed workflow
+  object and flags a missing/broad `permissions:`, no `id-token: write` (no OIDC), a long-lived
+  cloud/registry secret, an unpinned (non-SHA) action, or a missing required security step —
+  accumulating every failed rule. Covered by `test/pipeline-lint.test.ts` (Tier-1, a negative case
+  per rule, malformed input that doesn't throw).
+- ✅ **`/pipeline` skill (new)** generates a GitHub Actions workflow to the baseline (least-privilege
+  token, keyless OIDC, SHA-pinned actions, the SCA/SBOM/SAST/sign steps wired in) and gates on the
+  lint; **`/security` grew a pipeline audit** running the same lint on an existing workflow.
+- ✅ **`tech_bindings.ci`** schema binding (`provider`, `oidc_identity`, `require_oidc`,
+  `require_pinned_actions`, `required_steps`) + reference-product population.
+- 🔲 **Remaining (product-CI):** enabling the generated jobs as required status checks on the
+  protected branch (a one-time repo setting the human confirms).
+
+**Custody principle (inherits §6.2/§6.3).** The Factory **holds no long-lived registry or cloud
+credentials**. Pipeline auth is **OIDC-federated / keyless** (GitHub Actions → cloud/registry via
+short-lived tokens); the redaction guard (§8) blocks any token/key egress. The Factory **generates,
+scans, and verifies** the pipeline; it never takes custody of a push secret.
+
+- **Track 1 — Software Composition Analysis (SCA) + SBOM.** ✅ *Shipped (v0.39.0.0).* A
+  dependency-vulnerability scan
+  (`osv-scanner` / `npm audit` / `pip-audit` / Trivy, chosen per language) and an **SBOM**
+  (CycloneDX or SPDX) produced at build time. Wired as a `/security` sub-check and a `/ship` /
+  `/deploy` **gate**: a known-exploitable, fix-available CVE at or above the configured severity
+  **blocks** (with an explicit-consent override recorded to `run.json`). Backed by a pure parser
+  **`lib/sca-report.ts`** (normalizes scanner JSON → findings, applies the severity policy) tested
+  offline against a fixture — no network, no scanner binary in the unit path.
+- **Track 2 — SAST gate.** ✅ *Shipped (v0.41.0.0).* Route the existing prompt-based `/review` + `/security` audit alongside
+  a real static analyzer (`semgrep` rulesets, or CodeQL where available) as an advisory-then-gating
+  check. Findings land in the `NN-review.md` artifact; the tool is a wrapper, the policy is a pure
+  helper (**`lib/sast-report.ts`**), consistent with SCA.
+- **Track 3 — Artifact signing + provenance.** ✅ *Shipped (v0.40.0.0).* Sign release artifacts and emit a build-provenance
+  attestation — **Sigstore/cosign** + **SLSA** provenance — so a consumer can verify *what built
+  this and from which source*. The signing identity is **keyless (OIDC)**; the Factory holds no
+  signing key. `/deploy` **verifies** the attestation before release (a hard-gate addition), never
+  mints the key. Optional pure helper **`lib/provenance-verify.ts`** (validates an attestation
+  against expected source + builder, offline fixture).
+- **Track 4 — CI/CD pipeline generation + hardening.** ✅ *Shipped (v0.42.0.0).* Generate the pipeline the earlier tracks
+  assume (GitHub Actions first; the mechanism-vs-parameters model lets a second provider be a
+  binding, not a rewrite): least-privilege `permissions:`, **OIDC** cloud/registry auth (no
+  long-lived secrets), pinned action SHAs, the SCA/SBOM/SAST/sign steps above wired as required
+  checks, and branch-protection guidance. Recorded in `tech_bindings.ci`. A `/pipeline` (or
+  `/harden-ci`) workflow skill owns generation; `/security` audits an existing pipeline against the
+  same baseline.
+- **Track 5 (optional, later) — DAST + container scan.** ✅ *Shipped (v0.43.0.0).* A dynamic scan (OWASP ZAP baseline)
+  against a running preview (**`lib/dast-report.ts`**), and a container-image scan (Grype/Trivy) +
+  base-image hardening for products that ship a Docker image (**`lib/container-scan.ts`**). Both gate
+  in `/security` and are optional — skipped for a product with no image and no deployed surface.
+- **Context — `tech_bindings.supply_chain` + `.ci`.** Records the SCA tool + severity policy, the
+  SBOM format, the signing/provenance choice (keyless), and the CI provider + OIDC identity. Added
+  like the Phase 5 `tls` key; the reference product populates them so `vendor:check` / the
+  acceptance test resolve the bindings. ✅ `supply_chain` (sca_tool, block_severity,
+  require_fix_available, sbom_format) shipped v0.39.0.0; ✅ `sast` (tool, format, block_severity)
+  shipped v0.41.0.0; ✅ `provenance` (signer, attestation_format,
+  expected identity/issuer/builder/source, require_transparency_log, require_keyless) shipped
+  v0.40.0.0; ✅ `.ci` (provider, oidc_identity, require_oidc, require_pinned_actions, required_steps)
+  shipped v0.42.0.0.
+- **Exit:** (1) ✅ a build produces an SBOM and an SCA report, and a seeded fix-available critical CVE
+  **blocks** `/ship` until overridden (proven by the `lib/sca-report.ts` policy negative test,
+  `test/sca-report.test.ts`); (2) ✅
+  a release artifact is signed with a keyless identity and `/deploy` **verifies** its provenance,
+  blocking on a tampered/absent attestation (proven by the `lib/provenance-verify.ts` negative test,
+  `test/provenance-verify.test.ts`);
+  (3) ✅ `/pipeline` emits a GitHub Actions workflow with least-privilege `permissions:` + OIDC auth
+  and no long-lived secret (proven by the `lib/pipeline-lint.ts` negative test,
+  `test/pipeline-lint.test.ts`, over the generated pipeline).
+
+---
+
+### Phase 8 — Infrastructure lane (IaC, multi-cloud) 🔜 PLANNED (triggered, ~4–6 days)
+
+The Factory ships *applications*; it does not yet provision the *infrastructure* they run on. This
+phase adds an **infrastructure lane** — Infrastructure-as-Code for **AWS, Azure, and GCP** — as a
+new component type on the **same engine** (skill generation, run/artifact/gate harness, redaction,
+memory, host adapters, eval tiers), exactly as *mobile* (Phase 5) and *store release* (Phase 6) are
+lanes rather than separate products. It is **on-demand**: build it when a product must stand up its
+own cloud infrastructure from code. It also **closes most of the remaining §6 deploy-stage
+DevSecOps gaps** (IaC scanning, policy-as-code, OIDC identity, secret-manager wiring) in one place —
+Phase 7 and this phase are largely the same hardening work seen from two sides.
+
+**Why a lane on the same engine, not a fork.** The whole Factory thesis is a *product-agnostic
+engine*; infra is another domain bound via context, and the multi-cloud reality fits
+mechanism-vs-parameters — **one** `terraform-expert` craft skill, the cloud chosen in
+`tech_bindings.infra`. Rebuilding the engine in a second repo would be waste.
+
+**Custody principle (non-negotiable, inherits §6.2).** The Factory **holds no cloud credentials**.
+Provisioning auth is **OIDC-federated / short-lived**; Terraform/Pulumi **state lives in a remote
+backend** (S3+DynamoDB / Azure Storage / GCS), never the repo; the redaction guard (§8) blocks any
+cloud-key or state-secret egress. The Factory **plans, scans, and verifies**; a human consents to
+**apply**.
+
+- **Craft skills (author into `agent-skills` first, then vendor).** `terraform-expert` and
+  `pulumi-expert` (IaC idioms, module structure, remote state, no-secrets-in-state), plus per-cloud
+  `aws-cloud-expert` / `azure-cloud-expert` / `gcp-cloud-expert` carrying each provider's
+  **well-architected + security-baseline** rules (identity, network, encryption, logging). Routing
+  is by `tech_bindings.infra.cloud` + `.iac_tool`, like the mobile routing in §4.2a.
+- **Workflow skills.**
+  - **`/plan-infra`** — turn the infra intent + `tech_bindings.infra` into an IaC design (modules,
+    state backend, identity/OIDC, environments), a handoff artifact like `/plan-arch`.
+  - **`/provision`** — `plan` → **HARD GATE** → `apply`, **state-aware and staleness-aware**. The
+    plan diff, the policy result, and the **cost delta** are shown; an `apply` that would **destroy
+    or replace a protected resource** stops for explicit consent (irreversible-step gate, stronger
+    than the app `/deploy` gate — blast radius is higher). `destroy` is a separate, louder gate.
+  - **`/infra-review`** — IaC security + policy scan: `tfsec` / `checkov` (misconfig), `kube-bench`
+    for k8s, and **policy-as-code** (**OPA/Conftest**) against org rules. A failing high-severity
+    policy **blocks** `/provision`.
+  - **`/cost`** — an `infracost` estimate on the plan; a threshold breach warns (measure-and-warn,
+    like the §8.1 cost budget) and is recorded to `run.json`.
+  - **`/drift`** — detect drift between state and reality, report as a bug-list artifact (the
+    `/qa`-for-infra analogue).
+- **Agent — Platform/Infra Engineer.** A new persona (SRE/platform lens) that owns `/plan-infra` →
+  `/provision`, distinct from the app Implementer; the app agents stay unchanged.
+- **Pure helper — `lib/infra-plan-verify.ts`** (in the `lib/tls-verify.ts` mould): parses a
+  `terraform show -json` / `pulumi preview --json` plan and asserts, **offline against a fixture**,
+  no long-lived-secret in state, no destroy/replace of a `protected` resource without the consent
+  flag, and a clean policy result. Backs the `/provision` hard gate; holds no cloud state.
+- **Context — `tech_bindings.infra`.** Records `cloud` (aws/azure/gcp), `iac_tool`
+  (terraform/pulumi), `state_backend`, `identity` (OIDC federation, never a key), `regions`, and
+  the `protected_resources` list. Schema-added like the Phase 5 keys; the reference product gains a
+  minimal infra component (e.g. a bucket + IAM) so `vendor:check` / the acceptance test resolve
+  the bindings.
+- **When to promote to a separate `ai-infrastructure-factory`.** Stay a lane **until** the infra
+  surface needs an **independent release cadence or governance**, or the SRE persona and app
+  persona genuinely diverge. At that point the clean move is to **extract the shared engine into a
+  core package** and make *both* Factories thin front-ends over it — never a fork-and-diverge. This
+  phase is designed so that extraction is a packaging change, not a rewrite: the lane touches only
+  L1 workflow skills + L2 craft skills + `tech_bindings`, all already engine-external.
+- **Exit:** (1) `/plan-infra` → `/provision` stands up a minimal real resource on one cloud behind
+  an explicit-consent apply gate, and a plan that would destroy a `protected` resource **blocks**
+  (proven by an `lib/infra-plan-verify.ts` negative test); (2) `/infra-review` blocks `/provision`
+  on a seeded `tfsec`/OPA high-severity finding (proven by a policy negative test); (3) the Factory
+  never reads a cloud key from anywhere but OIDC/CI (proven by a redaction-guard test over the
+  provision path); (4) the same lane provisions on a **second cloud** by changing only
+  `tech_bindings.infra.cloud` (proven by the acceptance test resolving both bindings).
 
 ---
 
@@ -1069,6 +1297,12 @@ TypeScript path.
 The §8.1 run contract is **resolved** (2026-07-22): artifacts-as-state with atomic writes,
 input-hash staleness for resume, gate-every-boundary in two tiers, measure-and-warn on cost, and
 a per-repo lock. Nothing further is blocked on a decision.
+
+> **Two token-discipline hardenings are deferred by design** (tracked in the deferred table below):
+> a **hard token budget cap** (today cost warns past `warn_tokens` but never halts) and
+> **provider prompt-cache configuration** in the host adapters (the layout is cache-friendly but the
+> Factory sets no Anthropic/Bedrock cache breakpoints — a host-level concern). Resume, memory, and
+> the measured/warned cost path are all shipped; these two are the remaining optimisation follow-ups.
 
 **Next, in order:**
 
@@ -1091,9 +1325,18 @@ a per-repo lock. Nothing further is blocked on a decision.
 | `react-frontend-architect`, `modern-css-design-systems`, `frontend-design` | Phase 1 | ✅ authored + vendored (2026-07-22); build-time routing live in the Implementer, design-phase consumer (`/plan-design` + Designer agent) built 2026-07-22 |
 | `flutter-dart-expert` (cross-platform mobile) + its MASVS mobile-security rules (§4.2a, §6.2) | Phase 5 (new) | ✅ Built (2026-07-22): authored into `agent-skills`, vendored, Implementer routing + reference-product mobile component live |
 | Transport security: `/security` TLS/cert checklist + `/deploy` HTTPS/cert **hard gate** (§6.2) | Phase 5 (new) | ✅ Built (2026-07-22): `lib/tls-verify.ts` + `/security` ASVS/MASVS checklist + `/deploy` HTTPS/HSTS hard gate |
-| **Apple App Store deployment** — `/deploy` Apple branch (signed `.ipa` → App Store Connect/TestFlight, hard gate + verify) | Phase 6 (new) | a mobile product must ship to the **Apple App Store**; signing + ASC API key live in CI, never the Factory |
-| **Google Play deployment** — `/deploy` Google branch (signed `.aab` → Play Console track, hard gate + verify) | Phase 6 (new) | a mobile product must ship to **Google Play**; upload keystore + Play service-account JSON live in CI, never the Factory |
-| **Mobile QE** — `mobile-qa` capability: `/qa` runs `integration_test`/Maestro/Patrol on an emulator/simulator | Phase 6 (new) | a **native-mobile** component needs on-device functional QA (`browse`/Playwright is web-only) |
+| **Apple App Store deployment** — `/deploy` Apple branch (signed `.ipa` → App Store Connect/TestFlight, hard gate + verify) | Phase 6 (✅ skill+verify shipped v0.37.0.0; live upload remaining) | a mobile product must ship to the **Apple App Store**; signing + ASC API key live in CI, never the Factory |
+| **Google Play deployment** — `/deploy` Google branch (signed `.aab` → Play Console track, hard gate + verify) | Phase 6 (✅ skill+verify shipped v0.37.0.0; live upload remaining) | a mobile product must ship to **Google Play**; upload keystore + Play service-account JSON live in CI, never the Factory |
+| **Mobile QE routing** — `/qa` routes native-mobile components to `integration_test`/Maestro/Patrol on an emulator via the `__FACTORY_DEVICE_RUNNER__` seam | Phase 6 (✅ shipped v0.37.0.0) | a **native-mobile** component needs on-device functional QA (`browse`/Playwright is web-only) |
+| **Mobile device-runner binary** — `tools/mobile-device/` fulfils the `__FACTORY_DEVICE_RUNNER__` seam (launch emulator/simulator, run tests, stream results), stubbed-runner tested | Phase 6 (✅ shipped v0.38.0.0) | on-device `/qa` needs a real driver behind the seam |
+| **SCA + SBOM gate** — dependency-CVE scan + CycloneDX/SPDX SBOM, `lib/sca-report.ts` policy, `/ship`+`/deploy` gate | Phase 7 (new) | a product needs a supply-chain / dependency-vulnerability gate |
+| **Artifact signing + provenance** — keyless Sigstore/cosign + SLSA attestation, `/deploy` verifies (`lib/provenance-verify.ts`) | Phase 7 (new) | a product must ship signed, provenance-attested release artifacts |
+| **CI/CD pipeline generation + hardening** — `/pipeline` emits least-priv + OIDC GitHub Actions; `/security` audits it | Phase 7 (new) | a product needs a generated/hardened CI/CD pipeline (`tech_bindings.ci`) |
+| **DAST + container scan** — ZAP baseline + Grype/Trivy image scan | Phase 7 (new, later) | a product ships a running preview or a Docker image to scan |
+| **Infrastructure lane (IaC)** — `terraform`/`pulumi` + per-cloud craft skills; `/plan-infra`, `/provision`, `/infra-review`, `/cost`, `/drift`; Platform agent; `lib/infra-plan-verify.ts` | Phase 8 (new) | a product must provision its own AWS/Azure/GCP infrastructure from code |
+| Separate **`ai-infrastructure-factory`** (extract shared engine into a core; both Factories as front-ends) | Phase 8 (new) | the infra lane needs an independent release cadence/governance or the SRE persona diverges from app dev |
+| **Hard token budget (cap, not just warn)** — a `guardrails.budget.max_tokens` ceiling that *halts* a run at a hard gate, complementing today's measure-and-warn (`budgetStatus` in `lib/run.ts` warns past `warn_tokens` but never stops) | Cross-cutting §8.1 (deferred by design) | an operator needs a spend ceiling that stops an unattended multi-day run rather than only warning |
+| **Provider prompt-cache configuration** — explicit Anthropic/Bedrock cache-breakpoint wiring in the host adapters (`hosts/*.ts`) so the stable-preamble-first, per-run-artifact layout is actually cached; today the layout is cache-*friendly* but the Factory sets no breakpoints (host-level concern) | Cross-cutting §8 (deferred) | measured token spend on repeated long runs justifies host-side caching, or a host exposes a first-class cache-control primitive |
 | Browser security L4/L4b/L6 | v1 | `browse` is pointed at a page the operator did not author |
 | Codex sub-agent parity | Phase 1 | Codex ships a subagent primitive; until then, skills-only |
 

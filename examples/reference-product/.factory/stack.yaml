@@ -42,12 +42,82 @@ commands:
     lint: flutter analyze
     format: dart format --set-exit-if-changed .
   deploy: "fly deploy"
+  # Phase 6 store tracks — each builds a SIGNED store artifact (Play needs .aab, App Store needs
+  # .ipa; the mobile component's `build` apk is dev-only) and uploads it. Signing material is read
+  # from CI secrets only; the Factory never takes custody of a key (custody principle, §6.2).
+  deploy_apple: "fastlane ios release"      # flutter build ipa (signed) → App Store Connect / TestFlight via fastlane pilot
+  deploy_google: "fastlane android release"  # flutter build appbundle (signed .aab) → Play Console track via fastlane supply
 
 # sync-context derives api/web/db from tech_stack.components[]; these add what design chose
 # but components can't express.
 tech_bindings:
   hosting: fly.io
   cache: none
+  # Phase 6 — mobile store release. Records the target + WHICH CI holds the signing material,
+  # never the secret value. /deploy verifies the release manifest via lib/mobile-release-verify.ts.
+  mobile_release:
+    apple:
+      bundle_id: com.example.repairs.contractor
+      track: testflight             # testflight | app-store
+      tool: fastlane
+      signing_material: ci           # dist cert + provisioning profile + ASC API key live in CI secrets only
+    google:
+      application_id: com.example.repairs.contractor
+      track: internal               # internal | closed | production
+      tool: fastlane
+      signing_material: ci           # upload keystore + Play service-account JSON in CI only; Play App Signing holds the app-signing key
+  # Phase 7 — supply-chain security. The scan + SBOM run in CI; /security normalises the output and
+  # /ship + /deploy hard-gate on a fix-available finding at/above block_severity via lib/sca-report.ts.
+  supply_chain:
+    sca_tool: osv-scanner           # multi-ecosystem: npm (web) + Pub (mobile) + PyPI in one scan
+    block_severity: high            # low | medium | high | critical — a fix-available High/Critical blocks
+    require_fix_available: true     # an unfixable CVE warns but never holds the release
+    sbom_format: cyclonedx          # cyclonedx | spdx — emitted at build time
+  # Phase 7 — static analysis (SAST). The scan runs in CI; /security normalises the output and gates
+  # on a finding at/above block_severity via lib/sast-report.ts (advisory in /review, gating in /security).
+  sast:
+    tool: semgrep                   # semgrep | codeql
+    format: sarif                   # semgrep | sarif — SARIF covers CodeQL and `semgrep --sarif`
+    block_severity: high            # low | medium | high | critical — High/Critical gates
+  # Phase 7 — artifact signing + build provenance. Signing + attestation run in CI (keyless OIDC —
+  # the Factory holds no key); /deploy verifies the attestation before release via lib/provenance-verify.ts.
+  provenance:
+    signer: cosign                  # cosign | sigstore — keyless, short-lived Fulcio cert
+    attestation_format: slsa-provenance  # slsa-provenance | in-toto
+    expected_identity: https://github.com/example/reference-product/.github/workflows/release.yml@refs/heads/main
+    expected_issuer: https://token.actions.githubusercontent.com
+    expected_builder_id: https://github.com/actions/runner
+    expected_source_uri: git+https://github.com/example/reference-product
+    require_transparency_log: true  # signature must be logged in Rekor
+    require_keyless: true           # reject any long-lived-key signature
+
+  # Phase 7 — CI/CD pipeline hardening. /pipeline generates the workflow and /security audits an
+  # existing one; both check it against this baseline via lib/pipeline-lint.ts (custody: no push secret).
+  ci:
+    provider: github-actions        # github-actions (first provider)
+    oidc_identity: https://github.com/example/reference-product/.github/workflows/release.yml@refs/heads/main
+    require_oidc: true              # keyless cloud/registry auth — id-token: write, no long-lived secret
+    require_pinned_actions: true    # every third-party uses: pinned to a full commit SHA
+    required_steps:                 # the supply-chain steps (Tracks 1–3) wired as required checks
+      - osv-scanner
+      - semgrep
+      - cosign
+
+  # Phase 7 (Track 5, optional) — container-image scan + base-image hardening. The scan runs in CI;
+  # /security gates on a fix-available finding at/above block_severity via lib/container-scan.ts.
+  container_scan:
+    scanner: trivy                  # trivy | grype
+    block_severity: high            # low | medium | high | critical
+    require_fix_available: true     # an unfixable image CVE warns but never holds the release
+    forbid_root: true               # an image running as root fails the hardening lint
+    require_pinned_base: true       # base image pinned by digest (FROM img@sha256:...)
+
+  # Phase 7 (Track 5, optional) — DAST (OWASP ZAP baseline) against a running preview. The scan runs
+  # in CI; /security gates on a confirmed alert at/above block_risk via lib/dast-report.ts.
+  dast:
+    scanner: zap                    # zap (OWASP ZAP baseline)
+    block_risk: high                # low | medium | high
+    min_confidence: low             # alerts below this confidence are noise and never gate
 
 # Multi-tenant repairs product; database-expert binds ${ctx.tenancy} for per-query isolation.
 tenancy:

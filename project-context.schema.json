@@ -121,7 +121,87 @@
         "auth": { "type": "string", "description": "Authn/authz provider or strategy, e.g. 'auth0', 'oidc', 'session-cookie', 'jwt'. Audited by /security (access management, RBAC, tokens — OWASP A01/A07, API BOLA/BFLA)." },
         "crypto": { "type": "string", "description": "Encryption / key-management binding, e.g. 'aws-kms', 'libsodium', 'webcrypto'. The Factory rolls no crypto itself; audited for weak/rolled-your-own crypto (OWASP A02)." },
         "session": { "type": "string", "description": "Session strategy, e.g. 'stateless-jwt', 'redis-session', 'signed-cookie'. Audited for fixation / weak lifetime (OWASP A07)." },
-        "tls": { "type": "string", "description": "Transport security posture for public endpoints, e.g. 'lets-encrypt', 'acm', 'cloudflare'. /deploy hard-gates a public deploy on a valid chain + min TLS version + HSTS via lib/tls-verify.ts (OWASP A02/A05)." }
+        "tls": { "type": "string", "description": "Transport security posture for public endpoints, e.g. 'lets-encrypt', 'acm', 'cloudflare'. /deploy hard-gates a public deploy on a valid chain + min TLS version + HSTS via lib/tls-verify.ts (OWASP A02/A05)." },
+        "mobile_release": {
+          "type": "object",
+          "description": "Per-store app-store release bindings (Phase 6). Records bundle_id/application_id, the release track, the release tool (fastlane/EAS/Codemagic), and WHICH CI holds the signing material \u2014 never the secret value (custody principle, \u00a76.2). /deploy hard-gates a store submission and verifies the release manifest (format, monotonic build, valid track, no embedded secret) via lib/mobile-release-verify.ts.",
+          "additionalProperties": true,
+          "properties": {
+            "apple": { "type": "object", "additionalProperties": true, "description": "Apple App Store: bundle_id, track (testflight|app-store), tool, and the CI that holds the distribution cert + provisioning profile + ASC API key." },
+            "google": { "type": "object", "additionalProperties": true, "description": "Google Play: application_id, track (internal|closed|production), tool, and the CI that holds the upload keystore + Play service-account JSON (prefer Play App Signing)." }
+          }
+        },
+        "supply_chain": {
+          "type": "object",
+          "description": "Supply-chain security bindings (Phase 7, Track 1). Records the SCA scanner (osv-scanner/npm-audit/pip-audit/trivy), the severity policy the gate enforces, and the SBOM format. The scan + SBOM run in CI; /security normalises the output and /ship + /deploy hard-gate on a fix-available finding at or above the threshold via lib/sca-report.ts (custody principle \u2014 the Factory runs no scanner and fetches no advisory feed itself).",
+          "additionalProperties": true,
+          "properties": {
+            "sca_tool": { "type": "string", "enum": ["osv-scanner", "npm-audit", "pip-audit", "trivy"], "description": "The dependency-vulnerability scanner, chosen per language/ecosystem. osv-scanner is multi-ecosystem (npm, PyPI, Pub, ...)." },
+            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Findings at or above this severity are gate candidates. Default: high." },
+            "require_fix_available": { "type": "boolean", "description": "When true (default), a finding only blocks if a fix exists \u2014 an unfixable CVE warns but never holds the release." },
+            "sbom_format": { "type": "string", "enum": ["cyclonedx", "spdx"], "description": "The Software Bill of Materials format the build emits." }
+          }
+        },
+        "sast": {
+          "type": "object",
+          "description": "Static Application Security Testing bindings (Phase 7, Track 2). Records the static analyzer (semgrep/codeql) and the severity the gate enforces. The scan runs in CI; /security normalises the output (SARIF or semgrep JSON) and gates on a finding at or above the threshold via lib/sast-report.ts \u2014 advisory in /review, gating in /security. No fix-available axis: the vulnerable code is yours to fix.",
+          "additionalProperties": true,
+          "properties": {
+            "tool": { "type": "string", "enum": ["semgrep", "codeql"], "description": "The static analyzer. semgrep (rulesets) or CodeQL (where available). Both can emit SARIF." },
+            "format": { "type": "string", "enum": ["semgrep", "sarif"], "description": "The analyzer's output shape lib/sast-report.ts parses. SARIF covers CodeQL and `semgrep --sarif`." },
+            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Findings at or above this severity gate. Default: high." }
+          }
+        },
+        "provenance": {
+          "type": "object",
+          "description": "Artifact-signing + build-provenance bindings (Phase 7, Track 3). Records the keyless signer (cosign/Sigstore), the attestation format (SLSA provenance), and the expected identity/issuer/builder/source a verifier must confirm. Signing + attestation run in CI; the Factory holds no signing key (keyless OIDC, custody principle \u00a76.2). /deploy hard-gates a release, verifying the attestation against these expectations via lib/provenance-verify.ts.",
+          "additionalProperties": true,
+          "properties": {
+            "signer": { "type": "string", "enum": ["cosign", "sigstore"], "description": "The keyless signer. cosign (Sigstore) signs with a short-lived Fulcio cert bound to an OIDC identity \u2014 no long-lived key." },
+            "attestation_format": { "type": "string", "enum": ["slsa-provenance", "in-toto"], "description": "The build-provenance attestation format. SLSA provenance records what built the artifact and from which source." },
+            "expected_identity": { "type": "string", "description": "The OIDC certificate identity the signature must carry, e.g. the release workflow URI. Exact match unless identity_is_regex." },
+            "identity_is_regex": { "type": "boolean", "description": "When true, expected_identity is a regular-expression source string." },
+            "expected_issuer": { "type": "string", "description": "The OIDC issuer, e.g. https://token.actions.githubusercontent.com." },
+            "expected_builder_id": { "type": "string", "description": "The SLSA provenance builder id, e.g. https://github.com/actions/runner." },
+            "expected_source_uri": { "type": "string", "description": "The source repo URI the provenance must attest, e.g. git+https://github.com/org/repo." },
+            "require_transparency_log": { "type": "boolean", "description": "When true (default), the signature must be recorded in a transparency log (Rekor)." },
+            "require_keyless": { "type": "boolean", "description": "When true (default), reject a long-lived-key signature \u2014 keyless OIDC signing only." }
+          }
+        },
+        "ci": {
+          "type": "object",
+          "description": "CI/CD pipeline bindings (Phase 7, Track 4). Records the CI provider and the hardening baseline a generated pipeline must meet: least-privilege permissions, OIDC/keyless cloud auth (no long-lived secret), pinned action SHAs, and the required security steps (SCA/SBOM/SAST/sign). /pipeline generates the workflow and /security audits an existing one; both check it via lib/pipeline-lint.ts (custody principle \u2014 the Factory holds no push secret).",
+          "additionalProperties": true,
+          "properties": {
+            "provider": { "type": "string", "enum": ["github-actions"], "description": "The CI/CD provider. GitHub Actions first; the mechanism-vs-parameters model lets a second provider be a binding, not a rewrite." },
+            "oidc_identity": { "type": "string", "description": "The OIDC subject the pipeline authenticates as, e.g. the release workflow URI federated to the cloud/registry \u2014 no long-lived secret." },
+            "require_oidc": { "type": "boolean", "description": "When true (default), the pipeline must request `id-token: write` for keyless auth." },
+            "require_pinned_actions": { "type": "boolean", "description": "When true (default), every third-party `uses:` must be pinned to a full 40-hex commit SHA." },
+            "required_steps": { "type": "array", "items": { "type": "string" }, "description": "Substrings that must each appear in at least one pipeline step, e.g. the SCA/SAST/sign commands wired as required checks." }
+          }
+        },
+        "container_scan": {
+          "type": "object",
+          "description": "Container-image scanning + base-image hardening bindings (Phase 7, Track 5 \u2014 optional, for products that ship a Docker image). Records the image scanner (trivy/grype), the severity policy, and the hardening rules. The scan runs in CI; /security normalises the output and gates on a fix-available finding at/above the threshold via lib/container-scan.ts, and lints the image config (non-root user, pinned base image).",
+          "additionalProperties": true,
+          "properties": {
+            "scanner": { "type": "string", "enum": ["trivy", "grype"], "description": "The container-image vulnerability scanner." },
+            "block_severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Image vulns at or above this severity are gate candidates. Default: high." },
+            "require_fix_available": { "type": "boolean", "description": "When true (default), a vuln only blocks if a fix exists \u2014 an unfixable one warns." },
+            "forbid_root": { "type": "boolean", "description": "When true (default), an image that runs as root fails the hardening lint." },
+            "require_pinned_base": { "type": "boolean", "description": "When true (default), the base image must be pinned by digest (FROM img@sha256:...), not a tag." }
+          }
+        },
+        "dast": {
+          "type": "object",
+          "description": "Dynamic Application Security Testing bindings (Phase 7, Track 5 \u2014 optional). Records the DAST scanner (OWASP ZAP baseline) and the risk policy. The scan runs in CI against a deployed preview; /security normalises the ZAP output and gates on a confirmed alert at/above the risk threshold via lib/dast-report.ts.",
+          "additionalProperties": true,
+          "properties": {
+            "scanner": { "type": "string", "enum": ["zap"], "description": "The DAST scanner. OWASP ZAP baseline scan against a running preview." },
+            "block_risk": { "type": "string", "enum": ["low", "medium", "high"], "description": "Alerts at or above this risk gate. Default: high." },
+            "min_confidence": { "type": "string", "enum": ["false-positive", "low", "medium", "high", "confirmed"], "description": "Alerts below this confidence are treated as noise and never gate. Default: low." }
+          }
+        }
       }
     },
     "skills": {

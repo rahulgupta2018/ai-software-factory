@@ -8,7 +8,7 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.1.0
+  version: 0.3.0
   last_updated: 2026-07-24
   layer: Test
   priority: V1
@@ -88,6 +88,11 @@ Activate when:
 - **Security of the surface.** The browser ingests untrusted page content — a prompt-injection
   vector. The `browse` tool runs the layered content-security stack; never disable it to "make a
   page load".
+- **Native mobile is on-device, not the browser.** A Flutter/Dart component can't be driven by
+  `browse` (Playwright is web-only). A native-mobile component is QA'd on an **emulator/simulator**
+  via `flutter test integration_test` (with optional Maestro/Patrol E2E flows) through an
+  **injectable device seam** (`__FACTORY_DEVICE_RUNNER__`), so the logic is testable offline
+  without a real device. Same contract, same `05-qa.md` artifact. See the native-mobile section.
 
 ## Workflow
 
@@ -132,6 +137,35 @@ Freedom level: **medium** — cover the flows, adapt to what the app exposes.
 7. **Gate.** A functional bug in a V1 flow is a blocking finding — surface it before `/ship`.
    Cosmetic issues are advisory.
 8. **Hand off.** Point the user to fix + `/review` the fixes, or to `/ship` if clean.
+
+## Native mobile QE (Phase 6)
+
+When a component is **native mobile** (Flutter/Dart), `browse` cannot exercise it — drive it on a
+device instead. Route the component to an on-device run and keep everything else identical: the
+same reproduce-first discipline, the same red-first regression test, the same blocking-gate rule,
+and the **same `05-qa.md` artifact** (a run that QA's both a web and a mobile component records
+both in one bug list).
+
+1. **Launch + drive the app on-device** with the runner `fac mobile-device`, which fulfils the
+   injectable **device seam** `__FACTORY_DEVICE_RUNNER__`:
+   ```bash
+   fac mobile-device plan --platform android --test-dir integration_test   # preview the exact commands (no device)
+   fac mobile-device run  --platform android --test-dir integration_test \
+     --flow maestro:flows/login.yaml                                        # launch, run integration_test (+ flows), report
+   ```
+   It runs `flutter test integration_test` for the app's own journeys plus optional **Maestro** /
+   **Patrol** flows, and prints a structured pass/fail with per-test failures (exit `2` = a real
+   test/flow failure, `1` = an infra error like a device that never booted, so a broken run is never
+   a false green). The seam is injectable, so the routing is testable offline with a stubbed runner
+   (the `browse`/`design` mould), no real device needed.
+2. **Record bugs and write regression tests** exactly as for web — each reproducible bug gets a
+   red-first `integration_test`/`flutter_test` that fails on the bug and passes once fixed.
+3. **Run mobile QE _before_ any store track** — you QA on an emulator, then `/deploy` submits.
+
+Mobile findings land in the same artifact as web QA:
+```bash
+fac run artifact --seq 5 --step qa --inputs .factory/runs/$RUN/03-build-<mobile-component>.md --body-file qa.md
+```
 
 ## Practical Guidance
 
@@ -179,6 +213,9 @@ Output: 05-qa.md — BUG (high): assigning a contractor to a closed repair silen
 - Browser tool: `tools/browse/` — invoke via `fac browse run|goto` (localhost-only default;
   `--allow-external` gate; verbs: goto, click, type/fill, press, wait, snapshot, screenshot,
   eval, title, url)
+- Native-mobile QE: `fac mobile-device plan|check|run` (tools/mobile-device) — `flutter test
+  integration_test` (+ optional Maestro/Patrol) on an emulator/simulator via the
+  `__FACTORY_DEVICE_RUNNER__` device seam; runs before the `/deploy` mobile store tracks
 - V1 flows + outcomes: `PRD.md`
 - Run artifacts: `.factory/runs/<id>/05-qa.md`
 - Related skills: `review`, `ship`, `investigate`, `benchmark`

@@ -11,8 +11,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.2.0"
-  last_updated: 2026-07-23
+  version: "0.6.0"
+  last_updated: 2026-07-24
   layer: "Review"
   priority: "V1"
 ---
@@ -69,6 +69,37 @@ Activate when:
   secrets in the bundle, HTTPS-only with certificate pinning, obfuscated/stripped release builds —
   and the transport posture (`lib/tls-verify.ts` policy: valid chain, >= TLS 1.2, HSTS). Defer
   idiom-level MASVS findings to `flutter-dart-expert`; `/security` confirms the control exists.
+- **Supply chain is scanned, not trusted (plan §Phase 7).** Your code can be perfect and still ship
+  a known-vulnerable dependency (OWASP A06). A dependency scanner (`osv-scanner` / `npm audit` /
+  `pip-audit` / Trivy, bound in `tech_bindings.supply_chain.sca_tool`) and an **SBOM** (CycloneDX or
+  SPDX) run in CI at build time; `/security` normalises the scanner JSON and applies the severity
+  policy via `lib/sca-report.ts`. A **fix-available** finding at or above `block_severity` (default
+  High) is a **hard gate** on `/ship` / `/deploy` — an unfixable CVE warns but never holds the
+  release. The build must also emit a non-empty SBOM. The Factory runs no scanner and fetches no
+  advisory feed itself (custody principle) — it verifies CI's output.
+- **Static analysis is advisory-then-gating (plan §Phase 7).** A static analyzer (**semgrep**
+  rulesets, or **CodeQL** where available, bound in `tech_bindings.sast.tool`) runs in CI over the
+  source and emits findings (rule id, location, severity, often a CWE). `/security` normalises the
+  tool's SARIF / semgrep JSON via `lib/sast-report.ts` and applies the severity policy: a finding at
+  or above `sast.block_severity` (default High) is a **gate**; below-threshold is a note. Unlike SCA
+  there is **no fix-available escape** — the vulnerable code is yours, so a High/Critical static
+  finding always gates until the code is fixed. `/review` surfaces the same findings as *advisory*;
+  `/security` is where they gate. The analyzer is a wrapper; the Factory owns the policy.
+- **The pipeline itself is audited (plan §Phase 7).** A CI/CD pipeline is attack surface: an
+  over-privileged `GITHUB_TOKEN`, a long-lived cloud secret, an unpinned action, or a security gate
+  that isn't wired as a step (OWASP CI/CD security). `/security` audits an existing workflow against
+  the hardening baseline via `lib/pipeline-lint.ts` (bound in `tech_bindings.ci`): least-privilege
+  `permissions:`, OIDC/keyless auth (`id-token: write`, no long-lived secret), SHA-pinned actions,
+  and the SCA/SBOM/SAST/sign steps present. A finding is a fix; `/pipeline` **generates** a compliant
+  workflow, `/security` **reports** an existing one against the same lint.
+- **Runtime & image surface, when it applies (plan §Phase 7, Track 5 — optional).** A product that
+  ships a **Docker image** or exposes a **running preview** adds two surfaces the app-code gates miss.
+  A **container-image scan** (Trivy/Grype, `tech_bindings.container_scan`) finds OS/base-layer CVEs;
+  `/security` gates on a fix-available image vuln at/above the threshold via `lib/container-scan.ts`
+  and lints the image config (non-root user, base image pinned by digest). A **DAST** scan (OWASP ZAP
+  baseline, `tech_bindings.dast`) exercises the live preview; `/security` gates on a confirmed alert
+  at/above the risk threshold via `lib/dast-report.ts` (a false-positive never gates). Both scans run
+  in CI (custody principle); skip the pair for a product with no image and no deployed surface.
 - **Trust boundaries first.** Map where untrusted input crosses into trusted code (network edges,
   user input, third-party callbacks, deserialization). Findings cluster there.
 - **Low false-positive gate.** A finding requires: the attack, the exact vulnerable code, the
@@ -94,20 +125,44 @@ Freedom level: **low** — the coverage is a checklist; skipping a category is a
    tokens/JWT, API headers & query params, sessions, caching. A missing or misconfigured binding is
    a finding; a bound-but-correct control is a note. For a **mobile** component, add the MASVS
    essentials and the transport (TLS) posture.
-6. **Confirm exploitability.** For each candidate, establish the concrete path and impact. Drop
+6. **Run the supply-chain gate (§Phase 7).** Take CI's dependency-scan JSON and SBOM and evaluate
+   them via `lib/sca-report.ts` against `tech_bindings.supply_chain` (`sca_tool`, `block_severity`,
+   `require_fix_available`, `sbom_format`): normalise the scan, and treat a **fix-available** finding
+   at or above the threshold as a hard gate; confirm a non-empty SBOM was produced. Record the
+   blocking findings in the audit. A severity-less scanner (pip-audit) can't drive a severity gate —
+   prefer osv-scanner/Trivy for a Python severity policy.
+7. **Run the static-analysis (SAST) gate (§Phase 7).** Take CI's analyzer output (semgrep JSON or
+   SARIF/CodeQL) and evaluate it via `lib/sast-report.ts` against `tech_bindings.sast`
+   (`tool`, `format`, `block_severity`): normalise the findings and treat a finding at or above the
+   threshold (default High) as a gate — there is no fix-available escape, the code is yours to fix.
+   Record the blocking findings in the audit. `/review` surfaces these as advisory; here they gate.
+8. **Audit the CI/CD pipeline (§Phase 7).** If the product has a pipeline, parse its
+   `.github/workflows/*.yml` and evaluate it via `lib/pipeline-lint.ts` against `tech_bindings.ci`:
+   flag an over-broad `permissions:`, a missing `id-token: write` (no OIDC), a long-lived cloud/
+   registry secret, an unpinned action, or a missing required security step. Report each as a
+   finding; `/pipeline` owns generating/fixing the workflow, `/security` audits it.
+9. **Run the runtime & image gates when they apply (§Phase 7, Track 5).** If the product ships a
+   **container image**, evaluate CI's Trivy/Grype scan via `lib/container-scan.ts` against
+   `tech_bindings.container_scan` (a fix-available image vuln at/above the threshold gates) and lint
+   the image config (non-root user, pinned base image). If it exposes a **running preview**, evaluate
+   CI's OWASP ZAP report via `lib/dast-report.ts` against `tech_bindings.dast` (a confirmed alert
+   at/above the risk threshold gates; a false-positive never does). Skip either scan the product
+   doesn't have.
+10. **Confirm exploitability.** For each candidate, establish the concrete path and impact. Drop
    anything you can't exploit to an informational note (the FP gate).
-7. **Rank and fix.** Severity = impact × exploitability. For each finding, give evidence (file +
+11. **Rank and fix.** Severity = impact × exploitability. For each finding, give evidence (file +
    line) and a specific remediation.
-8. **Write the audit as a run artifact.** A security audit is a **branch artifact** with a
+12. **Write the audit as a run artifact.** A security audit is a **branch artifact** with a
    sub-sequence seq — the next free letter under the step it follows (`4a` after `/review`, step 4):
    ```bash
    fac run artifact --seq 4a --step security --inputs .factory/runs/$RUN/03-build-<component>.md --body-file security-audit.md
    ```
    Record the built artifacts under audit as inputs so a re-build re-opens the audit; **omit
    `--inputs`** for a standalone whole-codebase audit (nothing upstream to hash).
-9. **Hand off / gate.** Critical/High findings on a change bound for production are a **hard gate**
-   (`escalation_policy`): stop, report, and require a fix before `/deploy`. A public endpoint that
-   fails the transport (TLS) policy is likewise a hard gate `/deploy` re-checks mechanically.
+13. **Hand off / gate.** Critical/High findings on a change bound for production are a **hard gate**
+    (`escalation_policy`): stop, report, and require a fix before `/deploy`. A public endpoint that
+    fails the transport (TLS) policy, a fix-available supply-chain finding, or a High/Critical SAST
+    finding at/above the threshold, is likewise a hard gate `/deploy` re-checks mechanically.
 
 ## Practical Guidance
 
@@ -141,9 +196,20 @@ Gate:   Critical on a production-bound change → hard stop before /deploy.
    coverage gap, say so.
 4. Audit the bound providers (`tech_bindings.auth/.crypto/.session/.cache/.tls`) against the §6.3
    checklist; for a mobile component add MASVS + the transport policy.
-5. Rank by impact × exploitability; lead with what an attacker reaches first.
-6. Critical/High on a production-bound change is a hard gate — stop and require the fix.
-7. Record the audit as a run artifact.
+5. Run the supply-chain gate: a fix-available finding at/above `supply_chain.block_severity` is a
+   hard gate (`lib/sca-report.ts`); an unfixable one warns. Confirm a non-empty SBOM was produced.
+6. Run the SAST gate: a static finding at/above `sast.block_severity` (`lib/sast-report.ts`) gates —
+   no fix-available escape, the code is yours to fix. Advisory in `/review`, gating here.
+7. Audit the CI/CD pipeline (`lib/pipeline-lint.ts`, `tech_bindings.ci`): least-privilege
+   permissions, OIDC/keyless (no long-lived secret), pinned actions, required gate steps present.
+   `/pipeline` generates/fixes; `/security` reports.
+8. When they apply, run the runtime & image gates: a fix-available container CVE at/above
+   `container_scan.block_severity` (`lib/container-scan.ts`) + the image-hardening lint, and a
+   confirmed DAST alert at/above `dast.block_risk` (`lib/dast-report.ts`). Skip the pair for a
+   product with no image and no deployed preview.
+9. Rank by impact × exploitability; lead with what an attacker reaches first.
+10. Critical/High on a production-bound change is a hard gate — stop and require the fix.
+11. Record the audit as a run artifact.
 
 ## Gotchas
 
@@ -167,6 +233,16 @@ Gate:   Critical on a production-bound change → hard stop before /deploy.
 
 - OWASP Top 10, OWASP API Security Top 10, OWASP ASVS, OWASP MASVS, STRIDE threat model
 - Transport policy: `lib/tls-verify.ts` (valid chain, >= TLS 1.2, HSTS) — re-checked by `/deploy`
+- Supply-chain gate: `lib/sca-report.ts` (SCA severity policy + SBOM check) bound via
+  `tech_bindings.supply_chain`; a fix-available finding at/above the threshold hard-gates `/ship`/`/deploy`
+- Static-analysis gate: `lib/sast-report.ts` (semgrep/SARIF severity policy) bound via
+  `tech_bindings.sast`; a finding at/above the threshold gates — advisory in `/review`, gating here
+- CI/CD pipeline audit: `lib/pipeline-lint.ts` (least-privilege permissions, OIDC/keyless, pinned
+  SHAs, required steps) bound via `tech_bindings.ci`; `/pipeline` generates/fixes, `/security` reports
+- Container-image gate (optional): `lib/container-scan.ts` (Trivy/Grype severity policy + non-root /
+  pinned-base hardening) bound via `tech_bindings.container_scan`
+- DAST gate (optional): `lib/dast-report.ts` (OWASP ZAP baseline risk policy) bound via
+  `tech_bindings.dast`; a confirmed alert at/above the risk threshold gates
 - Application-security checklist: plan §6.3 (authn/authz, crypto, sessions, API, caching)
 - Security rules: vendored `code-reviewer` (`references/`)
 - Related skills: `review`, `investigate`, `deploy`

@@ -9,7 +9,7 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.1.0
+  version: 0.2.0
   last_updated: 2026-07-24
   layer: Review
   priority: V1
@@ -102,7 +102,9 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
 2. **Get the diff.** `git diff <base>...HEAD` plus the list of changed files. If the change is
    large, review file-group by file-group, highest-risk first.
 3. **Review in priority order** using the ported `code-reviewer` catalogue:
-   - **Security** — injection, authn/authz, secrets, unsafe deserialization, OWASP Top 10.
+   - **Security** — injection, authn/authz, secrets, unsafe deserialization, OWASP Top 10. If CI
+     produced a static-analysis report (semgrep/SARIF), surface its findings here as **advisory**
+     via `lib/sast-report.ts` against `tech_bindings.sast` — they *gate* in `/security`, not here.
    - **Performance** — N+1 queries, unbounded loops, needless allocation, blocking I/O.
    - **Correctness** — logic errors, edge cases, error handling at boundaries, race conditions.
    - **Maintainability** — naming, dead code, over-abstraction, unclear control flow.

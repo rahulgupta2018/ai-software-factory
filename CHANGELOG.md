@@ -3,6 +3,218 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.43.0.0] — 2026-07-24
+
+**`/security` now closes the runtime half of DevSecOps: a container-image scan (Trivy/Grype) plus base-image hardening, and a DAST scan (OWASP ZAP) against a running preview — both gating. Phase 7 is complete.**
+
+The earlier tracks secured your source and your build. This one covers what ships and what runs.
+For a product that ships a Docker image, `/security` reads CI's Trivy or Grype scan and **blocks** on
+a fix-available OS/base-layer CVE at or above your threshold, and lints the image for hardening — an
+image that runs as root or pins its base by a moveable tag is a finding. For a product with a
+deployed preview, it reads an OWASP ZAP baseline report and **blocks** on a confirmed high-risk
+alert, while a false-positive never gates. Both are optional — skip them for a product with no image
+and no live surface — and both run the scan in CI while the Factory owns the policy. With this, all
+three Phase 7 exit criteria are met.
+
+### Added
+- **Container-image gate in `/security`.** A fix-available image CVE at or above
+  `container_scan.block_severity` blocks; the image-hardening lint flags a root user or an unpinned
+  base image.
+- **DAST gate in `/security`.** A confirmed OWASP ZAP alert at or above `dast.block_risk` blocks; a
+  false-positive or sub-threshold-confidence alert never does.
+- **`tech_bindings.container_scan` and `tech_bindings.dast`** — declare the image scanner + hardening
+  rules and the DAST scanner + risk policy once; both are optional and only apply when the product
+  has an image or a preview.
+
+### For contributors
+- New pure helpers `lib/container-scan.ts` (Trivy/Grype normalisers + severity gate + base-image
+  hardening lint) and `lib/dast-report.ts` (OWASP ZAP normaliser + risk/confidence gate). No
+  scanner, no process, no network. Covered by `test/container-scan.test.ts` and
+  `test/dast-report.test.ts` (Tier-1, a negative case per rule, malformed input that doesn't throw).
+  This is Phase 7 Track 5 — the phase's final, optional track — completing the supply-chain & CI/CD
+  security phase.
+
+## [0.42.0.0] — 2026-07-24
+
+**A new `/pipeline` skill generates the CI/CD workflow the security gates assumed — hardened by default: least-privilege permissions, keyless OIDC auth, pinned actions, and every gate wired as a step.**
+
+The supply-chain, static-analysis, and signing gates from the last three releases only fire if CI
+actually *runs* the scan and *requests* the OIDC token. This release ships the pipeline that does.
+Ask `/pipeline` to set up CI/CD and it emits a GitHub Actions workflow with a least-privilege
+`GITHUB_TOKEN` (`contents: read`), keyless cloud/registry auth via `id-token: write` (no long-lived
+`AWS_SECRET_ACCESS_KEY` or `DOCKER_PASSWORD` anywhere), every third-party action pinned to a commit
+SHA, and the SCA/SBOM, SAST, and sign/attest steps wired in as required checks. It won't call the
+workflow done until the hardening lint is clean — the same lint `/security` now runs to audit a
+pipeline you already have. The Factory generates and verifies the pipeline; it never takes custody
+of a push secret.
+
+### Added
+- **`/pipeline` skill.** Generates and hardens a GitHub Actions workflow to a fixed baseline, then
+  gates on its own lint. `/security` audits an existing workflow against the same baseline;
+  `/deploy` runs the release the pipeline produces.
+- **CI/CD pipeline audit in `/security`.** An over-broad token, a long-lived cloud secret, an
+  unpinned action, or a security gate that isn't wired as a step is now a reported finding.
+- **`tech_bindings.ci`** — declare the CI provider, the OIDC identity, and the required security
+  steps once; `/pipeline` generates to it and `/security` audits against it.
+
+### For contributors
+- New pure helper `lib/pipeline-lint.ts` — lints an already-parsed workflow object for
+  least-privilege permissions, OIDC/keyless auth, SHA-pinned actions, no long-lived secret, and
+  required steps, accumulating every failed rule. No YAML parser, no process, no network. Covered by
+  `test/pipeline-lint.test.ts` (Tier-1, a negative case per rule, malformed input that doesn't
+  throw). This is Phase 7 Track 4 and clears the phase's third exit criterion; Track 5 (DAST +
+  container scan) remains optional.
+
+## [0.41.0.0] — 2026-07-24
+
+**`/security` now reads your static-analyzer output and turns a High/Critical code finding into a release gate — and `/review` surfaces the same findings early as advisory.**
+
+A scanner that finds a SQL injection in your own code is worthless if nothing acts on the result.
+This release wires static analysis (SAST) into the gates. Run semgrep or CodeQL in CI, point the
+Factory at the output (semgrep JSON or SARIF), and `/security` normalises the findings and
+**blocks** on anything at or above your severity threshold (default High). Unlike a dependency CVE
+there is no "no fix available" escape — the vulnerable code is yours, so a High/Critical static
+finding holds the release until the code is fixed. `/review` shows the same findings earlier in the
+flow as advisory, so you see them before they gate. The analyzer runs in CI; the Factory owns the
+policy, not the scan.
+
+### Added
+- **SAST gate in `/security`.** CI's static-analysis output (semgrep or CodeQL/SARIF) is normalised
+  to a common finding list — rule id, file, line, severity, CWE — and a finding at or above
+  `block_severity` gates the release. CodeQL's numeric `security-severity` is honoured over the
+  coarse SARIF level.
+- **Advisory SAST in `/review`.** The same findings surface during code review as advisory, so
+  they're visible before the `/security` gate.
+- **`tech_bindings.sast`** — declare your analyzer (semgrep/codeql), its output format, and the
+  severity threshold once; `/security` and `/review` both read it.
+
+### For contributors
+- New pure helper `lib/sast-report.ts` — normalises semgrep JSON and SARIF (CodeQL) to
+  `SastFinding[]` and applies the severity gate (`evaluateSastReport`); no fix-available axis. No
+  network, no analyzer binary. Covered by `test/sast-report.test.ts` (Tier-1, both formats, a
+  negative case per rule, malformed input that doesn't throw). This is Phase 7 Track 2; Tracks 4
+  (CI/CD pipeline generation) and 5 (DAST) remain.
+
+## [0.40.0.0] — 2026-07-24
+
+**`/deploy` now refuses to ship an artifact it can't prove the origin of — the release must carry a signed, keyless build attestation that matches the code you think you're shipping.**
+
+Signing an artifact is only half the story; the other half is checking the signature says what you
+expect. This release adds that check. When your CI signs a release keyless (Sigstore cosign) and
+emits SLSA build provenance, the Factory verifies it before deploy: the signature is valid and
+keyless, the attested digest matches the artifact actually being deployed, and the OIDC identity,
+issuer, builder, and source repo all match what you declared — with a public transparency-log
+entry. A missing, unverified, key-based, or mismatched attestation **blocks the release**. This
+closes the "someone slipped a different binary in" and "it was built somewhere we don't control"
+gaps. The Factory still holds no signing key — signing is keyless in CI; it only verifies.
+
+### Added
+- **Provenance gate in `/deploy`.** A new hard gate between CI-green and deploy verifies the
+  release artifact's build attestation. It confirms the signature is valid and keyless, the subject
+  digest matches the artifact being deployed, and the signing identity / issuer / builder / source
+  match your expected values, plus a Rekor transparency-log entry. Anything short of that blocks.
+- **`tech_bindings.provenance`** — declare your signer (cosign/Sigstore), attestation format
+  (SLSA), and the expected identity, issuer, builder, and source once; `/deploy` verifies against
+  it. Two custody invariants (keyless signing, transparency-log inclusion) default on.
+
+### For contributors
+- New pure helper `lib/provenance-verify.ts` — takes the facts a `cosign verify-attestation` /
+  `slsa-verifier` run reports and applies the policy (`verifyProvenance`), accumulating every
+  failed rule so the full reason a release was blocked is visible. No network, no keys. Covered by
+  `test/provenance-verify.test.ts` (Tier-1, a negative case per rule — the wrong digest, identity,
+  issuer, builder, source, the key-based signature, the missing log entry). This is Phase 7
+  Track 3; Tracks 2 (SAST), 4 (CI/CD pipeline generation), and 5 (DAST) remain.
+
+## [0.39.0.0] — 2026-07-24
+
+**A known-vulnerable dependency can no longer sneak into a release — `/security`, `/ship`, and `/deploy` now gate on your dependency scan and demand a bill of materials.**
+
+Your own code can be perfect and you can still ship a library with a public CVE in it. This release
+closes that gap. Point your CI's dependency scan (osv-scanner, npm audit, pip-audit, or Trivy) and
+an SBOM at the Factory, and it reads the results, applies a severity policy, and **blocks the
+release** on a fixable High or Critical — while letting an unfixable one through as a warning, so
+you're never stuck holding a release for a vulnerability nobody can patch yet. The scanners run in
+your CI; the Factory never takes custody of a registry token or fetches an advisory feed itself.
+
+### Added
+- **Supply-chain gate across `/security`, `/ship`, and `/deploy`.** A dependency finding that is at
+  or above your configured severity (default High) **and has a fix available** now blocks the
+  release until you fix it or explicitly override. An unfixable finding warns instead of blocking.
+  The build must also produce a non-empty SBOM (CycloneDX or SPDX).
+- **One policy, four scanners.** The gate reads osv-scanner (multi-ecosystem — npm, PyPI, Pub, ...),
+  npm audit, pip-audit, or Trivy output and normalises them to one finding list, so the same policy
+  works whatever your stack runs.
+- **`tech_bindings.supply_chain`** — declare your scanner, severity threshold, fix-available policy,
+  and SBOM format once; `/security`, `/ship`, and `/deploy` all read it.
+
+### For contributors
+- New pure helper `lib/sca-report.ts` — normalises each scanner's JSON to a common
+  `ScaVulnerability[]`, applies the severity + fix-available policy (`evaluateScaReport`), and
+  checks the SBOM (`verifySbom`). No network, no scanner binary in the unit path. Covered by
+  `test/sca-report.test.ts` (Tier-1, a negative case per rule). This is Phase 7 Track 1; Tracks 2–5
+  (SAST, signing/provenance, CI/CD pipeline generation, DAST) remain.
+
+## [0.38.0.0] — 2026-07-24
+
+**On-device mobile QA now actually runs — `/qa` launches your Flutter app on an emulator, runs its tests, and reports pass/fail, all behind one command.**
+
+Phase 6 shipped the mobile QA *routing* last release, but the runner behind it was a seam waiting to
+be filled. Now it's real. When `/qa` hits a native-mobile component it calls `fac mobile-device`,
+which launches an Android emulator or iOS simulator, runs `flutter test integration_test` (plus any
+Maestro or Patrol flows you point it at), and reports a structured pass/fail with the exact tests
+that failed. A run that couldn't even boot the device is reported as an infrastructure error, not a
+false green — a broken emulator never sneaks a passing QA past you.
+
+### Added
+- **`fac mobile-device` — the on-device Flutter test runner.** Three subcommands: `plan` previews
+  the exact commands it would run (no device touched), `check` validates your request, and `run`
+  launches the emulator/simulator, runs `flutter test integration_test` (+ optional
+  `--flow maestro:<file>` / `--flow patrol:<file>` E2E flows), and prints a pass/fail verdict with
+  per-test failures. Exit `0` = all green, `2` = a real test/flow failure, `1` = an infra error
+  (e.g. the device never booted).
+- **`/qa` now drives it.** A native-mobile `/qa` run invokes `fac mobile-device run` behind the
+  device seam, so the same reproduce-first, red-first regression discipline that guards your web
+  flows now runs on a real device — recorded in the same QA report.
+
+### For contributors
+- New L3 tool `tools/mobile-device/mobile-device.ts` — a pure core (validate → plan commands →
+  parse `flutter test --machine` → interpret pass/fail vs infra error) behind the injectable
+  `__FACTORY_DEVICE_RUNNER__` seam, so the orchestration is unit-tested offline against a stubbed
+  runner (the `browse`/`design` mould). Covered by `test/mobile-device.test.ts` (Tier-1, a negative
+  case per rule). This completes Phase 6's device-runner track; only the credential-gated live
+  store-upload execution (product-CI) now remains.
+
+## [0.37.0.0] — 2026-07-24
+
+**The Factory can now ship a native mobile app to the Apple App Store and Google Play — QA'd on a real device, submitted through a hard gate, and never once holding your signing keys.**
+
+Web was the only finish line before this. Phase 6 adds the mobile one: `/qa` drives your
+Flutter app on an emulator, and `/deploy` grows two separate store tracks that build a signed
+artifact, verify it, and stop for your explicit go-ahead before the irreversible public submission.
+The signing keys stay in CI the whole time — the Factory checks the release, it never takes custody
+of a secret.
+
+### Added
+- **On-device QA for native mobile.** `/qa` now routes a Flutter/Dart component to an
+  emulator/simulator run (`flutter test integration_test`, with optional Maestro/Patrol flows)
+  through an injectable device seam, so the same reproduce-first, red-first regression discipline
+  that guards your web flows now guards your mobile ones — recorded in the same QA report.
+- **Two mobile store deploy tracks.** `/deploy` can publish to the **Apple App Store / TestFlight**
+  (a signed `.ipa`) and to **Google Play** (a signed `.aab`). Each is its own hard gate: it shows
+  you the version, build number, and track, and waits for your consent before submitting.
+- **A release check that fails closed.** Before any submission, the Factory verifies the build is
+  present and signed, the artifact format matches the store (Play needs an App Bundle, not an APK),
+  the build number is higher than the last release, the track is valid, and no signing secret leaked
+  into the release manifest. A missing or unsigned build blocks the submission.
+- **`tech_bindings.mobile_release`** — declare your bundle/application id, target track, and release
+  tool per store once; both the QA and deploy tracks read it.
+
+### For contributors
+- New `lib/mobile-release-verify.ts` — a pure, offline verifier (no network, no store API, no keys)
+  backing both store gates, with a Tier-1 negative-case test per rule in
+  `test/mobile-release-verify.test.ts`. Store build/deploy are top-level `deploy_apple` /
+  `deploy_google` commands; the reference product declares both stores under `mobile_release`.
+
 ## [0.36.0.0] — 2026-07-24
 
 **The TEST phase records its artifacts correctly — `/qa` stops colliding with review, the report and benchmark commands actually run, and the browser-driven QA skill is finally tested.**

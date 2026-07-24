@@ -60,7 +60,9 @@ Freedom level: **low** — this is a release procedure; follow it.
    `guardrails`, and `escalation_policy`. Identify the base branch.
 2. **Enforce upstream gates.** Confirm `/review` is clean of security findings and `/qa` is clean
    of blocking bugs (check the latest `NN-review.md` / `NN-qa.md` artifacts). If not, stop and
-   route back — do not ship.
+   route back — do not ship. The supply-chain gate counts here too: a fix-available dependency
+   finding at or above `tech_bindings.supply_chain.block_severity` (`lib/sca-report.ts`) or a
+   missing SBOM blocks the ship until fixed or explicitly overridden.
 3. **Run the full check suite.** For each affected component, run `commands.<component>.test`,
    `lint`, `typecheck`, and `build`. Any failure halts the ship.
 4. **Prepare the change.** Ensure commits are logical and the working tree is clean. Write a PR

@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.2.0
-  last_updated: 2026-07-23
+  version: 0.4.0
+  last_updated: 2026-07-24
   layer: Ship
   priority: V1
 ---
@@ -98,35 +98,104 @@ Activate when:
   **verifies** the live endpoint with `lib/tls-verify.ts`: a trusted, in-date chain, >= TLS 1.2,
   and a long-lived HSTS header. A public endpoint that fails is blocked; an internal-only endpoint
   is ungated.
+- **Supply-chain findings are a hard gate (§Phase 7).** A release must not ship a known-vulnerable,
+  fixable dependency. The Factory runs no scanner itself — the SCA scan + SBOM are produced in CI
+  (`tech_bindings.supply_chain.sca_tool`) — but `/deploy` enforces the policy via `lib/sca-report.ts`:
+  a **fix-available** finding at or above `block_severity` (default High) **blocks** the release
+  until fixed or explicitly overridden (recorded to `run.json`); an unfixable CVE warns. The build
+  must also have emitted a non-empty SBOM.
+- **Build provenance is verified before release (§Phase 7).** A release must ship only the artifact
+  that was built, by the expected workflow, from the expected source. The Factory mints no signing
+  key — artifacts are signed **keyless (OIDC/Sigstore cosign)** and attested (SLSA provenance) in CI
+  (`tech_bindings.provenance`) — but `/deploy` mechanically **verifies** the attestation via
+  `lib/provenance-verify.ts`: signature valid, keyless, digest matches the artifact being deployed,
+  and the OIDC identity / issuer / builder / source match the expected values, with a Rekor
+  transparency-log entry. A missing, unverified, or mismatched attestation **blocks the release**.
 - **Rollback is a first-class path.** If verification fails, the move is roll back (or fix-forward
   with consent) and route the failure to `/investigate`, not to hope.
+- **Mobile store submission is a separate, irreversible track.** Publishing to the Apple App Store
+  or Google Play is not a web deploy: different artifacts (`.ipa` vs `.aab`), tooling, and review
+  models, each its own **hard gate** and each verified before done. The Factory **holds no signing
+  or store credentials** — they live in CI only (custody principle, §6.2) — and verifies the
+  release manifest with `lib/mobile-release-verify.ts`. See the mobile-store section below.
 
 ## Workflow
 
 Freedom level: **low** — the gate order protects production; don't reorder it.
 
 1. **Preflight.** Confirm the PR is approved and its quality gates are green (`/review`, `/qa`,
-   and `/security` if it applied). Read `commands` (deploy/CI) and `escalation_policy` from context.
+   and `/security` if it applied) — including the supply-chain gate: a fix-available finding at or
+   above `tech_bindings.supply_chain.block_severity` (via `lib/sca-report.ts`) and a missing SBOM
+   both block until fixed or explicitly overridden. Read `commands` (deploy/CI) and
+   `escalation_policy` from context.
 2. **Merge — HARD GATE.** Merging is irreversible on shared history: stop, show what will land, get
    explicit consent, then merge.
 3. **Wait for CI.** Watch the pipeline to green. A red or cancelled pipeline stops the release —
    route to `/investigate`.
-4. **Deploy — HARD GATE.** A production deploy (and any `escalation_policy.triggers` match) stops
+4. **Provenance gate — HARD GATE.** Before deploying, verify the release artifact's build
+   provenance. CI signs it keyless and attests it (cosign + SLSA); gather what `cosign
+   verify-attestation` / `slsa-verifier` reported (attestation present? signature verified? keyless?
+   subject digest? OIDC identity/issuer? builder? source? Rekor entry?) and run it through
+   `lib/provenance-verify.ts` against `tech_bindings.provenance`. A missing, unverified,
+   key-based, or mismatched attestation **blocks the release** — do not deploy an artifact you
+   cannot prove the origin of.
+5. **Deploy — HARD GATE.** A production deploy (and any `escalation_policy.triggers` match) stops
    for explicit consent, then runs the deploy command from `commands`.
-5. **Transport gate (public endpoints) — HARD GATE.** For every public endpoint, gather what it
+6. **Transport gate (public endpoints) — HARD GATE.** For every public endpoint, gather what it
    presents (TLS negotiated? chain valid? leaf expiry? protocol version? HSTS header?) with an
    `openssl s_client` / `curl -sI` probe, then run it through `lib/tls-verify.ts`. A failing
    verdict (plaintext, bad/expired chain, < TLS 1.2, missing/short HSTS) **blocks the release** —
    fix the cert/config at the deploy target (`tech_bindings.tls`) and re-probe. Internal-only
    endpoints are ungated and pass automatically.
-6. **Verify health.** Hit the health signal — endpoint, smoke test, or key-page load via `browse`.
+7. **Verify health.** Hit the health signal — endpoint, smoke test, or key-page load via `browse`.
    Confirm the new version is serving and error rates are nominal.
-7. **Decide.** Healthy → record success. Unhealthy → **roll back** (or fix-forward with consent)
+8. **Decide.** Healthy → record success. Unhealthy → **roll back** (or fix-forward with consent)
    and hand the failure to `/investigate`.
-8. **Write the release log as a run artifact.** Under an active run:
+9. **Write the release log as a run artifact.** Under an active run:
    ```bash
    fac run artifact --step deploy --inputs <pr-ref> --body-file deploy-log.md
    ```
+
+## Mobile store deployment (Apple + Google) — Phase 6
+
+Activate a mobile track when a **native-mobile component** must publish to a store. Apple and
+Google are **two separate branches** — do not fold one into the other. Each runs **after** on-device
+QE has passed (`/qa` mobile run) and records its own **branch artifact** so it sorts right after
+ship without occupying a linear slot.
+
+**Custody principle (non-negotiable).** The Factory reads signing/store material from **CI secrets
+only** and never takes custody of a key: the Android keystore, the iOS distribution cert +
+provisioning profile, the App Store Connect API key, and the Play service-account JSON stay in CI.
+The redaction guard (`lib/redact.ts`) blocks any keystore/cert/API-key egress; a release manifest
+that embeds a secret **fails the gate**.
+
+**Both tracks follow the same shape:** build a **signed** store artifact → **verify the manifest**
+with `lib/mobile-release-verify.ts` (artifact present + signed, format matches the store, build
+number strictly monotonic vs the last release, valid track, no embedded secret) → **HARD GATE** on
+the irreversible submission (show version/build + track, get explicit consent) → upload → **verify
+the build landed** on the target track before declaring done. A failing/absent build blocks; the
+gate fails closed.
+
+- **Track 1 — Apple App Store (`deploy-apple`).** Build a signed `.ipa` (`flutter build ipa` with a
+  CI-held distribution cert + provisioning profile), verify the manifest (`store: apple`,
+  `.ipa`, track `testflight`/`app-store`), **HARD GATE**, then upload to App Store Connect /
+  TestFlight via `commands.deploy_apple` (e.g. `fastlane pilot`). Confirm the build reaches the
+  target track. Record a branch artifact:
+  ```bash
+  fac run artifact --seq 6a --step deploy-apple --inputs <ipa-manifest> --body-file deploy-apple.md
+  ```
+- **Track 2 — Google Play (`deploy-google`).** Build a signed **`.aab`** (`flutter build appbundle
+  --release`; Play requires an App Bundle, not an APK), verify the manifest (`store: google`,
+  `.aab`, track `internal`/`closed`/`production`), **HARD GATE**, then upload to a Play Console
+  track via `commands.deploy_google` (e.g. `fastlane supply`); prefer **Play App Signing** so
+  Google holds the app-signing key. Confirm the release on the chosen track. Record a branch
+  artifact:
+  ```bash
+  fac run artifact --seq 6b --step deploy-google --inputs <aab-manifest> --body-file deploy-google.md
+  ```
+
+Read the per-store target from `tech_bindings.mobile_release` (`bundle_id`/`application_id`, track,
+tool, and which CI holds the signing material — never the value).
 
 ## Practical Guidance
 
@@ -160,6 +229,9 @@ Fail path: if the version marker still showed the old build → roll back, hand 
 5. Verify a real health signal (version marker / smoke / key page), not just a 200.
 6. On verification failure, roll back or fix-forward-with-consent and route to `/investigate`.
 7. Record the release log as a run artifact.
+8. A mobile store submission (Apple/Google) is a separate hard gate per store; verify the signed
+   artifact with `lib/mobile-release-verify.ts` first, and read signing material from CI only —
+   never take custody of a key.
 
 ## Gotchas
 
@@ -183,6 +255,9 @@ Fail path: if the version marker still showed the old build → roll back, hand 
 
 - Deploy/CI commands: `commands` in `.factory/stack.yaml`
 - Transport gate: `lib/tls-verify.ts` (valid chain, >= TLS 1.2, HSTS); binding `tech_bindings.tls`
+- Mobile store gate: `lib/mobile-release-verify.ts` (present+signed artifact, store-correct format,
+  monotonic build, valid track, no embedded secret); binding `tech_bindings.mobile_release`;
+  commands `commands.deploy_apple` / `commands.deploy_google`
 - Health verification: `fac browse` (key-page load)
 - Related skills: `ship`, `review`, `qa`, `security`, `investigate`
 - Agent: `agents/release-engineer.md`

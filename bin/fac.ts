@@ -18,6 +18,7 @@
  *   fac diagram <sub>    Validate/wrap/render Mermaid diagrams for /plan-arch
  *   fac make-pdf <sub>   Markdown → publication HTML/PDF for /document
  *   fac design <sub>     Generate UI mockups/images for /plan-design
+ *   fac mobile-device <sub>  Run on-device Flutter QE (plan/check/run) for /qa
  *   fac eval:select      Preview which E2E scenarios run for a diff/tier
  *   fac benchmark:models Compare a skill's output across several models
  *   fac install          Link/copy generated skills into detected hosts (verifies)
@@ -143,6 +144,12 @@ switch (cmd) {
     });
     process.exit(r.status ?? 0);
   }
+  case 'mobile-device': {
+    const r = spawnSync('bun', ['run', join(ROOT, 'tools', 'mobile-device', 'mobile-device.ts'), ...rest], {
+      stdio: 'inherit',
+    });
+    process.exit(r.status ?? 0);
+  }
   case 'init':
     init(rest[0] ? join(process.cwd(), rest[0]) : process.cwd());
     break;
@@ -165,6 +172,7 @@ switch (cmd) {
         '  diagram <sub>    Validate/wrap/render Mermaid diagrams for /plan-arch\n' +
         '  make-pdf <sub>   Markdown → publication HTML/PDF for /document\n' +
         '  design <sub>     Generate UI mockups/images for /plan-design\n' +
+        '  mobile-device <sub>  On-device Flutter QE (plan/check/run) for /qa\n' +
         '  eval:select      Preview which E2E scenarios run for a diff/tier\n' +
         '  benchmark:models Compare a skill’s output across several models\n' +
         '  install          Link/copy generated skills into detected hosts (verifies)\n' +
