@@ -1,0 +1,43 @@
+{
+  "skill": "benchmark",
+  "intent": "Measures perf metrics against a stored baseline (product-scope memory), flags a regression only past a threshold, moves the baseline only on a deliberate trade logged as a decision, treats a first run as a capture not a failure, and measures without fixing.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "baseline-persisted",
+      "criterion": "Compares against a baseline persisted in the product-scope memory store.",
+      "weight": 3,
+      "anchors": { "require_all": ["baseline"], "any": ["product/benchmark", "fac memory"], "min_any": 1 }
+    },
+    {
+      "name": "threshold-not-noise",
+      "criterion": "A metric regresses only past a stated threshold, so variance doesn't cry wolf.",
+      "weight": 2,
+      "anchors": { "require_all": ["threshold"] }
+    },
+    {
+      "name": "deliberate-rebaseline",
+      "criterion": "The baseline moves only on an intended trade, recorded as a decision.",
+      "weight": 2,
+      "anchors": { "any": ["intended trade", "fac decision"], "min_any": 1 }
+    },
+    {
+      "name": "measure-not-fix",
+      "criterion": "Quantifies the regression; the fix is a separate job (/investigate).",
+      "weight": 2,
+      "anchors": { "any": ["Measure, don't fix", "hands the fix", "different jobs"], "min_any": 1 }
+    },
+    {
+      "name": "first-capture",
+      "criterion": "A first run with no baseline is a capture, not a reported regression.",
+      "weight": 1,
+      "anchors": { "any": ["first capture", "first measurement", "capture, not"], "min_any": 1 }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the verdict as a run artifact.",
+      "weight": 1,
+      "anchors": { "require_all": ["fac run artifact"] }
+    }
+  ]
+}

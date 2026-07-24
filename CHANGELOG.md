@@ -3,6 +3,34 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.36.0.0] — 2026-07-24
+
+**The TEST phase records its artifacts correctly — `/qa` stops colliding with review, the report and benchmark commands actually run, and the browser-driven QA skill is finally tested.**
+
+TEST was REVIEW's mirror image: `/qa` wrote into the slot just above it (`04`, which is now the
+review artifact), and the two on-demand skills gave commands the CLI rejected. All three now record
+where they belong, `/qa` — the critical-path skill that gates ship on functional bugs — has an eval,
+and `/benchmark`'s home is settled.
+
+### Added
+- **Eval coverage for the TEST holes** — a Tier-2 rubric for `/qa` (browser-driven, localhost-only
+  and never disabling the content-security stack, reproduce-first, red-first regression tests) and
+  for `/benchmark` (baseline-in-memory, threshold-not-noise, deliberate rebaseline), plus Tier-3
+  gate scenarios for `/qa` and `/qa-report`. Each fails when its discipline is stripped.
+- **The QA Engineer now owns `/benchmark`** — it runs the pre-ship performance gate, so the skill
+  is no longer orphaned with no agent to invoke it.
+
+### Fixed
+- **`/qa` wrote `04-qa.md`, colliding with the review artifact.** It now records `05-qa.md`
+  (`--seq 5`), its correct slot after review, and is filed under the `Test` layer instead of `Build`.
+- **`/qa-report` and `/benchmark` gave run-artifact commands the CLI rejected** (missing `--seq`;
+  `/qa-report` also passed a literal `<app-url-or-build-ref>` placeholder). They now record as branch
+  artifacts — `05a-qa-report.md`, `05b-benchmark.md` — with real inputs.
+- **`/qa` recorded the wrong staleness input.** It now records the `03-build-*.md` artifacts it QA'd
+  (the phase handoff), so a re-build re-opens QA, instead of pointing at `PRD.md`.
+- **`/benchmark`'s layer question is settled** — filed under `Test` (its lifecycle placement), not
+  the ambiguous `Ops`.
+
 ## [0.35.0.0] — 2026-07-24
 
 **The REVIEW phase records its artifacts correctly — `/review` stops colliding with the build, the audit/debug/second-opinion commands actually run, and the egress-screening skill is finally tested.**

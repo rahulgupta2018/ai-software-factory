@@ -1,0 +1,12 @@
+{
+  "skill": "qa-report",
+  "tier": "gate",
+  "intent": "Asked for a report-only QA sweep, the skill drives the running app, reports each defect with reproduction steps and severity, and makes no code changes — it reports, it does not fix.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "QA the Repair Tracker at http://localhost:5173 before the demo. Report only — do not fix anything.",
+  "expect": {
+    "output_any": ["defect", "severity", "reproduce", "browse", "no code"],
+    "min_any": 2,
+    "output_excludes": ["i fixed", "applied the fix", "here is the patch"]
+  }
+}

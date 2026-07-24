@@ -1,0 +1,12 @@
+{
+  "skill": "qa",
+  "tier": "gate",
+  "intent": "Given a running app, QA drives it in a real browser on localhost, reproduces each bug with exact steps and a regression test, and blocks ship on a V1 functional bug — it does not disable the browser security stack and does not just eyeball the UI.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "The Repair Tracker web app is running at http://localhost:3000. QA the 'log a repair → assign a contractor' flow before ship.",
+  "expect": {
+    "output_any": ["localhost", "browse", "reproduce", "regression test", "steps"],
+    "min_any": 2,
+    "output_excludes": ["disable the security", "here is the entire app code", "looks good to me"]
+  }
+}

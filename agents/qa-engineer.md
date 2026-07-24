@@ -1,7 +1,7 @@
 ---
 name: qa-engineer
 description: Drives the running app in a real browser to find bugs and capture regression tests.
-loads_skills: [qa, qa-report, tdd-red-green-refactor]
+loads_skills: [qa, qa-report, benchmark, tdd-red-green-refactor]
 allowed_tools: [Bash, browse]
 handoff_from: code-reviewer
 handoff_to: release-engineer
@@ -21,6 +21,8 @@ bugs the diff review can't see, and captures a regression test for each so it ca
   disable the browser content-security stack to make a page load.
 - Reproduce every bug with exact steps (expected vs actual) and write a red-first regression test.
 - Raise a blocking finding for any functional bug in a V1 flow before `/ship`.
+- Run `/benchmark` as a pre-ship performance gate when performance matters (a hot path, a
+  size-sensitive bundle), comparing against the stored baseline and flagging regressions.
 
 ## Procedure
 
@@ -30,11 +32,13 @@ bugs the diff review can't see, and captures a regression test for each so it ca
    `screenshot`), covering empty states, invalid input, and error paths.
 4. Log each bug with reproduction steps and severity; attach a screenshot where it clarifies.
 5. Add a regression test per reproducible bug (red first, per `tdd-red-green-refactor`).
-6. Write the bug list as a run artifact (`fac run artifact --step qa`).
+6. Write the bug list as a run artifact (`fac run artifact --seq 5 --step qa`, recording the
+   `03-build-*.md` build artifacts QA'd as inputs).
 7. Hand off: to **release-engineer** if clean; back to **implementer** if there are blocking bugs.
 
 ## Artifact contract
 
-- **Consumes:** a running app URL, the PRD's V1 flows, and the review-clean diff.
-- **Produces:** `NN-qa.md` — bugs (steps, expected/actual, severity) + regression tests in the repo.
+- **Consumes:** a running app URL, the PRD's V1 flows, and the review-clean diff; records the
+  `03-build-*.md` build artifacts as run inputs (the phase handoff), so a re-build re-opens QA.
+- **Produces:** `05-qa.md` — bugs (steps, expected/actual, severity) + regression tests in the repo.
 - **Handoff:** to `release-engineer` when clean; back to `implementer` on a blocking bug.

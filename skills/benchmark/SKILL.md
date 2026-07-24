@@ -11,8 +11,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-24
+  layer: Test
   priority: FF
 ---
 
@@ -106,10 +106,13 @@ Freedom level: **medium** — measure, compare, verdict, maybe rebaseline.
    as configured). Run enough to be stable; note the method so it's reproducible.
 3. **Compare** each metric to the baseline against its threshold. Classify: improved / within noise /
    regressed.
-4. **Verdict + record:**
+4. **Verdict + record.** A benchmark is a **branch artifact** with a sub-sequence seq — the next
+   free letter under the step it follows (e.g. `5b` for a pre-ship perf gate, after `/qa`):
    ```bash
-   fac run artifact --step benchmark --body-file benchmark.md
+   fac run artifact --seq 5b --step benchmark --body-file benchmark.md
    ```
+   **No `--inputs`:** the comparison is against the stored `product/benchmark` memory baseline, not
+   an upstream run artifact.
 5. **Rebaseline only on intent.** If a regression is a deliberate trade, update the baseline and log
    why:
    ```bash
@@ -126,7 +129,7 @@ Input:  "Did the new search dependency slow us down?"
 Steps:  fac memory read --scope product --key benchmark → build 12.1s, /search p95 40ms.
         Measure now: build 12.4s (within 5% noise), /search p95 58ms (+45%, > 10% threshold).
 Output: benchmark.md — build OK; /search REGRESSED +45% (40→58ms). Not an intended trade.
-        NN-benchmark.md recorded. Baseline unchanged.
+        05b-benchmark.md recorded. Baseline unchanged.
 Handoff → /investigate the /search latency; re-run /benchmark to confirm the fix.
 ```
 
@@ -155,7 +158,7 @@ Handoff → /investigate the /search latency; re-run /benchmark to confirm the f
 - `fac decision` — records an intended trade when the baseline moves.
 - `investigate` — the fixer `/benchmark` hands a real regression to.
 - `canary` — the post-deploy counterpart; `/benchmark` is pre-ship and local.
-- Run harness (`fac run`) — records results as `NN-benchmark.md`.
+- Run harness (`fac run`) — records results as a sub-sequenced `05b-benchmark.md`.
 
 ## References
 

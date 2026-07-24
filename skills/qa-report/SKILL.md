@@ -88,7 +88,7 @@ Activate when:
 - **Report, don't fix.** The output is a defect list; the skill makes zero code changes. Fixes are
   a separate, explicit step (`/investigate` → build loop → `/qa`).
 - **The report is the artifact.** Findings — repro, expected/actual, severity, evidence — are
-  recorded as a run artifact (`NN-qa-report.md`).
+  recorded as a sub-sequenced run artifact (`05a-qa-report.md`).
 - **Real browser, real flows.** Drive the app the way a user does via `browse` (`goto`, `click`,
   `type`, `snapshot`, `screenshot`); test the V1 flows the PRD names, plus their edges.
 - **Every bug is reproducible.** A defect without steps is a rumour. Each entry has the exact steps
@@ -111,10 +111,13 @@ Freedom level: **medium** — cover the flows; the report shape is fixed.
    evidence (screenshot path / console excerpt).
 5. **Prioritise.** Rank by user impact; summarise the top findings first. Add a severity summary
    (optionally a chart via `visualization-expert`).
-6. **Write the report as a run artifact.** Under an active run:
+6. **Write the report as a run artifact.** A defect report is a **branch artifact** with a
+   sub-sequence seq — the next free letter under `/qa` (step 5):
    ```bash
-   fac run artifact --step qa-report --inputs <app-url-or-build-ref> --body-file qa-report.md
+   fac run artifact --seq 5a --step qa-report --inputs .factory/runs/$RUN/03-build-<component>.md --body-file qa-report.md
    ```
+   Record the built artifacts under test as inputs so a re-build re-opens the sweep; **omit
+   `--inputs`** for a standalone preview-URL sweep (nothing upstream to hash).
 7. **Hand off.** Route Critical/High defects to `/investigate` (root cause) → build loop → `/qa`
    (fix + verify). `/qa-report` itself stops here.
 
@@ -137,7 +140,7 @@ Drive:  browse goto → log a repair → assign → filter. Edges: submit empty 
 Found:  CRITICAL empty-form submit throws + white-screens (console: TypeError). HIGH filter
         resets on refresh, losing context. MEDIUM toast never dismisses. LOW date format
         inconsistent.
-Output: run artifact NN-qa-report.md — 4 defects ranked, each with steps + screenshot; no
+Output: run artifact 05a-qa-report.md — 4 defects ranked, each with steps + screenshot; no
         code changed. Handoff → /investigate for the Critical, then build loop → /qa.
 ```
 
@@ -166,7 +169,7 @@ Output: run artifact NN-qa-report.md — 4 defects ranked, each with steps + scr
 - `investigate` — root-causes the defects this report surfaces.
 - `visualization-expert` (craft) — shapes the severity summary/chart.
 - `browse` tool — drives the running app (`fac browse`).
-- Run harness (`fac run`) — records the report as `NN-qa-report.md`.
+- Run harness (`fac run`) — records the report as a sub-sequenced `05a-qa-report.md`.
 
 ## References
 

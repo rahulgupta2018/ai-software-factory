@@ -1,0 +1,43 @@
+{
+  "skill": "qa",
+  "intent": "Drives the running app in a real browser (localhost-only, never disabling the content-security stack), reproduces every bug with exact steps, writes a red-first regression test per bug, blocks ship on a V1 functional bug, and records a 05-qa.md artifact.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "browser-driven",
+      "criterion": "Drives the running application in a real browser via the browse tool.",
+      "weight": 3,
+      "anchors": { "require_all": ["browse"], "any": ["running app", "real browser"], "min_any": 1 }
+    },
+    {
+      "name": "localhost-and-security",
+      "criterion": "Localhost-only by default; never disables the browser content-security stack.",
+      "weight": 3,
+      "anchors": { "require_all": ["localhost"], "any": ["content-security", "refuses external", "never disable"], "min_any": 1 }
+    },
+    {
+      "name": "reproduce-first",
+      "criterion": "Every bug has exact reproduction steps; an unreproducible report is a note.",
+      "weight": 2,
+      "anchors": { "any": ["Reproduce", "reproduction steps", "steps to reproduce"], "min_any": 1 }
+    },
+    {
+      "name": "regression-test",
+      "criterion": "Each reproducible bug gets a red-first regression test.",
+      "weight": 2,
+      "anchors": { "require_all": ["regression test"], "any": ["red first", "tdd-red-green-refactor"], "min_any": 1 }
+    },
+    {
+      "name": "blocking-gate",
+      "criterion": "A V1-flow functional bug is a blocking finding before /ship.",
+      "weight": 2,
+      "anchors": { "require_all": ["blocking finding"] }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the bug list as the 05-qa.md run artifact (seq 5, not 4 which is review).",
+      "weight": 1,
+      "anchors": { "require_all": ["fac run artifact", "05-qa"] }
+    }
+  ]
+}
