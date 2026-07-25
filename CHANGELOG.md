@@ -3,6 +3,72 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.50.0.0] — 2026-07-25
+
+**`fac uninstall` reverses the install — so you can test the whole install → uninstall → reinstall loop from a clean state.**
+
+Installing had no counterpart; the only way to reset was to delete directories by hand. Now there's
+a real uninstall, and it's careful about what it owns.
+
+### Added
+- **`fac uninstall`** — removes the Factory's installed skills from every host (`~/.claude/skills/
+  fac-*`, the legacy `factory` layout, and the Codex link). It only removes **`fac-`-prefixed**
+  skills, so a skill you installed yourself is never touched. Keeps the `fac` CLI and your `PATH`.
+- **`fac uninstall --all`** — full teardown: also `bun unlink`s the `fac` CLI and removes *only*
+  setup's marker-anchored `~/.bun/bin` PATH block from your shell rc (a hand-written or Bun-installer
+  PATH line is left alone).
+- **`--dry-run` / `--json`** — preview exactly what would be removed, or get machine-readable output.
+
+### For contributors
+- The pure, tested core lives in `lib/install-plan.ts` (`isFactorySkillDir`, `uninstallFixedPaths`,
+  `stripBunPathBlock` — idempotent, marker-anchored), with `scripts/uninstall.ts` doing the fs work.
+  Validated by a real round-trip: uninstall removed all 27 installed skills and reinstall restored
+  them, leaving the machine exactly as it started.
+
+## [0.49.0.0] — 2026-07-25
+
+**`./setup` is now a true one-command install — it installs Bun if you don't have it, fixes your PATH, and links the `fac` CLI, so there are no manual prerequisite steps.**
+
+Getting started used to be three things: install Bun yourself, run `./setup`, then `bun link` and
+hand-edit your shell rc to get `~/.bun/bin` on `PATH`. Now `./setup` does all of it, idempotently.
+
+### Changed
+- **`./setup` handles the prerequisites end to end:** it installs Bun from https://bun.sh if it's
+  missing (and picks up a Bun that's installed but not yet on this shell's `PATH`), builds and
+  validates the skills, runs `bun link` to expose the `fac` CLI, appends `~/.bun/bin` to your shell
+  rc if it isn't already on `PATH` (the classic Homebrew-Bun gap), and installs the skills into
+  every detected host. Safe to re-run — the PATH edit is written once and skipped thereafter (it
+  also recognises Bun's own installer line, so it never duplicates).
+- **README quick-start collapses to `git clone … && cd … && ./setup`.** The manual Bun/PATH steps
+  are kept as a labelled fallback.
+
+## [0.48.0.0] — 2026-07-25
+
+**The Claude Code install now actually works — the workflow skills appear as `/fac-<name>` commands. Before this, `./setup` "succeeded" but Claude never discovered a single one.**
+
+The installer symlinked the whole `skills/` folder to `~/.claude/skills/factory`, which nested every
+skill a level too deep (`factory/<name>/SKILL.md`). Claude Code only discovers skills one level down
+(`~/.claude/skills/<name>/SKILL.md`), so none of the 27 commands ever showed up — `./setup` reported
+success against a layout the host couldn't read. Now each skill installs at
+`~/.claude/skills/fac-<name>/`, prefixed **`fac-`** so it can't shadow a built-in command
+(`/review`, `/guard`, …).
+
+### Fixed
+- **`fac install` / `./setup` install the skills where Claude Code finds them** — one directory per
+  skill at depth 1, not nested under a `factory/` folder the host doesn't scan. A stale prior
+  `~/.claude/skills/factory` install is removed automatically on the next install.
+
+### Changed
+- **Workflow commands are prefixed `fac-` in Claude Code** (`/fac-discover`, `/fac-plan-arch`,
+  `/fac-ship`, …). The installed copy's frontmatter `name` is rewritten to `fac-<name>` — Claude
+  identifies a skill by that field, so the prefix is what makes the command namespaced and
+  collision-free. Skills load at session start: after installing, start a new Claude Code session.
+
+### For contributors
+- `lib/install-plan.ts` now emits one per-skill entry for Claude (copy + name-prefix) and keeps
+  Codex's whole-dir link, with `applySkillPrefix` (pure, idempotent) doing the rewrite; the planner
+  test covers the new shape, the prefix, and the legacy-path cleanup.
+
 ## [0.47.0.0] — 2026-07-25
 
 **`fac init` now scaffolds a product that reflects everything the Factory can do: the stack template carries the whole security/supply-chain binding surface, and the PRD template prompts for the sections professional software needs.**

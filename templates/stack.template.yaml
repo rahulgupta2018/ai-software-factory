@@ -7,7 +7,7 @@
 #
 # Everything below the required core (tech_stack, commands) is OPTIONAL and
 # commented. Uncomment and fill what the product needs; a skill skips any gate
-# whose binding is absent. Fully-worked example: examples/reference-product/.factory/stack.yaml
+# whose binding is absent. 
 #
 # Run `fac sync-context` after any change.
 # ─────────────────────────────────────────────────────────────────────────────

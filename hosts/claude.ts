@@ -8,7 +8,9 @@ export const claude: HostConfig = {
   name: 'claude',
   displayName: 'Claude Code',
   cliCommand: 'claude',
-  globalRoot: '.claude/skills/factory',
+  // Each skill installs at ~/.claude/skills/fac-<name>/ (depth 1, so Claude discovers it; prefixed
+  // so it can't shadow a built-in command). The install layout lives in lib/install-plan.ts.
+  globalRoot: '.claude/skills',
   hostSubdir: '.claude',
   canonical: true,
   frontmatter: {

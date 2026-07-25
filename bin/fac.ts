@@ -22,6 +22,7 @@
  *   fac eval:select      Preview which E2E scenarios run for a diff/tier
  *   fac benchmark:models Compare a skill's output across several models
  *   fac install          Link/copy generated skills into detected hosts (verifies)
+ *   fac uninstall        Remove installed skills from hosts (--all also unlinks fac + PATH)
  *   fac init [dir]       Scaffold a product: PRD.md + .factory/stack.yaml
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
@@ -117,6 +118,9 @@ switch (cmd) {
   case 'install':
     run('install.ts', rest);
     break;
+  case 'uninstall':
+    run('uninstall.ts', rest);
+    break;
   case 'run':
     run('run.ts', rest);
     break;
@@ -176,6 +180,7 @@ switch (cmd) {
         '  eval:select      Preview which E2E scenarios run for a diff/tier\n' +
         '  benchmark:models Compare a skill’s output across several models\n' +
         '  install          Link/copy generated skills into detected hosts (verifies)\n' +
+        '  uninstall        Remove installed skills (--all also unlinks fac + PATH)\n' +
         '  init [dir]       Scaffold a product (PRD.md + .factory/stack.yaml)',
     );
     process.exit(cmd ? 1 : 0);

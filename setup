@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# setup — one-time install for the AI Software Factory (Phase 0).
-# Builds generated skills and symlinks them into detected hosts (Claude Code, Codex).
+# setup — one command to install the AI Software Factory end to end.
+#
+# It: (1) ensures Bun is installed and on PATH, (2) builds + validates the skills, (3) exposes the
+# `fac` CLI globally via `bun link`, (4) puts Bun's global bin dir on your PATH (idempotently), and
+# (5) installs the skills into every detected host (Claude Code → /fac-<name>, Codex). Safe to
+# re-run.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,21 +12,64 @@ cd "$ROOT"
 
 echo "==> AI Software Factory setup"
 
-# 1. Dependencies + generation
-if command -v bun >/dev/null 2>&1; then
-  bun install >/dev/null 2>&1 || true
-  echo "==> Generating skills for all hosts"
-  bun run gen:skills
-  bun run skill:check
-  bun run vendor:check
-else
-  echo "!! bun not found. Install Bun (https://bun.sh) then re-run ./setup" >&2
-  exit 1
+# ── 1. Ensure Bun is installed and on PATH ─────────────────────────────────────
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+if ! command -v bun >/dev/null 2>&1; then
+  if [ -x "$BUN_INSTALL/bin/bun" ]; then
+    export PATH="$BUN_INSTALL/bin:$PATH"                    # installed, just not on this shell's PATH
+  else
+    echo "==> Bun not found — installing from https://bun.sh"
+    command -v curl >/dev/null 2>&1 || {
+      echo "!! curl is required to auto-install Bun. Install curl (or Bun from https://bun.sh) and re-run." >&2
+      exit 1
+    }
+    curl -fsSL https://bun.sh/install | bash
+    export PATH="$BUN_INSTALL/bin:$PATH"
+  fi
 fi
+command -v bun >/dev/null 2>&1 || { echo "!! bun is still not on PATH after install." >&2; exit 1; }
+echo "   using bun $(bun --version)"
 
-# 2. Symlink into detected hosts (delegated to the tested installer: lib/install-plan.ts +
-#    scripts/install.ts). It copies instead of symlinking on Windows and verifies each target.
+# ── 2. Dependencies, generation, validation ────────────────────────────────────
+bun install >/dev/null 2>&1 || true
+echo "==> Generating + validating skills"
+bun run gen:skills
+bun run skill:check
+bun run vendor:check
+
+# ── 3. Expose the `fac` CLI globally ───────────────────────────────────────────
+echo "==> Linking the fac CLI"
+bun link >/dev/null 2>&1 || bun link   # registers the "fac" bin into $BUN_INSTALL/bin
+
+# ── 4. Put Bun's global bin dir on your PATH (idempotent) ───────────────────────
+BUN_BIN="$BUN_INSTALL/bin"
+ensure_on_path() {
+  case ":$PATH:" in *":$BUN_BIN:"*) return 0 ;; esac        # already active in this shell
+  local rc
+  case "$(basename "${SHELL:-bash}")" in
+    zsh)  rc="$HOME/.zshrc" ;;
+    bash) rc="$HOME/.bashrc" ;;
+    *)    rc="$HOME/.profile" ;;
+  esac
+  # Already handled by the rc (our block, or Bun's own installer line — both use $BUN_INSTALL/bin)?
+  if [ -f "$rc" ] && grep -Eqs 'BUN_INSTALL/bin|[.]bun/bin' "$rc"; then
+    echo "   $BUN_BIN is set in $rc but not this shell — run:  source $rc"
+    return 0
+  fi
+  {
+    echo ''
+    echo '# AI Software Factory — Bun global bin (the fac CLI lives here)'
+    echo "export BUN_INSTALL=\"$BUN_INSTALL\""
+    echo 'export PATH="$BUN_INSTALL/bin:$PATH"'
+  } >> "$rc"
+  echo "   added $BUN_BIN to PATH in $rc — restart your shell or run:  source $rc"
+}
+ensure_on_path
+
+# ── 5. Install the skills into detected hosts ──────────────────────────────────
 echo "==> Installing skills into hosts"
 bun "$ROOT/scripts/install.ts"
 
-echo "==> Done. Run 'fac init' inside a product repo to scaffold PRD.md + .factory/stack.yaml."
+echo "==> Done."
+echo "   • Start a NEW Claude Code session, then type  /fac-  to see the commands."
+echo "   • Run  fac init  inside a product repo to scaffold PRD.md + .factory/stack.yaml."

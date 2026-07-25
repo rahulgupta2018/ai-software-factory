@@ -22,26 +22,33 @@ skills are the reusable *method*; your `PRD.md` supplies the *values*. AI code o
 
 ## 1. Install (one time)
 
-**Prerequisite:** [Bun](https://bun.sh) ≥ 1.3. Check with `bun --version`.
-
 ```bash
-# 1. Clone and enter the Factory
 git clone <this-repo> ai-software-factory
 cd ai-software-factory
-
-# 2. Build the skills and install them into your AI host(s)
 ./setup
-
-# 3. Expose the `fac` CLI globally (Bun reads the "bin" map)
-bun link
 ```
 
-> **`fac` is a _global_ command — it is never a file inside your product folder.** `./setup` only
-> generates and installs the *skills* into your AI host; it does **not** create `fac`. The `bun link`
-> step is what registers `fac` (into Bun's global bin dir, `~/.bun/bin`). Skipping it — or not having
-> `~/.bun/bin` on your `PATH` — gives `command not found: fac`.
+**`./setup` is the single command — it does everything:** installs [Bun](https://bun.sh) if it's
+missing, builds + validates the skills, exposes the `fac` CLI (`bun link`), puts Bun's global bin
+dir (`~/.bun/bin`) on your `PATH`, and installs the skills into every detected host. It's safe to
+re-run. If it appended to your shell rc for the `PATH`, it prints the `source ~/.zshrc` line to run
+(or just open a new terminal).
 
-### Put Bun's global bin dir on your `PATH`
+> **In Claude Code the workflow skills install as `/fac-<name>`** — e.g. `/fac-discover`,
+> `/fac-plan-arch`, `/fac-ship`. The `fac-` prefix keeps them from colliding with built-in
+> commands (`/review`, `/guard`, …). Each is installed at `~/.claude/skills/fac-<name>/`, which is
+> where Claude Code looks. **Skills load at session start**, so after `./setup`, **start a new
+> Claude Code session** and type `/fac-` to see them.
+
+> **`fac` is a _global_ command — never a file inside your product folder.** `./setup` registers it
+> (via `bun link`, into `~/.bun/bin`) and ensures that dir is on your `PATH`. If you ever see
+> `command not found: fac`, re-run `./setup`, or add the PATH manually below.
+
+### Manual fallback — put Bun's global bin dir on your `PATH`
+
+`./setup` does this for you. Only needed if you skipped setup, or it couldn't write your shell rc.
+`bun link` installs `fac` into `~/.bun/bin`. The official Bun installer adds that to your `PATH`
+automatically, but if you installed Bun via **Homebrew** (or a package manager) it usually is **not**
 
 `bun link` installs `fac` into `~/.bun/bin`. The official Bun installer adds that to your `PATH`
 automatically, but if you installed Bun via **Homebrew** (or a package manager) it usually is **not**
@@ -73,26 +80,43 @@ your `PATH` contains `~/.bun/bin`.
 
 ```
 ==> AI Software Factory setup
-==> Generating skills for all hosts
+   using bun 1.3.14
+==> Generating + validating skills
 gen:skills — generated 27 skill(s) for 2 host(s).
 skill:check — 27 skill(s) OK.
 vendor:check — 31 vendored skill(s), 0 failed, 0 warning(s).
+==> Linking the fac CLI
 ==> Installing skills into hosts
-  linked  claude → ~/.claude/skills/factory
-  linked  codex  → ~/.codex/prompts/
-==> Done. Run 'fac init' inside a product repo to scaffold PRD.md + .factory/stack.yaml.
+install —
+  removed stale /Users/you/.claude/skills/factory
+  ✔ claude   installed 27 skill(s) as /fac-<name>
+    codex    codex not found on PATH — skipped
+  → start a NEW Claude Code session to pick them up (skills load at session start).
+==> Done.
 ```
 
-It detects which host CLIs (`claude`, `codex`) are on your PATH and links the skills where each
+It detects which host CLIs (`claude`, `codex`) are on your PATH and installs the skills where each
 one looks for them:
 
 | Host | Skills installed to |
 |---|---|
-| Claude Code | `~/.claude/skills/factory/` |
-| Codex | `~/.codex/prompts/` |
+| Claude Code | `~/.claude/skills/fac-<name>/` (one dir per skill, prefixed) |
+| Codex | `~/.codex/prompts/factory/` |
 
 > On Windows the installer **copies** instead of symlinking (symlinks freeze without Developer
 > Mode) — re-run `./setup` after every `git pull`.
+
+### Uninstall
+
+```bash
+fac uninstall            # remove the installed skills (keeps the fac CLI + PATH)
+fac uninstall --all      # also `bun unlink` the fac CLI and remove setup's PATH block
+fac uninstall --dry-run  # show exactly what would be removed, change nothing
+```
+
+Handy for testing the install end to end: `fac uninstall` → `./setup` (or `fac install`) reinstalls
+from clean. It only removes the Factory's own `fac-*` skills — a skill you installed yourself is
+never touched.
 
 ---
 
@@ -198,8 +222,9 @@ missing, the skill asks you, then persists your answer to the file that owns it.
 ## 3. Run the pipeline
 
 You **run the Factory by invoking skills inside your AI host** (Claude Code or Codex) — not by
-running a monolithic command. Open your product repo in the host and drive it stage by stage. A
-typical first pass:
+running a monolithic command. Open your product repo in the host and drive it stage by stage. In
+Claude Code each command is prefixed **`fac-`** (type `/fac-discover`, `/fac-ship`, …); the flow
+below uses the bare names for readability. A typical first pass:
 
 ```
 /discover        →  drafts PRD.md from your idea
