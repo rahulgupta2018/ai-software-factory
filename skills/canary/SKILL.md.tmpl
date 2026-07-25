@@ -11,8 +11,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-25
+  layer: Ship
   priority: V1
 ---
 
@@ -71,9 +71,11 @@ Freedom level: **low** — poll defined signals, hard-stop on red, escalate.
    tracking status codes, error text, and latency drift.
 4. **Hard-stop on red.** On any failed signal, stop the watch immediately and escalate per
    `${ctx.escalation_policy}` — surface the disclaimer and recommend rollback. Do not attempt a fix.
-5. **Record the verdict:**
+5. **Record the verdict.** The canary watches the deploy, so it is a **branch artifact** with a
+   sub-sequence seq under ship (the next free letter after the deploy tracks, e.g. `6d`), recording
+   the deploy log it monitors as its input:
    ```bash
-   fac run artifact --step canary --body-file canary.md
+   fac run artifact --seq 6d --step canary --inputs .factory/runs/$RUN/06a-deploy.md --body-file canary.md
    ```
    Green across the window → release confirmed healthy. Hand any red to `/investigate`.
 
@@ -86,7 +88,7 @@ Steps:  Target https://app.example.com, /health + [/, /login, /search].
         t+0: /health 200, all paths 200. Poll 30s ×10.
         t+90s: /search returns 500 (downstream index missing).
 Output: HARD STOP at t+90s. canary.md — /search regressed to 500; escalation triggered
-        per policy with disclaimer; recommend rollback. NN-canary.md recorded.
+        per policy with disclaimer; recommend rollback. 06d-canary.md recorded.
 Handoff → /investigate the /search 500; rollback decision is the human's.
 ```
 
@@ -115,7 +117,7 @@ Handoff → /investigate the /search 500; rollback decision is the human's.
 - `${ctx.escalation_policy}` — a red canary escalates through it, with the disclaimer appended.
 - `fac browse` — drives the live user-path probes against the deployed URL.
 - `investigate` — receives a red canary's failure for root-cause and fix.
-- Run harness (`fac run`) — records the verdict as `NN-canary.md`.
+- Run harness (`fac run`) — records the verdict as a sub-sequenced `06d-canary.md`.
 
 ## References
 

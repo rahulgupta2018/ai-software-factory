@@ -106,11 +106,14 @@ Freedom level: **low** — this is a release procedure; follow it.
 7. **Deploy (if configured).** If `commands.deploy` exists and the operator approves this **hard
    gate**, run it, then verify production health (the first health check; `/canary` owns extended
    monitoring).
-8. **Write the ship-report artifact** under an active run:
+8. **Write the ship-report artifact** under an active run. Record the review + QA artifacts it
+   gates on as inputs, so a re-review or re-QA re-opens the ship:
    ```bash
-   fac run artifact --seq 5 --step ship --inputs <changed-files> --body-file ship.md
+   fac run artifact --seq 6 --step ship --inputs .factory/runs/$RUN/04-review.md,.factory/runs/$RUN/05-qa.md --body-file ship.md
    ```
-   Record checks run, gates passed, the PR URL, and the deploy result. Then release the run lock.
+   `--seq 6`: ship is the sixth linear step (`06-ship.md`), after QA (`05-qa.md`) — never `--seq 5`,
+   which would collide with the QA artifact. Record checks run, gates passed, the PR URL, and the
+   deploy result. Then release the run lock.
 9. **Hand off.** Point the user to `/canary` (monitor) or `/document` (release notes).
 
 ## Practical Guidance
@@ -127,7 +130,7 @@ Freedom level: **low** — this is a release procedure; follow it.
 Input:  feature/assign-contractor — /review clean, /qa clean, base main.
 Output: ran bun test/lint/typecheck/build (all green) → hard gate: push? (approved) →
         hard gate: open PR? (approved) gh pr create → PR #42 → hard gate: fly deploy? (approved)
-        → deployed, health check 200. 05-ship.md written (checks, gates, PR #42, deploy ok).
+        → deployed, health check 200. 06-ship.md written (checks, gates, PR #42, deploy ok).
 ```
 
 ## Guidelines
@@ -159,5 +162,5 @@ Output: ran bun test/lint/typecheck/build (all green) → hard gate: push? (appr
 ## References
 
 - Commands + guardrails + escalation: merged product context (`.factory/context.gen.yaml`)
-- Run artifacts: `.factory/runs/<id>/NN-ship.md`
+- Run artifacts: `.factory/runs/<id>/06-ship.md`
 - Related skills: `review`, `qa`, `canary`, `deploy`, `document`

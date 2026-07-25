@@ -24,6 +24,7 @@ export type ProvenanceRisk =
   | 'attestation-missing'
   | 'signature-invalid'
   | 'key-based-signing'
+  | 'digest-unpinned'
   | 'digest-mismatch'
   | 'identity-mismatch'
   | 'issuer-mismatch'
@@ -67,6 +68,15 @@ export interface ProvenanceObservation {
 export interface ProvenancePolicy {
   /** The digest of the artifact actually being deployed — the attestation subject must match it. */
   expectedDigest?: string;
+  /**
+   * Require the attestation to be pinned to a specific artifact digest. Default true, and the
+   * fail-closed core of the gate: without `expectedDigest`, verifying provenance only proves "a
+   * valid attestation exists", not "it covers the artifact being deployed" — the exact "someone
+   * swapped the binary" gap the gate exists to close. `/deploy` must supply `expectedDigest` (the
+   * runtime digest of what it is about to ship); a missing digest blocks. Set false only for an
+   * explicitly digest-agnostic check.
+   */
+  requireDigestMatch?: boolean;
   /** Expected OIDC certificate identity. Exact match unless `identityIsRegex`. */
   expectedIdentity?: string;
   /** When true, `expectedIdentity` is treated as a regular-expression source string. */
@@ -85,6 +95,7 @@ export interface ProvenancePolicy {
 
 /** The default provenance policy: enforce the two custody invariants; expected values are per-product. */
 export const DEFAULT_PROVENANCE_POLICY: ProvenancePolicy = {
+  requireDigestMatch: true,
   requireTransparencyLog: true,
   requireKeyless: true,
 };
@@ -168,8 +179,19 @@ export function verifyProvenance(
     });
   }
 
-  if (policy.expectedDigest !== undefined) {
-    const want = normalizeDigest(policy.expectedDigest);
+  const requireDigestMatch = policy.requireDigestMatch ?? true;
+  const want = normalizeDigest(policy.expectedDigest);
+  if (requireDigestMatch && want === '') {
+    // Fail closed: without a digest to match against, this proves an attestation exists — not that
+    // it covers the artifact being deployed. `/deploy` must pin the deploying artifact's digest.
+    findings.push({
+      rule: 'digest-pinned',
+      risk: 'digest-unpinned',
+      detail:
+        'no expected digest supplied — /deploy must pin the attestation to the digest of the artifact being deployed. ' +
+        'Verifying provenance without it proves an attestation exists, not that it covers this release.',
+    });
+  } else if (want !== '') {
     const got = normalizeDigest(obs.subjectDigest);
     if (got === '' || got !== want) {
       findings.push({

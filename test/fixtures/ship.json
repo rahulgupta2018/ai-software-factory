@@ -1,0 +1,37 @@
+{
+  "skill": "ship",
+  "intent": "Lands a reviewed, QA'd change: enforces the review/QA/supply-chain gates, runs the full check suite, treats push/PR/deploy as hard gates, records a ship artifact, and never bypasses a check.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "enforces-upstream-gates",
+      "criterion": "Won't land past unresolved review security findings, QA blocking bugs, or a supply-chain gate.",
+      "weight": 3,
+      "anchors": { "require_all": ["review", "qa"], "any": ["supply-chain", "SBOM"], "min_any": 1 }
+    },
+    {
+      "name": "hard-gates-irreversible",
+      "criterion": "Push, open-PR, and deploy are hard gates — stop and ask, never batched through --yes.",
+      "weight": 2,
+      "anchors": { "require_all": ["hard gate"], "any": ["escalation_policy", "--yes"], "min_any": 1 }
+    },
+    {
+      "name": "full-check-suite",
+      "criterion": "Runs the stack's test/lint/typecheck/build from commands.*; any failure halts.",
+      "weight": 2,
+      "anchors": { "any": ["commands.<component>", "typecheck", "check suite"], "min_any": 1 }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Writes the ship report as run artifact 06-ship.md and releases the run lock.",
+      "weight": 2,
+      "anchors": { "require_all": ["06-ship", "fac run artifact"] }
+    },
+    {
+      "name": "no-bypass",
+      "criterion": "Never --no-verify, never force-push a shared branch; budget warns, never blocks.",
+      "weight": 1,
+      "anchors": { "any": ["no-verify", "force-push", "budget"], "min_any": 1 }
+    }
+  ]
+}

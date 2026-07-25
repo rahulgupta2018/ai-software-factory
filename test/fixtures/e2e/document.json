@@ -1,0 +1,12 @@
+{
+  "skill": "document",
+  "tier": "periodic",
+  "intent": "Given a shipped change, document writes user-facing release notes grounded in the diff (not the plan), classifies new surface via Diataxis, and verifies examples against the shipped build — it does not document a cut feature.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "PR #42 shipped: a CSV export for the filtered repair list. Write the docs.",
+  "expect": {
+    "output_any": ["release note", "how-to", "reference", "diataxis", "export"],
+    "min_any": 2,
+    "output_excludes": ["refactored the", "as planned", "we intend to"]
+  }
+}

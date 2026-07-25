@@ -3,6 +3,37 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.45.0.0] — 2026-07-25
+
+**The SHIP phase re-review: the release gate now proves it's shipping the artifact you built (not just that *an* attestation exists), the ship report stops colliding with QA, and every deploy-tail step records where it belongs.**
+
+Re-reviewing SHIP after Phase 6/7 turned up one real security gap and the same artifact-slot hygiene
+issues the other phases had. The provenance gate now fails closed unless `/deploy` pins the exact
+digest of what it's deploying — the check that actually stops "someone swapped the binary". And the
+whole deploy tail (deploy, its mobile tracks, canary, docs) now sorts correctly after ship instead
+of writing over it.
+
+### Fixed
+- **The provenance gate could pass without proving the artifact.** `verifyProvenance` verified the
+  digest/identity/source only when the policy happened to set them — and the digest is a runtime
+  value, not a binding. It now **requires a pinned digest by default** (`requireDigestMatch`) and
+  fails closed (`digest-unpinned`) when `/deploy` doesn't supply it: a provenance check that isn't
+  tied to *this* artifact's digest only proves an attestation exists, not that it covers what ships.
+- **`/ship` wrote `05-ship.md`, colliding with `05-qa.md`.** Ship is the sixth step — it now records
+  `06-ship.md` (`--seq 6`) and reads the review + QA artifacts it gates on.
+- **`/deploy`, `/canary`, and `/document` gave run-artifact commands the CLI rejects** (no `--seq`,
+  plus `<pr-ref>` / `<merged-diff>` placeholders). They now record as branch artifacts under ship
+  (`06a-deploy`, with mobile tracks `06b`/`06c`; `06d-canary`; `06e-document`).
+- **A declared mobile store that produced no build could pass silently.** `verifyMobileReleases` now
+  takes the declared store set and fails closed on a declared-but-missing store, instead of an empty
+  batch passing.
+- **`/canary` was mis-filed as `Ops` and owned by no agent.** It's now `Ship`, and the Release
+  Engineer runs it after a deploy.
+
+### Added
+- **Eval coverage for the SHIP skills** — Tier-2 rubrics for `/ship` and `/canary`, Tier-3 gate
+  scenarios for `/canary` and `/document`. Each proves it fails when the discipline is dropped.
+
 ## [0.44.0.0] — 2026-07-24
 
 **The Phase-7 security gates now fail *closed*: a scan that didn't run, a finding the scanner couldn't grade, and a gate declared but never wired into CI all block the release instead of silently passing.**

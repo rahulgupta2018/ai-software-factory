@@ -86,7 +86,7 @@ Activate when:
 ## Core Concepts
 
 - **The doc update is the artifact.** Release notes and any new/updated doc pages are recorded as a
-  run artifact (`NN-document.md`) so the change ↔ docs link is explicit.
+  sub-sequenced run artifact (`06e-document.md`) so the change ↔ docs link is explicit.
 - **Ground in what shipped.** Write from the diff and the run artifacts, never from the plan. If a
   planned feature was cut, it isn't in the notes.
 - **Release notes lead with the user.** "You can now export repairs to CSV" — the capability and
@@ -110,9 +110,11 @@ Freedom level: **medium** — ground in the diff; the doc types are fixed shapes
 4. **Write or update those pages** with runnable, verified examples against the shipped build.
 5. **Check coverage.** Does every new command/endpoint/config have at least reference coverage? Flag
    gaps.
-6. **Write the doc update as a run artifact.** Under an active run:
+6. **Write the doc update as a run artifact.** Docs follow the shipped change, so this is a
+   **branch artifact** with a sub-sequence seq under ship (the next free letter, e.g. `6e`),
+   recording the ship report it documents as its input:
    ```bash
-   fac run artifact --step document --inputs <merged-diff-or-deploy-artifact> --body-file docs-update.md
+   fac run artifact --seq 6e --step document --inputs .factory/runs/$RUN/06-ship.md --body-file docs-update.md
    ```
 7. **Hand off.** Release notes go to the changelog/release; new pages go to the docs tree. Point the
    user at what changed.
@@ -136,7 +138,7 @@ Notes:  "You can now export a filtered repair list to CSV — click Export on th
         to download exactly the rows you're viewing." (benefit-first, no impl detail.)
 Diataxis: how-to "Export repairs to CSV" (task), reference row for the export endpoint +
         columns. No tutorial (self-evident from the button).
-Output: run artifact NN-document.md — release-note entry + how-to page + reference update,
+Output: run artifact 06e-document.md — release-note entry + how-to page + reference update,
         examples verified against the deployed build. Handoff → changelog + docs tree.
 ```
 
@@ -162,7 +164,7 @@ Output: run artifact NN-document.md — release-note entry + how-to page + refer
 - `technical-writer` (craft) — supplies audience/structure/examples craft.
 - `ship` / `deploy` — precede `/document`; their artifacts are its source of truth.
 - `spec` — the pre-build counterpart; `/document` is the post-ship one.
-- Run harness (`fac run`) — records the doc update as `NN-document.md`.
+- Run harness (`fac run`) — records the doc update as a sub-sequenced `06e-document.md`.
 
 ## References
 

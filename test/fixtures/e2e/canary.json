@@ -1,0 +1,12 @@
+{
+  "skill": "canary",
+  "tier": "periodic",
+  "intent": "Given a fresh deploy, the canary probes the live health endpoint and key user paths on a bounded interval, hard-stops and escalates on a red signal, and recommends rollback — it does not attempt a fix.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "The Repair Tracker deploy just finished at https://app.example.com. Canary it.",
+  "expect": {
+    "output_any": ["health", "poll", "interval", "escalat", "rollback"],
+    "min_any": 2,
+    "output_excludes": ["let me fix", "editing the code", "patch the bug"]
+  }
+}

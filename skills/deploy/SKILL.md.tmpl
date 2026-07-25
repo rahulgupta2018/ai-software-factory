@@ -48,7 +48,7 @@ Activate when:
 ## Core Concepts
 
 - **The release log is the artifact.** Merge, CI result, deploy output, and health verification are
-  recorded as a run artifact (`NN-deploy.md`) — an auditable trail of what shipped and that it's
+  recorded as a sub-sequenced run artifact (`06a-deploy.md`) — an auditable trail of what shipped and that it's
   healthy.
 - **Hard gate on irreversibility.** Merge, production deploy, and `escalation_policy.triggers`
   stop and ask; they are never auto-approved or batched. Routine steps (waiting on CI) may proceed.
@@ -72,9 +72,10 @@ Activate when:
   that was built, by the expected workflow, from the expected source. The Factory mints no signing
   key — artifacts are signed **keyless (OIDC/Sigstore cosign)** and attested (SLSA provenance) in CI
   (`tech_bindings.provenance`) — but `/deploy` mechanically **verifies** the attestation via
-  `lib/provenance-verify.ts`: signature valid, keyless, digest matches the artifact being deployed,
+  `lib/provenance-verify.ts`: signature valid, keyless, digest **pinned to and matching** the
+  artifact being deployed (`/deploy` supplies that digest — the verifier fails closed without it),
   and the OIDC identity / issuer / builder / source match the expected values, with a Rekor
-  transparency-log entry. A missing, unverified, or mismatched attestation **blocks the release**.
+  transparency-log entry. A missing, unverified, unpinned, or mismatched attestation **blocks the release**.
 - **Rollback is a first-class path.** If verification fails, the move is roll back (or fix-forward
   with consent) and route the failure to `/investigate`, not to hope.
 - **Mobile store submission is a separate, irreversible track.** Publishing to the Apple App Store
@@ -100,9 +101,12 @@ Freedom level: **low** — the gate order protects production; don't reorder it.
    provenance. CI signs it keyless and attests it (cosign + SLSA); gather what `cosign
    verify-attestation` / `slsa-verifier` reported (attestation present? signature verified? keyless?
    subject digest? OIDC identity/issuer? builder? source? Rekor entry?) and run it through
-   `lib/provenance-verify.ts` against `tech_bindings.provenance`. A missing, unverified,
-   key-based, or mismatched attestation **blocks the release** — do not deploy an artifact you
-   cannot prove the origin of.
+   `lib/provenance-verify.ts` against `tech_bindings.provenance`. **Set `expectedDigest` to the
+   digest of the artifact you are about to deploy** — it is not in the binding (it changes every
+   build), and without it the verifier fails closed (`digest-unpinned`): a provenance check that
+   isn't pinned to *this* artifact's digest only proves an attestation exists, not that it covers
+   what's shipping. A missing, unverified, key-based, unpinned, or mismatched attestation **blocks
+   the release** — do not deploy an artifact you cannot prove the origin of.
 5. **Deploy — HARD GATE.** A production deploy (and any `escalation_policy.triggers` match) stops
    for explicit consent, then runs the deploy command from `commands`.
 6. **Transport gate (public endpoints) — HARD GATE.** For every public endpoint, gather what it
@@ -115,9 +119,11 @@ Freedom level: **low** — the gate order protects production; don't reorder it.
    Confirm the new version is serving and error rates are nominal.
 8. **Decide.** Healthy → record success. Unhealthy → **roll back** (or fix-forward with consent)
    and hand the failure to `/investigate`.
-9. **Write the release log as a run artifact.** Under an active run:
+9. **Write the release log as a run artifact.** The deploy tail runs after `/ship` (step 6), so its
+   artifacts are **branch artifacts** with a sub-sequence seq under ship — the umbrella release log,
+   then the per-store mobile tracks:
    ```bash
-   fac run artifact --step deploy --inputs <pr-ref> --body-file deploy-log.md
+   fac run artifact --seq 6a --step deploy --inputs .factory/runs/$RUN/06-ship.md --body-file deploy-log.md
    ```
 
 ## Mobile store deployment (Apple + Google) — Phase 6
@@ -138,7 +144,9 @@ with `lib/mobile-release-verify.ts` (artifact present + signed, format matches t
 number strictly monotonic vs the last release, valid track, no embedded secret) → **HARD GATE** on
 the irreversible submission (show version/build + track, get explicit consent) → upload → **verify
 the build landed** on the target track before declaring done. A failing/absent build blocks; the
-gate fails closed.
+gate fails closed. **Pass the declared store set** (from `tech_bindings.mobile_release`) to
+`verifyMobileReleases(observations, expectedStores)` so a declared store that produced no build
+fails closed rather than an empty batch silently passing.
 
 - **Track 1 — Apple App Store (`deploy-apple`).** Build a signed `.ipa` (`flutter build ipa` with a
   CI-held distribution cert + provisioning profile), verify the manifest (`store: apple`,
@@ -146,7 +154,7 @@ gate fails closed.
   TestFlight via `commands.deploy_apple` (e.g. `fastlane pilot`). Confirm the build reaches the
   target track. Record a branch artifact:
   ```bash
-  fac run artifact --seq 6a --step deploy-apple --inputs <ipa-manifest> --body-file deploy-apple.md
+  fac run artifact --seq 6b --step deploy-apple --inputs <ipa-manifest> --body-file deploy-apple.md
   ```
 - **Track 2 — Google Play (`deploy-google`).** Build a signed **`.aab`** (`flutter build appbundle
   --release`; Play requires an App Bundle, not an APK), verify the manifest (`store: google`,
@@ -155,7 +163,7 @@ gate fails closed.
   Google holds the app-signing key. Confirm the release on the chosen track. Record a branch
   artifact:
   ```bash
-  fac run artifact --seq 6b --step deploy-google --inputs <aab-manifest> --body-file deploy-google.md
+  fac run artifact --seq 6c --step deploy-google --inputs <aab-manifest> --body-file deploy-google.md
   ```
 
 Read the per-store target from `tech_bindings.mobile_release` (`bundle_id`/`application_id`, track,
@@ -178,7 +186,7 @@ Input:  PR #42 (repairs CSV export) — /review clean, /qa green, /security clea
 Steps:  preflight ok → HARD GATE merge (consent) → CI green in 4m → HARD GATE deploy to prod
         (consent) → run commands.web.deploy → verify: browse goto /repairs?export, version
         marker == new build, export downloads. Healthy.
-Output: run artifact NN-deploy.md — merge sha, CI link, deploy output, health-check result.
+Output: run artifact 06a-deploy.md — merge sha, CI link, deploy output, health-check result.
         Release verified.
 Fail path: if the version marker still showed the old build → roll back, hand to /investigate.
 ```
@@ -213,7 +221,7 @@ Fail path: if the version marker still showed the old build → roll back, hand 
 - `review` / `qa` / `security` — the gates that must be green before `/deploy` runs.
 - `investigate` — receives a failed post-deploy verification for root-cause.
 - `escalation_policy` (context) — supplies the triggers that force hard gates.
-- Run harness (`fac run`) — records the release as `NN-deploy.md`.
+- Run harness (`fac run`) — records the release as `06a-deploy.md`.
 
 ## References
 

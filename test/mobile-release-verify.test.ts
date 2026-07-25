@@ -146,6 +146,26 @@ describe('verifyMobileReleases — the batch passes only if every release passes
     const r = verifyMobileReleases([healthyApple(), healthyGoogle({ artifact: 'build/app.apk' })]);
     expect(r.pass).toBe(false);
   });
+
+  test('an empty batch passes when no stores are declared (web-only product)', () => {
+    expect(verifyMobileReleases([]).pass).toBe(true);
+    expect(verifyMobileReleases([], []).pass).toBe(true);
+  });
+
+  test('a declared store with no observation fails closed (the empty-batch fail-open)', () => {
+    // The bug: [].every() is true, so an empty batch would pass — a build that produced nothing.
+    const r = verifyMobileReleases([], ['apple', 'google']);
+    expect(r.pass).toBe(false);
+    expect(r.verdicts.map((v) => v.store).sort()).toEqual(['apple', 'google']);
+    expect(r.verdicts.every((v) => v.findings[0].risk === 'build-missing')).toBe(true);
+  });
+
+  test('a declared store missing from a partial batch fails closed', () => {
+    const r = verifyMobileReleases([healthyApple()], ['apple', 'google']);
+    expect(r.pass).toBe(false);
+    expect(r.verdicts.find((v) => v.store === 'google')?.pass).toBe(false);
+    expect(r.verdicts.find((v) => v.store === 'apple')?.pass).toBe(true);
+  });
 });
 
 describe('helpers + policy constants', () => {

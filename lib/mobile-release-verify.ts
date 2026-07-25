@@ -167,10 +167,36 @@ export function verifyMobileRelease(obs: MobileReleaseObservation): MobileReleas
   return { store: obs.store, artifact: obs.artifact, pass: findings.length === 0, findings };
 }
 
-/** Verify a set of store releases. The batch passes only if every release passes. */
+/**
+ * Verify a set of store releases. The batch passes only if every release passes.
+ *
+ * `expectedStores` is the set of stores the product *declares* (from `tech_bindings.mobile_release`).
+ * A declared store with no observation fails closed — otherwise an empty batch (`[].every()` is
+ * true) would let a build that produced nothing sail through the gate. Pass the declared stores so
+ * "the build didn't run" can't masquerade as "nothing to check". Omit it (default `[]`) only when
+ * there genuinely are no mobile stores — a web-only product.
+ */
 export function verifyMobileReleases(
   observations: readonly MobileReleaseObservation[],
+  expectedStores: readonly Store[] = [],
 ): { pass: boolean; verdicts: MobileReleaseVerdict[] } {
   const verdicts = observations.map((o) => verifyMobileRelease(o));
+  const seen = new Set(observations.map((o) => o.store));
+  for (const store of expectedStores) {
+    if (!seen.has(store)) {
+      verdicts.push({
+        store,
+        artifact: '(none)',
+        pass: false,
+        findings: [
+          {
+            rule: 'build-present',
+            risk: 'build-missing',
+            detail: `${store} store is declared in tech_bindings.mobile_release but produced no release to verify — the gate fails closed on a declared-but-missing store`,
+          },
+        ],
+      });
+    }
+  }
   return { pass: verdicts.every((v) => v.pass), verdicts };
 }

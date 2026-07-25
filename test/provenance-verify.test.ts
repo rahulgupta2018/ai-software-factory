@@ -61,13 +61,18 @@ describe('verifyProvenance — a fully-attested artifact passes', () => {
     expect(v.artifact).toBe('reference-product:1.0.0');
   });
 
-  test('default policy (custody invariants only) passes a keyless, logged artifact with no expected values', () => {
-    const v = verifyProvenance(attested());
-    expect(v.pass).toBe(true);
+  test('the default policy requires a pinned digest — passes only when one is supplied and matches', () => {
+    // Fail closed: the default gate demands the attestation be pinned to the deploying artifact.
+    const noDigest = verifyProvenance(attested()); // DEFAULT policy, no expectedDigest
+    expect(noDigest.pass).toBe(false);
+    expect(noDigest.findings.some((f) => f.risk === 'digest-unpinned')).toBe(true);
+    // Supply the matching digest → the custody-only default passes.
+    expect(verifyProvenance(attested(), { ...DEFAULT_PROVENANCE_POLICY, expectedDigest: DIGEST }).pass).toBe(true);
   });
 
   test('a regex identity matches the workflow ref', () => {
     const policy: ProvenancePolicy = {
+      expectedDigest: DIGEST,
       expectedIdentity: '^https://github\\.com/example/reference-product/\\.github/workflows/.+@refs/heads/main$',
       identityIsRegex: true,
     };
@@ -145,18 +150,24 @@ describe('verifyProvenance — each rule has a negative case that fails', () => 
 
 describe('verifyProvenance — custody invariants can be relaxed but default on', () => {
   test('requireKeyless=false allows a key-based signature', () => {
-    const policy: ProvenancePolicy = { requireKeyless: false, requireTransparencyLog: false };
+    const policy: ProvenancePolicy = { requireKeyless: false, requireTransparencyLog: false, requireDigestMatch: false };
     expect(verifyProvenance(attested({ keyless: false }), policy).pass).toBe(true);
   });
 
   test('requireTransparencyLog=false allows an unlogged signature', () => {
-    const policy: ProvenancePolicy = { requireTransparencyLog: false };
+    const policy: ProvenancePolicy = { requireTransparencyLog: false, requireDigestMatch: false };
     expect(verifyProvenance(attested({ transparencyLogged: false }), policy).pass).toBe(true);
   });
 
-  test('DEFAULT_PROVENANCE_POLICY enforces both custody invariants', () => {
+  test('requireDigestMatch=false allows a digest-agnostic check (opt-out)', () => {
+    const policy: ProvenancePolicy = { requireDigestMatch: false };
+    expect(verifyProvenance(attested(), policy).pass).toBe(true);
+  });
+
+  test('DEFAULT_PROVENANCE_POLICY enforces the custody invariants and digest pinning', () => {
     expect(DEFAULT_PROVENANCE_POLICY.requireKeyless).toBe(true);
     expect(DEFAULT_PROVENANCE_POLICY.requireTransparencyLog).toBe(true);
+    expect(DEFAULT_PROVENANCE_POLICY.requireDigestMatch).toBe(true);
   });
 });
 

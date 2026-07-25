@@ -1,0 +1,37 @@
+{
+  "skill": "canary",
+  "intent": "Watches a fresh deploy for a bounded window, drives real user paths against the live URL, hard-stops and escalates the moment a signal goes red, records a verdict artifact, and never attempts a fix itself.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "bounded-watch",
+      "criterion": "A short, bounded watch — probe then poll a defined window, then declare; not an indefinite monitor.",
+      "weight": 2,
+      "anchors": { "any": ["window", "bounded", "interval"], "min_any": 1 }
+    },
+    {
+      "name": "real-paths",
+      "criterion": "Drives real user paths (not just /health) against the live URL via browse/HTTP.",
+      "weight": 2,
+      "anchors": { "require_all": ["fac browse"], "any": ["health", "user path"], "min_any": 1 }
+    },
+    {
+      "name": "red-is-hard-gate",
+      "criterion": "A red signal hard-stops and escalates per policy; it is never logged-and-ignored.",
+      "weight": 3,
+      "anchors": { "any": ["hard-stop", "hard gate"], "min_any": 1, "require_all": ["escalat"] }
+    },
+    {
+      "name": "detect-not-fix",
+      "criterion": "Detects and escalates; recommends rollback but never fixes inside the canary.",
+      "weight": 2,
+      "anchors": { "require_all": ["rollback"], "any": ["not attempt a fix", "does not", "never attempt"], "min_any": 1 }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the verdict as run artifact 06d-canary.md.",
+      "weight": 1,
+      "anchors": { "require_all": ["06d-canary", "fac run artifact"] }
+    }
+  ]
+}
