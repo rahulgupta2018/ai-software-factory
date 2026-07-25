@@ -1,0 +1,37 @@
+{
+  "skill": "learn",
+  "intent": "Promotes durable cross-task lessons into project memory (product/learnings) and the decision log, separating durable from disposable, reading before writing so it appends not clobbers, and grounding every rule in cited evidence.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "durable-vs-disposable",
+      "criterion": "Persists only lessons that govern future work; task-local notes are left alone.",
+      "weight": 3,
+      "anchors": { "require_all": ["durable"], "any": ["disposable"], "min_any": 1 }
+    },
+    {
+      "name": "memory-ratchet",
+      "criterion": "Standing rules persist in the product-scope memory store (product/learnings).",
+      "weight": 2,
+      "anchors": { "any": ["product/learnings", "memory store", "ratchet"], "min_any": 1 }
+    },
+    {
+      "name": "read-before-write",
+      "criterion": "Reads the current rules before writing so it appends rather than clobbers.",
+      "weight": 2,
+      "anchors": { "any": ["append", "clobber", "read first", "before writing"], "min_any": 1 }
+    },
+    {
+      "name": "lesson-as-decision",
+      "criterion": "A rule that governs a standing choice is logged with fac decision.",
+      "weight": 2,
+      "anchors": { "require_all": ["fac decision"] }
+    },
+    {
+      "name": "reflection-band-artifact",
+      "criterion": "Records the promotion as a reflection-band run artifact (09-learn.md).",
+      "weight": 1,
+      "anchors": { "require_all": ["09-learn"] }
+    }
+  ]
+}

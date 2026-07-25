@@ -12,8 +12,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-25
+  layer: Reflect
   priority: FF
 ---
 
@@ -75,12 +75,15 @@ Freedom level: **medium** — gather, separate durable from disposable, persist.
    ```bash
    fac memory write --scope product --key learnings --body-file learnings.md
    ```
-5. **Log a governing decision** when the lesson is a standing choice, and record the pass:
+5. **Log a governing decision** when the lesson is a standing choice, and record the pass. `/learn`
+   promotes **cross-task** lessons, so its artifact uses the **reflection band** (`--seq 9`) —
+   outside the 1–6 product pipeline — recording into the active run (add `--id` to target one). The
+   durable record is memory + the decision log; the artifact is the write-up:
    ```bash
    fac decision log --decision "Always add a contract test when an API shape changes" \
      --rationale "learn: 3 of last 5 review catches were API-shape drift" --scope repo \
      --source agent --confidence 7
-   fac run artifact --step learn --body-file learn.md
+   fac run artifact --seq 9 --step learn --body-file learn.md
    ```
 
 ## Examples
@@ -91,7 +94,7 @@ Input:  "Learn from this week — we keep breaking the API contract."
 Steps:  fac decision list + run history → 3 runs stalled at review on API-shape drift.
         Durable? Yes — governs every future API change. Read product/learnings, append the rule.
 Output: product/learnings updated with "contract-test on API-shape change"; logged as a decision;
-        NN-learn.md recorded.
+        09-learn.md recorded.
 Handoff → /skill-smith if the rule implies a skill should enforce it automatically.
 ```
 
@@ -120,7 +123,7 @@ Handoff → /skill-smith if the rule implies a skill should enforce it automatic
 - `fac memory` (`product` scope) — where durable learnings persist across sessions.
 - `fac decision` — records a lesson that governs a standing choice.
 - `skill-smith` — the next step when a rule should be enforced by a skill, not just remembered.
-- Run harness (`fac run`) — records the promotion as `NN-learn.md`.
+- Run harness (`fac run`) — records the promotion as a reflection-band `09-learn.md`.
 
 ## References
 

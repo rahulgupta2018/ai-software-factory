@@ -1,0 +1,37 @@
+{
+  "skill": "health",
+  "intent": "Runs the project's own quality gates from stack.yaml per component, reports a pass/fail dashboard, reports a missing command as not-configured (never a silent pass), and changes no code.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "report-only",
+      "criterion": "Runs and reports; changes no code and lands nothing.",
+      "weight": 3,
+      "anchors": { "any": ["report-only", "report only", "changes no code", "lands nothing", "read-only"], "min_any": 1 }
+    },
+    {
+      "name": "project-owns-gates",
+      "criterion": "Commands come from stack.yaml / ${ctx.commands}, never hardcoded.",
+      "weight": 2,
+      "anchors": { "require_all": ["stack.yaml"], "any": ["never hardcoded", "never guesses", "ctx.commands"], "min_any": 1 }
+    },
+    {
+      "name": "missing-not-pass",
+      "criterion": "A missing command is 'not configured', never silently passed.",
+      "weight": 2,
+      "anchors": { "require_all": ["not configured"], "any": ["Missing command", "not silently passed"], "min_any": 1 }
+    },
+    {
+      "name": "per-component-granularity",
+      "criterion": "Each component's test/lint/typecheck is scored independently.",
+      "weight": 2,
+      "anchors": { "any": ["per-component", "per component", "each component"], "min_any": 1 }
+    },
+    {
+      "name": "reflection-band-artifact",
+      "criterion": "Records the dashboard as a reflection-band run artifact (09-health.md).",
+      "weight": 1,
+      "anchors": { "require_all": ["09-health"] }
+    }
+  ]
+}

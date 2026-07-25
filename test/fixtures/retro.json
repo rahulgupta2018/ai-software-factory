@@ -1,0 +1,37 @@
+{
+  "skill": "retro",
+  "intent": "Reflects across recent runs and the decision log to find cross-run patterns, turns each into a concrete action (not a platitude), logs durable lessons as decisions, and records a reflection-band artifact — reflection, not reporting.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "reflection-not-reporting",
+      "criterion": "Extracts a lesson and commits to a change; not a status report / timeline.",
+      "weight": 2,
+      "anchors": { "any": ["reflection", "not a status report", "not reporting"], "min_any": 1 }
+    },
+    {
+      "name": "evidence-from-substrate",
+      "criterion": "Observations come from the run history and decision log, not from vibes.",
+      "weight": 2,
+      "anchors": { "any": ["run history", "decision log", "substrate"], "min_any": 1 }
+    },
+    {
+      "name": "actions-not-platitudes",
+      "criterion": "Every observation ends in a concrete action, not a platitude.",
+      "weight": 2,
+      "anchors": { "any": ["platitude", "concrete action", "action someone can take"], "min_any": 1 }
+    },
+    {
+      "name": "lessons-become-decisions",
+      "criterion": "Durable lessons are logged with fac decision so they outlive the retro.",
+      "weight": 2,
+      "anchors": { "require_all": ["fac decision"], "any": ["durable"], "min_any": 1 }
+    },
+    {
+      "name": "reflection-band-artifact",
+      "criterion": "Records the retro as a reflection-band run artifact (09-retro.md).",
+      "weight": 1,
+      "anchors": { "require_all": ["09-retro"], "any": ["reflection band", "fac run artifact"], "min_any": 1 }
+    }
+  ]
+}

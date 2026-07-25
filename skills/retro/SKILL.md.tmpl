@@ -11,8 +11,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-25
+  layer: Reflect
   priority: FF
 ---
 
@@ -67,12 +67,15 @@ Freedom level: **medium** — gather evidence, find patterns, propose changes.
 3. **Ask the three questions** per theme: what worked, what stalled, what to change.
 4. **Propose concrete actions.** Each observation gets an action a human or agent can actually take
    (change a gate, add a check, adjust a convention) — not a platitude.
-5. **Log durable lessons** as decisions and record the retro:
+5. **Log durable lessons** as decisions and record the retro. A retro reflects across **many** runs,
+   so it uses the **reflection band** (`--seq 9`) — outside the 1–6 product pipeline, marking a
+   cross-run reflection rather than a linear step. It records into the active run (add `--id` to
+   target a specific one); the durable record is the decision log, the artifact is the write-up:
    ```bash
    fac decision log --decision "Add a contract test whenever an API shape changes" \
      --rationale "retro: 3 of last 5 review catches were API-shape drift" --scope repo \
      --source agent --confidence 7
-   fac run artifact --step retro --body-file retro.md
+   fac run artifact --seq 9 --step retro --body-file retro.md
    ```
 
 ## Examples
@@ -87,7 +90,7 @@ Output: retro.md —
           Worked: review is catching drift reliably.
           Stalled: it catches it LATE, after build.
           Change: add a contract test at build time → logged as a decision.
-        NN-retro.md recorded; 1 durable decision logged.
+        09-retro.md recorded; 1 durable decision logged.
 Handoff → /learn (Track 3) can promote the logged lesson into a standing rule.
 ```
 
@@ -113,8 +116,8 @@ Handoff → /learn (Track 3) can promote the logged lesson into a standing rule.
 ## Integration
 
 - `fac decision` — both a source (past decisions) and a sink (new logged lessons).
-- Run harness (`fac run`) — the run history is the evidence base; the retro is recorded as
-  `NN-retro.md`.
+- Run harness (`fac run`) — the run history is the evidence base; the retro is recorded as a reflection-band artifact
+  `09-retro.md` (seq 9).
 - `learn` (Track 3) — promotes logged retro lessons into standing rules.
 - `context-save` — retro often follows a save at a milestone boundary.
 

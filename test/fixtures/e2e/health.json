@@ -1,0 +1,12 @@
+{
+  "skill": "health",
+  "tier": "periodic",
+  "intent": "Asked whether the build is healthy, health runs the project's configured gates per component from stack.yaml, reports a pass/fail dashboard with a missing command marked not-configured, and does not fix anything.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "Is the Repair Tracker build healthy before I ship?",
+  "expect": {
+    "output_any": ["test", "lint", "typecheck", "not configured", "dashboard"],
+    "min_any": 2,
+    "output_excludes": ["let me fix", "I'll fix the", "editing handlers"]
+  }
+}

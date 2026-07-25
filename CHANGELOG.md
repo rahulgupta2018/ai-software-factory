@@ -3,6 +3,38 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.46.0.0] — 2026-07-25
+
+**The REFLECT phase re-review closes the loop: retro, health, learn, and skill-smith now record where cross-run reflection belongs — a dedicated "reflection band" outside the product pipeline — instead of giving a command the CLI rejects. Every phase of the pipeline has now been reviewed.**
+
+The four reflection skills are the best-scoped in the Factory, but they all shared the same gaps:
+a run-artifact command with no `--seq` (so the CLI rejected it), a mis-filed `Ops` layer, and no
+evals. Fixing them surfaced a real design point: a weekly retro, a health sweep, a cross-task
+lesson, and Factory-repo skill authoring aren't steps in a product's 1–6 pipeline — so anchoring
+their artifacts to it was a category error. They now use a **reflection band** (`--seq 9`, outside
+the pipeline), and skill-smith — which works on the Factory's own skills, where there may be no
+product run at all — treats the run artifact as optional, its real record being the committed
+template and a green `skill:check`.
+
+### Fixed
+- **All four REFLECT skills gave a run-artifact command the CLI rejects** (no `--seq`). They now
+  record in the **reflection band**: `09-retro.md`, `09-health.md`, `09-learn.md`, and (optionally)
+  `09-skill-smith.md` — a seq outside the 1–6 pipeline that marks a cross-run reflection, not a
+  linear step, and targets a specific run with `--id`.
+- **`/skill-smith` presumed a product run it may not have.** Working on the Factory's own skills, its
+  durable record is now the committed `SKILL.md.tmpl` + a passing `skill:check` + the CHANGELOG; the
+  run artifact is written only when it's operating inside a product run.
+- **`/retro`, `/health`, `/learn`, `/skill-smith` were mis-filed as `Ops`** — corrected to `Reflect`
+  (the lifecycle phase they belong to).
+- **`/skill-smith` documented a non-canonical invocation** (`bun scripts/gen-skill-docs.ts`) —
+  corrected to `bun run gen:skills` / `bun run skill:check`, matching every other skill.
+
+### Added
+- **Eval coverage for the whole REFLECT phase** — Tier-2 discipline rubrics for `/retro`, `/health`,
+  `/learn`, and `/skill-smith`, plus Tier-3 gate/periodic scenarios for `/skill-smith` and `/health`.
+  Each proves it fails when the discipline is dropped (e.g. strip skill-smith's generator-owned +
+  governance discipline and its rubric fails).
+
 ## [0.45.0.0] — 2026-07-25
 
 **The SHIP phase re-review: the release gate now proves it's shipping the artifact you built (not just that *an* attestation exists), the ship report stops colliding with QA, and every deploy-tail step records where it belongs.**

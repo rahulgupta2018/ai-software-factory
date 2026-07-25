@@ -10,8 +10,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-25
+  layer: Reflect
   priority: V1
 ---
 
@@ -97,9 +97,11 @@ Freedom level: **low** — run the configured gates, tabulate, report.
    failure output. Continue on failure — collect *all* results, don't stop at the first red.
 3. **Tabulate** a dashboard: component × gate → ✅ / ❌ / — (not configured), with a one-line failure
    summary per red cell.
-4. **Record the dashboard** as a run artifact:
+4. **Record the dashboard** as a run artifact. A health sweep is a standalone readiness check, not a
+   pipeline step, so it uses the **reflection band** (`--seq 9`) — outside the 1–6 product pipeline
+   — recording into the active run (add `--id` to target a specific one):
    ```bash
-   fac run artifact --step health --body-file health-report.md
+   fac run artifact --seq 9 --step health --body-file health-report.md
    ```
 5. **Report and hand off.** Green → clear to `/review` or `/ship`. Red → point at the failing gate
    and hand to `/investigate` or the build loop. Do not fix here.
@@ -114,7 +116,7 @@ Steps:  Read stack.yaml → api: {test, typecheck}, web: {test, lint, typecheck}
 Output: dashboard —
           api  test ✅  lint —  typecheck ❌ (2 errors, handlers.ts)
           web  test ✅  lint ✅ typecheck ✅
-        NN-health.md recorded. Verdict: not ship-ready.
+        09-health.md recorded. Verdict: not ship-ready.
 Handoff → /investigate on api typecheck; re-run /health; then /ship.
 ```
 
@@ -143,7 +145,7 @@ Handoff → /investigate on api typecheck; re-run /health; then /ship.
 - `stack.yaml` (`${ctx.commands}`) — the source of the gates `/health` runs.
 - `investigate` / build loop — the fixers `/health` hands red gates to.
 - `review`, `ship` — downstream; `/health` is the readiness check before them.
-- Run harness (`fac run`) — records the dashboard as `NN-health.md`.
+- Run harness (`fac run`) — records the dashboard as a reflection-band `09-health.md`.
 
 ## References
 

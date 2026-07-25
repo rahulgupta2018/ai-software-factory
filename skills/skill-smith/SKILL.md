@@ -12,8 +12,8 @@ license: MIT
 metadata:
   author: AI Software Factory
   version: 0.1.0
-  last_updated: 2026-07-22
-  layer: Ops
+  last_updated: 2026-07-25
+  layer: Reflect
   priority: FF
 ---
 
@@ -141,7 +141,7 @@ Precedence: per-skill `overrides` → merged product context → skill generic d
    placeholder, explicit triggers, a "Do not activate" block), following the authoring standard.
 3. **Generate + validate:**
    ```bash
-   bun scripts/gen-skill-docs.ts && bun scripts/skill-check.ts
+   bun run gen:skills && bun run skill:check
    ```
 4. **Governance review** with `quality-governance`; resolve every mandatory fix before landing.
 
@@ -151,9 +151,13 @@ Precedence: per-skill `overrides` → merged product context → skill generic d
    and score, diagnose (`add_example` / `add_constraint` / `restructure` / `add_edge_case`), apply
    **one** edit, re-score, keep only on improvement. Repeat to target or max rounds.
 3. **Regenerate + validate** as above; confirm the drift check passes.
-4. **Governance review**, then record:
+4. **Governance review**, then record. `/skill-smith` works on the **Factory's own** skills, not a
+   product pipeline, so **the durable record is the committed `SKILL.md.tmpl` + a passing
+   `skill:check` + the CHANGELOG entry** — those are the source of truth. Write a run artifact
+   *only when operating inside a product run*, and then in the **reflection band** (`--seq 9`,
+   outside the 1–6 pipeline), targeting that run with `--id`:
    ```bash
-   fac run artifact --step skill-smith --body-file skill-smith.md
+   fac run artifact --seq 9 --step skill-smith --id <run> --body-file skill-smith.md
    ```
 
 ## Examples
@@ -164,7 +168,7 @@ Input:  "Our /learn rule says enforce contract tests, but nothing does — make 
 Steps:  Confirm no skill owns contract-test enforcement. Author skills/contract-guard/SKILL.md.tmpl
         (triggers, Do-not-activate vs /review and /qa). gen:skills + skill:check → green.
         quality-governance: single responsibility ✓, ≤500 lines ✓, versioned ✓ → pass.
-Output: new generator-owned skill; NN-skill-smith.md recorded.
+Output: new generator-owned skill; committed template + green skill:check are the record (09-skill-smith.md if in a product run).
 Handoff → the new skill is now part of the Factory; /review can lean on it.
 ```
 
@@ -193,11 +197,11 @@ Handoff → the new skill is now part of the Factory; /review can lean on it.
 - `quality-governance` (craft) — the pre-land readiness review every new/optimised skill passes.
 - `gen:skills` / `skill:check` — the generator + drift check that make a skill first-class.
 - `learn` — upstream: a rule that needs enforcing becomes a `/skill-smith` job.
-- Run harness (`fac run`) — records the authoring/optimisation as `NN-skill-smith.md`.
+- Run harness (`fac run`) — records an optional authoring artifact as a reflection-band `09-skill-smith.md` (only within a product run).
 
 ## References
 
-- Substrate CLIs: `bun scripts/gen-skill-docs.ts`, `bun scripts/skill-check.ts`, `fac run artifact`
+- Substrate CLIs: `bun run gen:skills`, `bun run skill:check`, `fac run artifact`
 - Craft skills: `self-improving-agent-skills`, `quality-governance`
 - Related skills: `learn`, `retro`
 - Authoring standard: `skills/*/SKILL.md.tmpl` (this repo), the agent-skills AUTHORING-GUIDE

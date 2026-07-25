@@ -1,0 +1,37 @@
+{
+  "skill": "skill-smith",
+  "intent": "The meta-skill: authors a new Factory skill as a generator-owned SKILL.md.tmpl (never an orphan SKILL.md), or optimises one by hill-climb (one change at a time, kept only on improvement), composing self-improving-agent-skills and passing quality-governance before anything lands.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "generator-owned",
+      "criterion": "A new skill is a SKILL.md.tmpl that flows through gen:skills; never an orphan SKILL.md.",
+      "weight": 3,
+      "anchors": { "require_all": ["SKILL.md.tmpl"], "any": ["generator-owned", "orphan", "never a stray"], "min_any": 1 }
+    },
+    {
+      "name": "governance-gate",
+      "criterion": "Nothing lands without a quality-governance readiness review.",
+      "weight": 2,
+      "anchors": { "require_all": ["quality-governance"] }
+    },
+    {
+      "name": "hill-climb-optimise",
+      "criterion": "Optimises one change at a time, keeping it only if the measured score improves.",
+      "weight": 2,
+      "anchors": { "any": ["one change at a time", "surgical", "keeps it only if", "keep it only", "one at a time"], "min_any": 1 }
+    },
+    {
+      "name": "authoring-standard",
+      "criterion": "Enforces the authoring standard: folder==name, Do-not-activate, single responsibility, ≤500 lines.",
+      "weight": 2,
+      "anchors": { "any": ["Do not activate", "single responsibility", "500 lines"], "min_any": 1 }
+    },
+    {
+      "name": "composes-self-improving",
+      "criterion": "Runs the self-improving-agent-skills execute-diagnose-mutate loop for optimisation.",
+      "weight": 1,
+      "anchors": { "require_all": ["self-improving-agent-skills"] }
+    }
+  ]
+}

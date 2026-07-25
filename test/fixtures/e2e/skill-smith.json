@@ -1,0 +1,12 @@
+{
+  "skill": "skill-smith",
+  "tier": "gate",
+  "intent": "Asked to fill a capability gap, skill-smith authors a generator-owned SKILL.md.tmpl (not a hand-written orphan), runs gen:skills + skill:check, and passes quality-governance before landing — it never bypasses the gates the Factory holds every change to.",
+  "context_headings": ["Workflow", "Guidelines", "Gotchas"],
+  "prompt": "We keep forgetting a rollback plan on deploys. Author a Factory skill that enforces one.",
+  "expect": {
+    "output_any": ["SKILL.md.tmpl", "gen:skills", "skill:check", "quality-governance", "Do not activate"],
+    "min_any": 2,
+    "output_excludes": ["hand-write the SKILL.md", "skip governance", "orphan SKILL.md"]
+  }
+}
