@@ -5,11 +5,15 @@
 # the requirements document a human is editing. Commit this file: it is the
 # design record. Validated against project-context.schema.json.
 #
+# Everything below the required core (tech_stack, commands) is OPTIONAL and
+# commented. Uncomment and fill what the product needs; a skill skips any gate
+# whose binding is absent. Fully-worked example: examples/reference-product/.factory/stack.yaml
+#
 # Run `fac sync-context` after any change.
 # ─────────────────────────────────────────────────────────────────────────────
 
 tech_stack:
-  languages: []                # allowed set, e.g. [typescript, react, java, quarkus, python, sql]
+  languages: []                # allowed set, e.g. [typescript, react, java, quarkus, python, dart, sql]
   components: []               # filled by /plan-arch, one entry per component:
                                #   - name: api
                                #     language: typescript
@@ -19,6 +23,9 @@ tech_stack:
                                #     language: typescript
                                #     framework: react
                                #     css: tailwind-v4
+                               #   - name: mobile
+                               #     language: dart
+                               #     framework: flutter
 
 commands: {}                   # per component (+ optional deploy), e.g.
                                #   api:
@@ -26,24 +33,100 @@ commands: {}                   # per component (+ optional deploy), e.g.
                                #     build: bun run build
                                #     lint: bun run lint
                                #   deploy: fly deploy
+                               #   deploy_apple: fastlane pilot     # mobile store tracks (Phase 6)
+                               #   deploy_google: fastlane supply
 
-# Concrete infra a skill may target. sync-context derives per-component entries
-# and `db` from tech_stack.components[]; anything you set here wins.
-tech_bindings: {}              # e.g. { hosting: fly.io, cache: redis }
+# Concrete infra + security a skill may target. sync-context derives per-component
+# `api`/`web`/`db` entries from tech_stack.components[]; anything you set here wins.
+# Replace `{}` with the bindings you use (uncomment from the catalogue below).
+tech_bindings: {}
+  # ── infrastructure ──
+  # hosting: fly.io
+  # cache: redis                     # 'none' if unused
+  # db: postgres
+
+  # ── application security (audited by /security; bind a vetted provider, never roll your own) ──
+  # auth: oidc                       # authn/authz provider/strategy — /security A01/A07, API BOLA/BFLA
+  # session: redis-session           # session strategy — /security A07 (fixation, lifetime, cookie flags)
+  # crypto: aws-kms                   # encryption / key management — /security A02 (no rolled-your-own)
+  # tls: lets-encrypt                # transport posture — /deploy hard-gates a public endpoint via lib/tls-verify.ts
+
+  # ── supply-chain & CI/CD security (Phase 7; the scan runs in CI, the Factory owns the policy) ──
+  # supply_chain:                    # SCA + SBOM — /security, /ship, /deploy gate (lib/sca-report.ts)
+  #   sca_tool: osv-scanner          #   osv-scanner | npm-audit | pip-audit | trivy
+  #   block_severity: high           #   a fix-available finding at/above this blocks
+  #   require_fix_available: true    #   an unfixable CVE warns, never holds the release
+  #   sbom_format: cyclonedx         #   cyclonedx | spdx (a non-empty SBOM is required)
+  # sast:                            # static analysis — /security gates, /review advisory (lib/sast-report.ts)
+  #   tool: semgrep                  #   semgrep | codeql
+  #   format: sarif                  #   semgrep | sarif
+  #   block_severity: high
+  # provenance:                      # keyless signing + SLSA attestation — /deploy verifies (lib/provenance-verify.ts)
+  #   signer: cosign                 #   cosign | sigstore (keyless OIDC; the Factory holds no key)
+  #   attestation_format: slsa-provenance
+  #   expected_identity: https://github.com/<org>/<repo>/.github/workflows/release.yml@refs/heads/main
+  #   expected_issuer: https://token.actions.githubusercontent.com
+  #   expected_builder_id: https://github.com/actions/runner
+  #   expected_source_uri: git+https://github.com/<org>/<repo>
+  #   require_transparency_log: true #   signature logged in Rekor
+  #   require_keyless: true          #   reject any long-lived-key signature
+  # ci:                              # pipeline hardening — /pipeline generates, /security audits (lib/pipeline-lint.ts)
+  #   provider: github-actions
+  #   oidc_identity: https://github.com/<org>/<repo>/.github/workflows/release.yml@refs/heads/main
+  #   require_oidc: true             #   keyless cloud/registry auth — no long-lived secret
+  #   require_pinned_actions: true   #   every third-party action pinned to a full commit SHA
+  #   required_steps: [osv-scanner, semgrep, cosign]   #   a declared gate must have its CI step
+  # container_scan:                  # image scan + hardening (Track 5, optional) — /security (lib/container-scan.ts)
+  #   scanner: trivy                 #   trivy | grype
+  #   block_severity: high
+  #   require_fix_available: true
+  #   forbid_root: true              #   an image running as root fails the hardening lint
+  #   require_pinned_base: true      #   base image pinned by digest (FROM img@sha256:...)
+  # dast:                            # DAST against a running preview (Track 5, optional) — /security (lib/dast-report.ts)
+  #   scanner: zap
+  #   block_risk: high
+  #   min_confidence: low            #   alerts below this confidence never gate
+
+  # ── mobile store release (Phase 6; signing material lives in CI only, never here) ──
+  # mobile_release:                  # /deploy verifies the release manifest (lib/mobile-release-verify.ts)
+  #   apple:
+  #     bundle_id: com.example.app
+  #     track: testflight            #   testflight | app-store
+  #     tool: fastlane
+  #     signing_material: ci         #   dist cert + provisioning profile + ASC API key in CI secrets only
+  #   google:
+  #     application_id: com.example.app
+  #     track: internal              #   internal | closed | production
+  #     tool: fastlane
+  #     signing_material: ci         #   upload keystore + Play service-account JSON in CI; prefer Play App Signing
+
+# Tenancy model — multi-tenant products only. database-expert binds ${ctx.tenancy}
+# for per-query isolation; /security audits cross-tenant leakage (OWASP A01).
+# tenancy:
+#   model: multi-tenant            # multi-tenant | single-tenant
+#   isolation: row-level-security
 
 skills: []                     # adopted-skill manifest, e.g.
                                #   - name: discover
                                #     priority: V1
                                #   - name: fullstack-developer
-                               #     version: "1.1.0"
+                               #     version: "1.3.0"
 
 guardrails:
   pii_handling: detect_and_stop
   secrets: never_log
+  # prohibited_data: ["e.g. customer PII in logs"]   # data classes a skill must never emit
   # budget:                    # per-run cost warning (plan §8.1); warns, never halts
   #   warn_tokens: 400000
 
+# Non-negotiable rules every skill must honour (grounding, PII, escalation, audit). Regulated
+# products especially — a blocking rule stops the run. See project-context.schema.json.
+# compliance_rules:
+#   - id: no_pii
+#     rule: "Never process personal data beyond name + contact; detect and stop."
+#     severity: blocking
+
 escalation_policy:
-  triggers: []
-  action: ""
+  triggers: []                 # e.g. ["schema migration on live data", "anything touching payments"]
+  action: ""                   # e.g. "stop and ask the operator before proceeding"
   disclaimer: ""

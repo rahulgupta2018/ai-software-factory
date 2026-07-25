@@ -3,6 +3,32 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.47.0.0] — 2026-07-25
+
+**`fac init` now scaffolds a product that reflects everything the Factory can do: the stack template carries the whole security/supply-chain binding surface, and the PRD template prompts for the sections professional software needs.**
+
+The templates had fallen two capability-generations behind the Factory itself — the stack template
+showed 3 of ~19 supported `tech_bindings` and none of the Phase 6/7 security gates, so a product
+scaffolded from it started blind to its own guardrails. Both are now brought to parity, and a new
+test guards them so they can't silently rot again.
+
+### Changed
+- **`stack.template.yaml` reaches parity with the schema.** It now catalogues every binding the
+  Factory gates on — app security (`auth`/`crypto`/`session`/`tls`), the supply-chain & CI/CD stack
+  (`supply_chain`, `sast`, `provenance`, `ci`, `container_scan`, `dast`), mobile store release, plus
+  `tenancy`, `guardrails.prohibited_data`, and `compliance_rules` — as commented, optional stanzas,
+  each noting what gates on it and pointing to the reference product for a worked example. An
+  untouched scaffold stays a valid minimal file.
+- **`PRD.template.md` prompts for the professional-software sections.** Added **User journeys / key
+  flows**, **Data & domain model**, **Integrations & external dependencies**, **Compliance & data
+  handling**, and **Risks** (15 sections total). `/discover` now fills the full set.
+
+### Added
+- **A guard test for the product templates** (`test/templates.test.ts`): both parse, the stack
+  catalogue stays commented (nothing leaks into the object), the binding surface is documented, and
+  a scaffolded-then-filled product merges and passes the schema — while an untouched scaffold fails.
+  `fac init` reads the templates live, so the fix reaches every new product with no build step.
+
 ## [0.46.0.0] — 2026-07-25
 
 **The REFLECT phase re-review closes the loop: retro, health, learn, and skill-smith now record where cross-run reflection belongs — a dedicated "reflection band" outside the product pipeline — instead of giving a command the CLI rejects. Every phase of the pipeline has now been reviewed.**

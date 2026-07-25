@@ -19,10 +19,48 @@ commands:
   deploy: "./mvnw package && fly deploy"
 
 # sync-context derives api/db from tech_stack.components[]; these add what design chose
-# but components can't express.
+# but components can't express. A Java backend gets the same DevSecOps gates as any other
+# language — routing is a parameter, the security posture is not exempt.
 tech_bindings:
   hosting: fly.io
   cache: none
+  tls: lets-encrypt                 # public API endpoint — /deploy transport gate (lib/tls-verify.ts)
+  # Phase 7 — supply-chain security. osv-scanner covers the Maven dependency tree; /security + /ship
+  # + /deploy gate on a fix-available finding at/above block_severity via lib/sca-report.ts.
+  supply_chain:
+    sca_tool: osv-scanner           # osv-scanner covers Maven (pom) dependencies
+    block_severity: high
+    require_fix_available: true
+    sbom_format: cyclonedx
+  # Phase 7 — static analysis. semgrep has Java rules; /security gates, /review advisory.
+  sast:
+    tool: semgrep
+    format: sarif
+    block_severity: high
+  # Phase 7 — signing + provenance. Signed keyless in CI; /deploy verifies via lib/provenance-verify.ts.
+  provenance:
+    signer: cosign
+    attestation_format: slsa-provenance
+    expected_identity: https://github.com/example/repair-tracker-api/.github/workflows/release.yml@refs/heads/main
+    expected_issuer: https://token.actions.githubusercontent.com
+    expected_builder_id: https://github.com/actions/runner
+    expected_source_uri: git+https://github.com/example/repair-tracker-api
+    require_transparency_log: true
+    require_keyless: true
+  # Phase 7 — CI/CD hardening. /pipeline generates + /security audits against this (lib/pipeline-lint.ts).
+  ci:
+    provider: github-actions
+    oidc_identity: https://github.com/example/repair-tracker-api/.github/workflows/release.yml@refs/heads/main
+    require_oidc: true
+    require_pinned_actions: true
+    required_steps: [osv-scanner, semgrep, cosign, trivy]
+  # Phase 7 — Quarkus ships a container image; scan it and enforce base-image hardening.
+  container_scan:
+    scanner: trivy
+    block_severity: high
+    require_fix_available: true
+    forbid_root: true
+    require_pinned_base: true
 
 skills:
   - name: discover

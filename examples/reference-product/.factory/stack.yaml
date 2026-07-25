@@ -53,6 +53,10 @@ commands:
 tech_bindings:
   hosting: fly.io
   cache: none
+  # Application security — a vetted provider/strategy the /security checklist audits (never rolled here).
+  auth: oidc                        # landlord login + contractor device token — A01/A07, API BOLA/BFLA
+  session: signed-cookie            # web session strategy — A07 (rotation, lifetime, secure/HttpOnly/SameSite)
+  tls: lets-encrypt                 # public transport — /deploy hard-gates via lib/tls-verify.ts (chain, ≥TLS1.2, HSTS)
   # Phase 6 — mobile store release. Records the target + WHICH CI holds the signing material,
   # never the secret value. /deploy verifies the release manifest via lib/mobile-release-verify.ts.
   mobile_release:
