@@ -7,7 +7,9 @@
 #
 # Everything below the required core (tech_stack, commands) is OPTIONAL and
 # commented. Uncomment and fill what the product needs; a skill skips any gate
-# whose binding is absent. 
+# whose binding is absent. `/plan-arch` DECIDES which apply, fills them, and then
+# PRUNES the rest — the committed file holds your decisions, not this catalogue.
+# (Security/release bindings are /plan-arch-written and /security-audited.)
 #
 # Run `fac sync-context` after any change.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -45,7 +47,7 @@ tech_bindings: {}
   # cache: redis                     # 'none' if unused
   # db: postgres
 
-  # ── application security (audited by /security; bind a vetted provider, never roll your own) ──
+  # ── application security (/plan-arch decides these; /security audits them — bind a vetted provider, never roll your own) ──
   # auth: oidc                       # authn/authz provider/strategy — /security A01/A07, API BOLA/BFLA
   # session: redis-session           # session strategy — /security A07 (fixation, lifetime, cookie flags)
   # crypto: aws-kms                   # encryption / key management — /security A02 (no rolled-your-own)

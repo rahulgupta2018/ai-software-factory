@@ -86,6 +86,32 @@ export function applySkillPrefix(content: string, prefix: string): string {
   );
 }
 
+/** Skill names whose `/<name>` collides with a common non-command path — left un-prefixed in prose. */
+export const PREFIX_EXCLUDE = new Set<string>(['health']); // /health is also the canonical health endpoint
+
+/**
+ * Rewrite command references `/<skill>` → `/<prefix><skill>` in a skill's prose, so an installed
+ * skill points at its siblings by their installed name (`/fac-plan-arch`, not `/plan-arch`).
+ *
+ * Careful about false positives: a `/<name>` inside a URL or path (`https://host/review`,
+ * `.../02-plan-arch.md`) is NOT a command and is skipped via a lookbehind that rejects a preceding
+ * host/path char; a `--step plan-arch` has no leading `/`; and `health` is excluded outright because
+ * `/health` is the canonical health-check endpoint (in `/canary`, `/qa`). Pure string op.
+ */
+export function applyCommandPrefix(content: string, skillNames: readonly string[], prefix: string): string {
+  const names = skillNames.filter((n) => !PREFIX_EXCLUDE.has(n)).sort((a, b) => b.length - a.length);
+  let out = content;
+  for (const name of names) {
+    out = out.replace(new RegExp(`(?<![\\w./:-])/${name}(?![\\w-])`, 'g'), `/${prefix}${name}`);
+  }
+  return out;
+}
+
+/** Both install-time content transforms: prefix the frontmatter name AND the command cross-refs. */
+export function transformForInstall(content: string, skillNames: readonly string[], prefix: string): string {
+  return applyCommandPrefix(applySkillPrefix(content, prefix), skillNames, prefix);
+}
+
 /** Legacy install paths a prior layout left behind, to be removed before a fresh install. */
 export function legacyPaths(home: string): string[] {
   return [join(home, '.claude', 'skills', 'factory')];

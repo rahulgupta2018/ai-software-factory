@@ -3,6 +3,35 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.51.0.0] — 2026-07-28
+
+**`/plan-arch` now produces a real architecture *document* — with diagrams, a module map, and a decided (not templated) stack — and every installed skill cross-references its siblings by their real `/fac-` command name.**
+
+Reviewing what the Factory actually produced on a real product surfaced two things: `/plan-arch`
+wrote a solid *decision* but a thin *design* (no diagrams, no module structure, a stack file still
+full of commented template), and the installed skills invoked as `/fac-<name>` while their prose
+still said `/plan-arch`.
+
+### Changed — `/plan-arch` produces an architecture document
+- **Diagrams.** It now produces a **component/module diagram** and a **sequence diagram** for the
+  tightest-NFR or hard-gate flow, as Mermaid validated with `fac diagram check` and embedded in the
+  record.
+- **A design, not a sentence.** The record now carries the **module map + dependency (layering)
+  rule**, the **concurrency & error-handling boundaries**, and the **test strategy** — not just the
+  stack values.
+- **The stack is decisions, not a template.** After writing `stack.yaml`, `/plan-arch` **prunes every
+  commented catalogue block it didn't fill** (no `com.example.app` leftover, no duplicate binding),
+  and **actively decides the security/release bindings** that apply (a dependency manifest →
+  `supply_chain`; a CI release → `ci`/`provenance`; a server → `auth`/`tls`; etc.).
+- **Ownership made explicit:** security bindings are **`/plan-arch`-written, `/security`-audited** —
+  stated in the skill and the stack template so gates stop being treated as optional extras.
+
+### Fixed — installed skills reference each other by their `/fac-` name
+- The Claude install now rewrites command cross-references in a skill's prose (`` `/plan-arch` `` →
+  `` `/fac-plan-arch` ``), not just the frontmatter name — so handoffs and generated artefacts point
+  at the commands you can actually type. URLs, artifact paths, `--step` args, and the `/health`
+  **endpoint** (in `/fac-canary`/`/fac-qa`) are deliberately left untouched.
+
 ## [0.50.0.0] — 2026-07-25
 
 **`fac uninstall` reverses the install — so you can test the whole install → uninstall → reinstall loop from a clean state.**

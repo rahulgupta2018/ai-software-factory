@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.1.0"
-  last_updated: 2026-07-22
+  version: "0.2.0"
+  last_updated: 2026-07-28
   layer: "Plan"
   priority: "V1"
 ---
@@ -74,6 +74,21 @@ Activate when:
 - **Guardrails and escalation are load-bearing.** `guardrails.budget.warn_tokens` feeds the run
   harness's measure-and-warn; `escalation_policy.triggers` decide which gates are *hard* (never
   batched). Set them from the PRD's risk surface, not boilerplate.
+- **The record is an architecture *document*, not a one-liner.** `02-plan-arch.md` carries the
+  design, not just the stack values: the **module map** and the **dependency (layering) rule**, at
+  least a **component diagram** and one **sequence diagram** for the critical NFR- or gate-bearing
+  flow (produced with `fac diagram`, Mermaid → validated), the **concurrency & error-handling
+  boundaries**, and the **test strategy** (where the reference suite / golden vectors come from). A
+  prose-only note is a *decision* record, not a *design*.
+- **The stack is decisions, not a template.** `stack.yaml` is a committed design record — it holds
+  what you *chose*. After writing, **prune every commented catalogue block you did not fill**: ship
+  no `com.example.app` placeholder and no duplicate binding.
+- **Security bindings are yours to decide.** `/plan-arch` *writes* the security/release bindings;
+  `/security` *audits* them — it never originates them. Walk the gates that apply to this stack and
+  fill them — a **dependency manifest** → `supply_chain` (SCA/SBOM); a **CI release** → `ci` +
+  `provenance`; a **server/API/web surface** → `auth`/`session`/`crypto`/`tls`; a **container image**
+  → `container_scan`; a **public preview** → `dast`; a **mobile store release** → `mobile_release`.
+  Drop the genuinely-N/A ones (delete the block); don't leave a missing gate for `/security` to find.
 
 ## Workflow
 
@@ -87,33 +102,58 @@ Freedom level: **medium** — follow the sequence, adapt the stack to the PRD.
    sensitive), and the options/open questions `/discover` already weighed — don't re-litigate them.
 3. **Choose the shape.** Decide languages and components (e.g. `api`, `web`, `db`). For each
    component pick a framework and, where relevant, db/css. Default to the vendored TypeScript/
-   React path; justify any deviation against the PRD.
+   React path; justify any deviation against the PRD. Sketch the **module map** (the packages within
+   each component — e.g. `engine`, `coach`, `persistence`, `ui`) and the **dependency rule** (which
+   layer may import which; the domain core depends on nothing) — you'll record these in step 10.
 4. **Define commands per component.** `test`, `build`, `lint`, `typecheck`, plus a top-level
-   `deploy`. These are what the build loop and `/qa`/`/ship` actually run — get them right.
+   `deploy` (or `deploy_apple`/`deploy_google` for a mobile store release). These are what the build
+   loop and `/qa`/`/ship` actually run — get them right.
 5. **Select craft skills.** List the skills the build loop composes in `skills[]`. For each, make
    sure the `${ctx.*}` keys it binds are populated by the stack you chose — verify against the
    merged `.factory/context.gen.yaml` (after `fac sync-context`). Note `fac vendor:check` does *not*
    validate your product: it checks the Factory's own vendored skills against the Factory reference
    product.
-6. **Set guardrails + escalation.** From the PRD's risk surface: `budget.warn_tokens`,
+6. **Decide the security & release bindings.** Walk the applicable gates for *this* stack and fill
+   the ones that apply, using the catalogue in `templates/stack.template.yaml`: a **dependency
+   manifest** (npm/pub/PyPI/Maven) → `supply_chain`; a **CI release** → `ci` + `provenance`; a
+   **server/API/web surface** → `auth`/`session`/`crypto`/`tls`; a **container image** →
+   `container_scan`; a **public preview** → `dast`; a **mobile store release** → `mobile_release`.
+   These are `/plan-arch`'s to write — `/security` audits them, it doesn't originate them. Note the
+   genuinely-N/A gates and why (one line each) so the decision is visible.
+7. **Set guardrails + escalation.** From the PRD's risk surface: `budget.warn_tokens`,
    `pii_handling`, `secrets`, `prohibited_data`, and `escalation_policy.triggers` (the
    operations that must stop and ask — these become hard gates).
-7. **Write `.factory/stack.yaml`.** The machine half only. **Never touch `PRD.md`'s frontmatter
-   keys** (`product`, `domain`, `meta`) — that is an ownership violation.
-8. **Sync + validate.** Run `fac sync-context` (merges → `.factory/context.gen.yaml` +
+8. **Write `.factory/stack.yaml`, then prune it.** The machine half only. **Never touch `PRD.md`'s
+   frontmatter keys** (`product`, `domain`, `meta`) — that is an ownership violation. Then **delete
+   every commented catalogue block you did not fill** — the committed file is your decisions, not
+   the template menu (no `com.example.app` leftover, no duplicate binding).
+9. **Sync + validate.** Run `fac sync-context` (merges → `.factory/context.gen.yaml` +
    `.agents/project-context.yaml`, Ajv-validated), then inspect the merged context to confirm every
    `skills[]` entry's `${ctx.*}` keys are present.
-9. **Record the decision as a run artifact.** Under an active run, write the architecture
-   rationale so the build loop resumes from it and the "why" survives:
-   ```bash
-   fac run artifact --seq 2 --step plan-arch --inputs PRD.md,.factory/runs/$RUN/01-discover.md --body-file arch-notes.md
-   ```
-   Record **what plan-arch reads** — `PRD.md` and the discovery record — as inputs; a change to
-   either re-runs `plan-arch` (make-like cascade). Do **not** list `.factory/stack.yaml`: that is
-   plan-arch's own *output*, and recording it would make a stack edit re-run the step that wrote it.
-   When there is no discovery record (a hand-authored PRD), use just `--inputs PRD.md`.
-10. **Hand off.** Point the user to the build loop: implement V1 features, then `/review`,
-    `/qa`, `/ship`.
+10. **Diagram the architecture.** Produce, as Mermaid validated with `fac diagram check`, at least:
+    a **component/module diagram** (the components, their modules, the data store, and the
+    dependency arrows) and **one sequence diagram** for the flow with the tightest NFR or a hard gate
+    (e.g. the < 300 ms coach path through a worker isolate; or merge → provenance-gate → deploy).
+    ```bash
+    fac diagram check --file arch-component.mmd     # validate before embedding
+    ```
+    Embed the fenced ```mermaid blocks in the record (step 11); optionally render with
+    `fac diagram svg|html`.
+11. **Record the decision as a run artifact.** Under an active run, write the architecture
+    *document* — not just the stack values, but the **module map + dependency rule**, the
+    **diagrams** from step 10, the **concurrency & error-handling boundaries** (what runs off the
+    main thread / in a worker, what crosses that boundary, how errors surface — Result types vs
+    throws), and the **test strategy** (the reference suite / golden vectors and where they come
+    from). This is what makes the build loop resume from a design, not a sentence:
+    ```bash
+    fac run artifact --seq 2 --step plan-arch --inputs PRD.md,.factory/runs/$RUN/01-discover.md --body-file arch-notes.md
+    ```
+    Record **what plan-arch reads** — `PRD.md` and the discovery record — as inputs; a change to
+    either re-runs `plan-arch` (make-like cascade). Do **not** list `.factory/stack.yaml`: that is
+    plan-arch's own *output*, and recording it would make a stack edit re-run the step that wrote it.
+    When there is no discovery record (a hand-authored PRD), use just `--inputs PRD.md`.
+12. **Hand off.** Point the user to `/plan-design` (if any component has a UI) and then the build
+    loop: implement V1 features, then `/review`, `/qa`, `/ship`.
 
 ## Practical Guidance
 
@@ -139,10 +179,15 @@ Output: .factory/stack.yaml —
           commands: bun test/build/lint/typecheck per component; deploy "fly deploy"
           tech_bindings: hosting fly.io, cache none
           skills: discover, fullstack-developer, tdd-red-green-refactor, typed-service-contracts
+          tech_bindings.supply_chain (npm deps) + ci + provenance (CI release); no container/dast (no image/preview)
           guardrails.budget.warn_tokens: 400000
           escalation_policy.triggers: ["schema migration on live data",
                                        "anything touching contractor payments"]
-        + run artifact 02-plan-arch.md (rationale, inputs: PRD.md + 01-discover.md). Handoff → build loop.
+        + stack.yaml PRUNED (only the bindings decided; no commented catalogue left)
+        + run artifact 02-plan-arch.md — module map (api: routes/handlers/db; web: ui/state) +
+          dependency rule + a Mermaid component diagram + a sequence diagram for the "log a repair"
+          write path + concurrency/error boundaries + test strategy. inputs: PRD.md + 01-discover.md.
+        Handoff → /plan-design (web UI) → build loop.
 ```
 
 ## Guidelines
@@ -166,6 +211,13 @@ Output: .factory/stack.yaml —
    Make it real or make it a V1 task.
 4. **Over-scoped stack**: a component per idea inflates build/test/run cost. Ship the smallest V1.
 5. **Vague escalation triggers**: they decide hard gates. Keep them specific and testable.
+6. **A prose-only record**: no diagram, no module map = a decision note, not an architecture. Draw
+   the component + sequence diagrams and state the layering rule.
+7. **Shipping the template**: leaving the commented binding catalogue (or a duplicate
+   `mobile_release`) in `stack.yaml` clutters a design record. Prune to what you decided.
+8. **Skipping the security decision**: leaving every security binding commented on a product that
+   has dependencies, a CI release, or a server is under-design. Decide each gate; `/security` audits
+   what you wrote, it can't audit what you never declared.
 
 ## Integration
 
@@ -175,6 +227,11 @@ Output: .factory/stack.yaml —
 - `vendor:check` (`fac vendor:check`) — a *Factory-repo* integrity check (vendored skills intact,
   bindings resolve against the Factory reference product). It does **not** validate your product's
   stack — use the merged `.factory/context.gen.yaml` for that.
+- `diagram` (`fac diagram`) — validates (`check`) and renders (`svg`/`html`) the Mermaid component
+  and sequence diagrams the record embeds.
+- `security` — *audits* the security/release bindings `/plan-arch` writes into `stack.yaml`; it does
+  not originate them, so decide them here.
+- `plan-design` — the next stage when a component has a UI, before the build loop.
 - Run harness (`fac run`) — records the architecture decision as `02-plan-arch.md`; resume
   re-runs this step when `PRD.md` or the discovery record changes.
 - `fullstack-developer`, `tdd-red-green-refactor`, `typed-service-contracts` (craft) — implement

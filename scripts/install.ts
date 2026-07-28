@@ -27,7 +27,7 @@ import {
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
-import { applySkillPrefix, INSTALL_PREFIX, planInstall, type InstallEntry } from '../lib/install-plan.ts';
+import { INSTALL_PREFIX, planInstall, transformForInstall, type InstallEntry } from '../lib/install-plan.ts';
 import { skillNames } from './gen-skill-docs.ts';
 
 const ROOT = join(import.meta.dir, '..');
@@ -51,13 +51,13 @@ function pathPresent(p: string): boolean {
 }
 
 /** Apply one install entry. Idempotent: an existing target is removed first. */
-function applyEntry(entry: InstallEntry): void {
+function applyEntry(entry: InstallEntry, skills: readonly string[]): void {
   rmSync(entry.dest, { recursive: true, force: true });
   if (entry.kind === 'skill') {
-    // Copy just the generated SKILL.md, its frontmatter name prefixed so it invokes as /fac-<name>.
+    // Copy just the generated SKILL.md, transformed so it invokes AND cross-references as /fac-<name>.
     mkdirSync(entry.dest, { recursive: true });
     const content = readFileSync(join(entry.source, 'SKILL.md'), 'utf-8');
-    writeFileSync(join(entry.dest, 'SKILL.md'), applySkillPrefix(content, INSTALL_PREFIX));
+    writeFileSync(join(entry.dest, 'SKILL.md'), transformForInstall(content, skills, INSTALL_PREFIX));
     return;
   }
   mkdirSync(dirname(entry.dest), { recursive: true });
@@ -96,12 +96,13 @@ interface HostResult {
 function main(): void {
   const dryRun = hasFlag('--dry-run');
   const asJson = hasFlag('--json');
+  const skills = skillNames();
   const plan = planInstall({
     root: ROOT,
     home: homedir(),
     platform: process.platform,
     availableClis: detectClis(['claude', 'codex']),
-    skills: skillNames(),
+    skills,
   });
 
   // Remove any stale prior-layout install first (the old ~/.claude/skills/factory nesting).
@@ -137,7 +138,7 @@ function main(): void {
       r.reason = `would ${entry.method}`;
       continue;
     }
-    applyEntry(entry);
+    applyEntry(entry, skills);
     if (verifyEntry(entry)) r.installed++;
     else r.failed++;
   }

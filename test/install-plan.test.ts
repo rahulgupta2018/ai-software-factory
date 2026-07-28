@@ -4,7 +4,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  applyCommandPrefix,
   applySkillPrefix,
+  transformForInstall,
   BUN_PATH_MARKER,
   INSTALL_PREFIX,
   isFactorySkillDir,
@@ -148,5 +150,46 @@ describe('uninstall helpers', () => {
     const once = stripBunPathBlock(withOurs);
     expect(once).toBe(bunOwn); // our block (and the blank we added) gone, Bun's kept
     expect(stripBunPathBlock(once)).toBe(once); // idempotent — no marker, no change
+  });
+});
+
+describe('applyCommandPrefix — prefix command refs, never URLs/paths/endpoints', () => {
+  const names = ['plan-arch', 'plan-design', 'discover', 'qa', 'review', 'ship', 'health', 'canary'];
+  const px = (s: string) => applyCommandPrefix(s, names, 'fac-');
+
+  test('rewrites a command reference (backticked or bare)', () => {
+    expect(px('hand off to `/plan-arch`')).toBe('hand off to `/fac-plan-arch`');
+    expect(px('→ /plan-design (UI)')).toBe('→ /fac-plan-design (UI)');
+  });
+
+  test('leaves a URL path alone (not a command)', () => {
+    expect(px('hit https://app.example.com/review now')).toBe('hit https://app.example.com/review now');
+  });
+
+  test('leaves an artifact path alone', () => {
+    expect(px('.factory/runs/$RUN/02-plan-arch.md')).toBe('.factory/runs/$RUN/02-plan-arch.md');
+  });
+
+  test('leaves a --step arg alone (no leading slash)', () => {
+    expect(px('fac run artifact --step plan-arch --seq 2')).toBe('fac run artifact --step plan-arch --seq 2');
+  });
+
+  test('excludes /health — it is also the health-check endpoint', () => {
+    expect(px('fac browse goto https://x/health')).toBe('fac browse goto https://x/health');
+    expect(px('probe `/health` on an interval')).toBe('probe `/health` on an interval');
+  });
+
+  test('does not double-prefix', () => {
+    expect(px(px('run `/review`'))).toBe('run `/fac-review`');
+  });
+});
+
+describe('transformForInstall — name + cross-refs together', () => {
+  test('prefixes the frontmatter name AND the body command refs', () => {
+    const src = '---\nname: plan-arch\n---\nhand off to `/review`, then `/qa`';
+    const out = transformForInstall(src, ['plan-arch', 'review', 'qa'], 'fac-');
+    expect(out).toContain('name: fac-plan-arch');
+    expect(out).toContain('`/fac-review`');
+    expect(out).toContain('`/fac-qa`');
   });
 });
