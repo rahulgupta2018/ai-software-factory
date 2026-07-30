@@ -36,6 +36,21 @@ export interface HostConfig {
     /** Sidecar filename, e.g. 'openai.yaml'. */
     metadataFile?: string;
   };
+
+  /**
+   * Prompt-cache capability for the Factory's own structured model calls (see lib/prompt-cache.ts).
+   * Omit (or `supported: false`) for a host without prompt caching — the planner then places no
+   * breakpoints. The Factory's stable-first prompt layout is what makes a cached prefix worthwhile.
+   */
+  caching?: {
+    supported: boolean;
+    /** Provider breakpoint budget (Anthropic = 4). */
+    maxBreakpoints: number;
+    /** Minimum cacheable prefix; below this, caching does not pay off (Anthropic ~1024 tokens). */
+    minPrefixTokens: number;
+    /** Cache TTL to request. */
+    ttl: '5m' | '1h';
+  };
 }
 
 /** Filter a parsed frontmatter mapping per this host's rules, preserving key order. */

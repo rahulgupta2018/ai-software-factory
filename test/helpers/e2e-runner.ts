@@ -27,6 +27,14 @@ import { join } from 'node:path';
 import { getHost } from '../../hosts/index.ts';
 import { renderSkill, templatePath } from '../../scripts/gen-skill-docs.ts';
 import type { EvalTier } from '../../lib/eval-select.ts';
+import {
+  assertStableFirst,
+  cacheOptionsFor,
+  flattenSegments,
+  planCache,
+  type CachePlan,
+  type PromptSegment,
+} from '../../lib/prompt-cache.ts';
 
 export interface E2EExpectation {
   /** Substrings the transcript MUST contain (case-insensitive). The artifact/handoff signal. */
@@ -126,10 +134,36 @@ export function skillSection(name: string, headings: string[]): string {
   return out.join('\n\n');
 }
 
+/**
+ * Assemble the scenario as ordered cache segments: the extracted skill section is STABLE (identical
+ * across runs, cacheable), the task prompt is VOLATILE (per-run). Stable-first, so a cached prefix is
+ * possible; `assembleInput` flattens these and a structured runner can pass them to `planCache`.
+ */
+export function assembleSegments(scenario: E2EScenario): PromptSegment[] {
+  const section = skillSection(scenario.skill, scenario.context_headings);
+  const segments: PromptSegment[] = [
+    { kind: 'stable', label: `skill:${scenario.skill}`, text: section },
+    { kind: 'volatile', label: 'task', text: `${scenario.prompt}\n` },
+  ];
+  assertStableFirst(segments, `scenario '${scenario.skill}'`); // guard the cache invariant on real assembly
+  return segments;
+}
+
 /** Assemble the full agent input for a scenario: the extracted skill section + the task prompt. */
 export function assembleInput(scenario: E2EScenario): string {
-  const section = skillSection(scenario.skill, scenario.context_headings);
-  return `${section}\n\n---\n\n${scenario.prompt}\n`;
+  return flattenSegments(assembleSegments(scenario));
+}
+
+/** The cache plan for a scenario on a given host — for a structured runner that sets `cache_control`. */
+export function planScenarioCache(scenario: E2EScenario, hostName = 'claude'): CachePlan {
+  const host = getHost(hostName);
+  if (!host) throw new Error(`unknown host '${hostName}'`);
+  const opts = cacheOptionsFor(host);
+  const segments = assembleSegments(scenario);
+  // No caching on this host → an empty plan (no breakpoints), still stable-first-validated.
+  return opts
+    ? planCache(segments, opts)
+    : { segments: segments.map((s) => ({ ...s, tokens: 0, cache: false })), breakpoints: [], cachedPrefixTokens: 0, marker: { type: 'ephemeral', ttl: '5m' } };
 }
 
 /**

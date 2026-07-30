@@ -3,6 +3,34 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.56.0.0] — 2026-07-30
+
+Two changes: a prompt-cache mechanism for the Factory's own model calls, and motion joins the
+design-system primitives that `/plan-design` emits as code.
+
+### Added — prompt-cache breakpoint planner (`lib/prompt-cache.ts`)
+- A pure planner that decides where `cache_control` breakpoints go so a repeated run re-reads the
+  stable prefix (ethos + preamble + skill body) from cache instead of paying full input price. It
+  caps at the provider's breakpoint budget, skips a below-threshold prefix, and places breakpoints at
+  the stable boundaries nearest the volatile suffix (a break after the shared preamble lets different
+  skills reuse it).
+- **Host declaration** — `HostConfig.caching` records each host's support: Claude (ephemeral, 4
+  breakpoints, 1h TTL), Codex (unsupported → no breakpoints emitted).
+- **Stable-first invariant enforced** — the Factory's prompt assembly (`assembleSegments`) is now
+  validated stable-first, so a later edit can't reorder a volatile segment ahead of a stable one and
+  silently bust the cache. Fully offline unit-tested (planner + host declaration + negatives).
+- Note: the interactive `/fac-*` path is cached automatically by the host CLI (Claude Code); this
+  mechanism serves the Factory-driven structured calls (eval model-judge, `/second-opinion`) and any
+  future direct Messages-API host, and keeps the layout they all rely on honest.
+
+### Changed — `/plan-design` emits motion as a code primitive
+- Motion was the one primitive still shipped as a prose table the build had to "transcribe into
+  tickets". It now joins spacing/radius/elevation/type/component-states: a **motion scale** (named
+  durations + easing + reduced-motion fallback) emitted **as code** (`AppMotion` / `--duration-*`),
+  wired into the Core Concept, Workflow step 3, Guideline 3, and Gotcha 6.
+- **Eval:** the `tokens-and-primitives-defined` rubric dimension gains a required `motion scale`
+  anchor — verified 1.00 on the real body, 0.80 (fail) when the motion primitive is stripped.
+
 ## [0.55.0.0] — 2026-07-29
 
 **`/plan-design` now emits the screen-flow as one Mermaid diagram per navigation cluster, stacked vertically — so each is readable at full width instead of crammed side-by-side.**

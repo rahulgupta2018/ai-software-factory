@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.4.0"
-  last_updated: 2026-07-29
+  version: "0.5.0"
+  last_updated: 2026-07-30
   layer: "Plan"
   priority: "V1"
 ---
@@ -72,11 +72,14 @@ Activate when:
 - **Primitives are defined here, not deferred.** The design-token layer is mandatory and concrete —
   a **spacing scale** (base unit + steps), a **radius scale**, an **elevation/shadow scale**, a
   **complete type scale** (size + weight + line-height + letter-spacing per role, not just
-  size/font), and a **component-state matrix** (padding/radius/border/elevation across
-  default/pressed/disabled/focus/error). Emit them **as code** — CSS custom properties + a
-  theme/Tailwind config (web) or a Dart `ThemeData` + token file (mobile). "Define the spacing scale
-  before the first widget" is not a hand-off note — it *is* this skill's job. A design the build
-  implements *verbatim* cannot leave the grid, radii, elevation, or component states undefined.
+  size/font), a **component-state matrix** (padding/radius/border/elevation across
+  default/pressed/disabled/focus/error), and a **motion scale** (named durations + easing curves per
+  interaction, mapped to the widgets that use them). Emit them **as code** — CSS custom properties +
+  a theme/Tailwind config (web) or a Dart `ThemeData` + token file (mobile). "Define the spacing
+  scale before the first widget" is not a hand-off note — it *is* this skill's job. A design the
+  build implements *verbatim* cannot leave the grid, radii, elevation, component states, or motion
+  durations undefined — a prose motion table the build must "transcribe into tickets" is a deferred
+  primitive, not a defined one.
 - **The navigation is mapped completely, not sketched.** The spec includes *every* screen (incl.
   onboarding, modals, sheets, empty/error/permission routes), a **navigation graph** of every
   `screen → action → screen` transition (with back/entry behaviour), and a **Mermaid screen-flow
@@ -114,6 +117,10 @@ Freedom level: **medium** — follow the sequence, adapt the design to the brief
      (not just size + font).
    - **Component-state matrix** — for each interactive component, its padding / radius / border /
      elevation across **default / pressed (hover) / disabled / focus / error**.
+   - **Motion scale** — named durations + easing curves per interaction (deal, reveal, sheet slide,
+     feedback), each mapped to the widget/animation that uses it, emitted as a token file
+     (`AppMotion` / `--duration-*` + `--ease-*`) plus the reduced-motion fallback — not a prose table
+     the build must transcribe into tickets.
    - **Colour tokens** — named, with role and verified contrast pairs.
    Emit the whole system as code: **web** (`modern-css-design-systems`) → CSS custom properties + a
    theme/Tailwind config, plus the accessible component inventory (shadcn/Radix) + responsive
@@ -184,7 +191,8 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
                      signature = a "repair timeline" strip
           primitives (as code): spacing scale 4/8/12/16/24/32; radii sm4/md8/lg16; elevation e0/e1/e2;
                      type scale (display 24/700/1.2, body 16/400/1.5, mono 14/500/1.4 with letter-spacing);
-                     component-state matrix (button/input/card × default/pressed/disabled/focus/error)
+                     component-state matrix (button/input/card × default/pressed/disabled/focus/error);
+                     motion scale (fast 120ms / base 200ms / slow 320ms, ease-out + reduced-motion)
           tokens:    colour/space/type/radius as CSS custom properties + theme config; dark mode by value-swap
           components: shadcn/Radix inventory (dialog, table, form, toast); container-query cards
           navigation: full screen inventory (onboarding, list, detail, assign-sheet, empty/error)
@@ -203,8 +211,9 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
 1. Read the stack; design only components that have a UI. API-only → no-op, hand back.
 2. Never write `tech_stack`/`commands`/`skills` — that's `/plan-arch`. Read them, don't touch them.
 3. Define the full token & primitive system — spacing scale, radius scale, elevation scale, a
-   complete type scale (size/weight/line-height/letter-spacing), and a component-state matrix — and
-   **emit it as code**. Never defer a primitive to "open for build loop"; that is this skill's job.
+   complete type scale (size/weight/line-height/letter-spacing), a component-state matrix, and a
+   motion scale (durations + easing) — and **emit it as code**. Never defer a primitive to "open for
+   build loop"; that is this skill's job.
 4. Map the navigation completely: every screen (incl. onboarding, modals, empty/error routes), every
    `screen → action → screen` edge with entry/back behaviour, and a Mermaid screen-flow diagram —
    emitted as **one diagram per navigation cluster, stacked** (never one crammed multi-subgraph
@@ -226,10 +235,11 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
    mode this skill exists to prevent.
 5. **Spec too vague to build**: unnamed tokens and hand-wavy components force the build loop to
    guess. Make the spec implementable verbatim.
-6. **Deferring the primitives**: pushing the spacing scale, radii, elevation, or component states to
-   "open for build loop" means the build *improvises* them — the exact opposite of "implements
-   verbatim". Define every primitive here, as code. This is the most common way a strong direction
-   still ships a thin spec.
+6. **Deferring the primitives**: pushing the spacing scale, radii, elevation, component states, or
+   motion durations to "open for build loop" means the build *improvises* them — the exact opposite
+   of "implements verbatim". Define every primitive here, as code (motion included — a durations/
+   easing table the build must "transcribe into tickets" is a deferred primitive). This is the most
+   common way a strong direction still ships a thin spec.
 7. **Primary flows mistaken for the map**: 5 happy paths + an IA tree is a *sketch*, not the
    navigation map. Enumerate every screen (onboarding, modals, empty/error routes) and every
    `screen → action → screen` edge, and draw the Mermaid screen-flow — or the build invents the

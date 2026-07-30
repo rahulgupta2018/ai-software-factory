@@ -21,6 +21,15 @@ export const claude: HostConfig = {
   generation: {
     generateMetadata: false,
   },
+  // Claude supports prompt caching (ephemeral, up to 4 breakpoints). The interactive CLI caches
+  // automatically; these options drive Factory-owned structured calls (eval model-judge,
+  // /second-opinion) via lib/prompt-cache.ts. 1h TTL suits repeated runs within a working session.
+  caching: {
+    supported: true,
+    maxBreakpoints: 4,
+    minPrefixTokens: 1024,
+    ttl: '1h',
+  },
 };
 
 export default claude;

@@ -19,6 +19,14 @@ export const codex: HostConfig = {
     generateMetadata: true,
     metadataFile: 'openai.yaml',
   },
+  // Codex exposes no prompt-cache breakpoint primitive to the Factory — declare it unsupported so
+  // the planner places no breakpoints rather than emitting markers the host would ignore.
+  caching: {
+    supported: false,
+    maxBreakpoints: 0,
+    minPrefixTokens: 0,
+    ttl: '5m',
+  },
 };
 
 export default codex;

@@ -35,9 +35,9 @@
     },
     {
       "name": "tokens-and-primitives-defined",
-      "criterion": "Defines the full token/primitive system (spacing scale, radius, elevation, complete type scale, component-state matrix) as code — never deferred.",
+      "criterion": "Defines the full token/primitive system (spacing scale, radius, elevation, complete type scale, component-state matrix, motion scale) as code — never deferred.",
       "weight": 3,
-      "anchors": { "require_all": ["spacing scale", "component-state matrix", "as code", "line-height"] }
+      "anchors": { "require_all": ["spacing scale", "component-state matrix", "as code", "line-height", "motion scale"] }
     },
     {
       "name": "complete-navigation-map",
