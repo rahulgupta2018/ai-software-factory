@@ -34,6 +34,18 @@
       "anchors": { "any": ["Never write", "reads it", "never writes it"], "min_any": 1 }
     },
     {
+      "name": "tokens-and-primitives-defined",
+      "criterion": "Defines the full token/primitive system (spacing scale, radius, elevation, complete type scale, component-state matrix) as code — never deferred.",
+      "weight": 3,
+      "anchors": { "require_all": ["spacing scale", "component-state matrix", "as code", "line-height"] }
+    },
+    {
+      "name": "complete-navigation-map",
+      "criterion": "Maps every screen and every screen→action→screen transition, plus a Mermaid screen-flow emitted as one diagram per navigation cluster (stacked, readable) — not just the primary flows and an IA tree.",
+      "weight": 3,
+      "anchors": { "require_all": ["screen inventory", "navigation graph", "screen-flow", "Mermaid", "one diagram per navigation cluster"] }
+    },
+    {
       "name": "records-run-artifact",
       "criterion": "Records the UI spec via the run harness so the build resumes from it.",
       "weight": 1,

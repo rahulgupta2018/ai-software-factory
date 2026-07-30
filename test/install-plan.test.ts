@@ -6,6 +6,10 @@ import { describe, expect, test } from 'bun:test';
 import {
   applyCommandPrefix,
   applySkillPrefix,
+  classifySkillSync,
+  compareVersions,
+  isDrift,
+  parseSkillVersion,
   transformForInstall,
   BUN_PATH_MARKER,
   INSTALL_PREFIX,
@@ -191,5 +195,65 @@ describe('transformForInstall — name + cross-refs together', () => {
     expect(out).toContain('name: fac-plan-arch');
     expect(out).toContain('`/fac-review`');
     expect(out).toContain('`/fac-qa`');
+  });
+});
+
+describe('parseSkillVersion — read the frontmatter version', () => {
+  const front = (v: string) =>
+    `---\nname: plan-design\nmetadata:\n  version: ${v}\n  last_updated: 2026-07-28\n---\nbody version: 9.9.9`;
+
+  test('reads an unquoted version', () => {
+    expect(parseSkillVersion(front('0.3.0'))).toBe('0.3.0');
+  });
+
+  test('reads a quoted version (template form)', () => {
+    expect(parseSkillVersion(front('"0.3.0"'))).toBe('0.3.0');
+  });
+
+  test('stays inside the frontmatter — a body "version:" is ignored (negative)', () => {
+    // The body carries `version: 9.9.9`; the parser must return the frontmatter's 0.3.0, not that.
+    expect(parseSkillVersion(front('0.3.0'))).toBe('0.3.0');
+  });
+
+  test('returns null when there is no version and for empty input (negative)', () => {
+    expect(parseSkillVersion('---\nname: x\n---\nno version here')).toBeNull();
+    expect(parseSkillVersion('')).toBeNull();
+  });
+});
+
+describe('compareVersions — dotted numeric order', () => {
+  test('orders lower before higher across each segment', () => {
+    expect(compareVersions('0.1.0', '0.3.0')).toBe(-1);
+    expect(compareVersions('0.3.0', '0.1.0')).toBe(1);
+    expect(compareVersions('0.2.9', '0.10.0')).toBe(-1); // numeric, not lexical
+  });
+
+  test('equal versions compare equal, incl. differing segment counts (negative)', () => {
+    expect(compareVersions('0.3.0', '0.3.0')).toBe(0);
+    expect(compareVersions('0.3', '0.3.0')).toBe(0); // missing segments count as 0
+  });
+});
+
+describe('classifySkillSync + isDrift — freshness of an installed skill', () => {
+  test('installed behind repo is stale, and stale is drift', () => {
+    expect(classifySkillSync('0.3.0', '0.1.0')).toBe('stale');
+    expect(isDrift('stale')).toBe(true);
+  });
+
+  test('not installed is missing, and missing is drift', () => {
+    expect(classifySkillSync('0.3.0', null)).toBe('missing');
+    expect(isDrift('missing')).toBe(true);
+  });
+
+  test('equal is ok and not drift; installed ahead of repo is ahead, not drift (negative)', () => {
+    expect(classifySkillSync('0.3.0', '0.3.0')).toBe('ok');
+    expect(isDrift('ok')).toBe(false);
+    expect(classifySkillSync('0.3.0', '0.4.0')).toBe('ahead');
+    expect(isDrift('ahead')).toBe(false);
+  });
+
+  test('unreadable source version is unknown, not drift (negative)', () => {
+    expect(classifySkillSync(null, '0.3.0')).toBe('unknown');
+    expect(isDrift('unknown')).toBe(false);
   });
 });

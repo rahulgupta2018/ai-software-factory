@@ -10,8 +10,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.1.0
-  last_updated: 2026-07-22
+  version: 0.4.0
+  last_updated: 2026-07-29
   layer: Plan
   priority: V1
 ---
@@ -106,6 +106,22 @@ Activate when:
 - **Wrap, don't re-derive.** Direction comes from `frontend-design`, the token system and
   accessible components from `modern-css-design-systems`, flows/IA/WCAG from `ux-designer`, charts
   from `visualization-expert`. This skill sequences them and holds the quality bar.
+- **Primitives are defined here, not deferred.** The design-token layer is mandatory and concrete —
+  a **spacing scale** (base unit + steps), a **radius scale**, an **elevation/shadow scale**, a
+  **complete type scale** (size + weight + line-height + letter-spacing per role, not just
+  size/font), and a **component-state matrix** (padding/radius/border/elevation across
+  default/pressed/disabled/focus/error). Emit them **as code** — CSS custom properties + a
+  theme/Tailwind config (web) or a Dart `ThemeData` + token file (mobile). "Define the spacing scale
+  before the first widget" is not a hand-off note — it *is* this skill's job. A design the build
+  implements *verbatim* cannot leave the grid, radii, elevation, or component states undefined.
+- **The navigation is mapped completely, not sketched.** The spec includes *every* screen (incl.
+  onboarding, modals, sheets, empty/error/permission routes), a **navigation graph** of every
+  `screen → action → screen` transition (with back/entry behaviour), and a **Mermaid screen-flow
+  diagram** — from cold-start/onboarding through every core feature. The primary user flows are a
+  *walkthrough* of that map; a handful of happy paths and an IA tree are not the map. When the map
+  spans multiple top-level clusters (tabs, sections), emit **one diagram per navigation cluster,
+  stacked one after another** — a single diagram packed with disconnected subgraphs is laid out
+  side-by-side into narrow, unreadable columns.
 - **Score every dimension 0–10.** Rate the design across a fixed set of dimensions (visual
   hierarchy, typography, colour/contrast, spacing/layout, motion, accessibility, content/microcopy,
   distinctiveness). For each, say what a 10 looks like and where this design sits — a low score is
@@ -125,14 +141,43 @@ Freedom level: **medium** — follow the sequence, adapt the design to the brief
 2. **Set the direction (`frontend-design`).** Ground it in the subject; produce a compact plan —
    palette (4–6 named values), a deliberate type pairing, a layout concept, and the one signature
    element. Do the brainstorm-then-critique pass in thinking. (Applies to web and mobile alike.)
-3. **Systematise it.** **Web** (`modern-css-design-systems`): a token system (colour/space/type/
-   radius as custom properties, themed by value), a component inventory on accessible primitives
-   (shadcn/Radix), theming/dark mode, and the responsive strategy (container queries). **Mobile**
-   (`framework: flutter`): a Material 3 / Cupertino theme, a Flutter widget inventory, platform
-   navigation, and offline/empty/error/sync states — implementation routes to `flutter-dart-expert`,
-   not the web craft skills.
-4. **Map flows + IA + a11y (`ux-designer`).** The primary user flows for the V1 features, the
-   information architecture, and the accessibility floor (focus, contrast, reduced motion, labels).
+3. **Define the tokens & primitives — the layer the build implements literally.** Not a partial
+   token list; the full system, each item concrete and emitted **as code**:
+   - **Spacing scale** — a base unit (e.g. 4dp/px) and its steps (`4, 8, 12, 16, 24, 32, 48`), plus
+     which step each layout gap / component padding uses. No "appropriate padding".
+   - **Radius scale** and **elevation/shadow scale** — named steps, each mapped to the components
+     that use it.
+   - **Complete type scale** — per role: font, size, **weight**, **line-height**, letter-spacing
+     (not just size + font).
+   - **Component-state matrix** — for each interactive component, its padding / radius / border /
+     elevation across **default / pressed (hover) / disabled / focus / error**.
+   - **Colour tokens** — named, with role and verified contrast pairs.
+   Emit the whole system as code: **web** (`modern-css-design-systems`) → CSS custom properties + a
+   theme/Tailwind config, plus the accessible component inventory (shadcn/Radix) + responsive
+   strategy (container queries). **Mobile** (`framework: flutter`) → a Dart `ThemeData` + a token
+   file, a Material 3 / Cupertino theme, a widget inventory, platform navigation, and
+   offline/empty/error/sync states — implementation routes to `flutter-dart-expert`, not the web
+   craft skills.
+4. **Map the complete navigation, not just the primary flows (`ux-designer`).** Produce, in full:
+   - **Screen inventory** — *every* screen, listed: onboarding, the core-feature screens, modals,
+     sheets, settings sub-screens, and the empty / error / permission / offline routes. Not a
+     representative subset.
+   - **Navigation graph** — *every* edge as `from-screen → trigger/action → to-screen`, including
+     back behaviour and modal dismissal. A hierarchical IA tree shows containment; this shows
+     **transitions**, and both are required.
+   - **Entry points** — how each screen is *reached*: cold start, deep link, notification,
+     background-restore.
+   - **Visual screen-flow diagram(s)** — the navigation graph as Mermaid (`flowchart` or
+     `stateDiagram`), each validated with `fac diagram check` and embedded. When the map has
+     multiple disconnected clusters (one per tab/section), emit **one diagram per navigation
+     cluster, stacked one after another** so each renders at full width — never a single diagram
+     whose disconnected subgraphs get packed into narrow side-by-side columns. Optionally lead with
+     one compact overview (cold-start → the tab set):
+     ```bash
+     fac diagram check --file nav-onboarding.mmd   # then nav-play.mmd, nav-learn.mmd, … one per cluster
+     ```
+   Then the **accessibility floor** (focus order, contrast, reduced motion, labels). The primary V1
+   flows are a *walkthrough* of this map, not a substitute for it.
 5. **Data-viz if needed (`visualization-expert`).** For any component that presents data, choose
    the honest chart type and its states.
 6. **Score 0–10 per dimension.** For each design dimension, state what a 10 looks like and where
@@ -174,10 +219,17 @@ Input:  PRD.md — Repair Tracker (log/assign/track repairs, reminders), status:
 Output: run artifact 02a-plan-design.md (ui-spec) —
           direction: palette (5 named values), display/body/utility type pairing, layout concept,
                      signature = a "repair timeline" strip
-          tokens:    color/space/type/radius as custom properties; dark mode by value-swap
+          primitives (as code): spacing scale 4/8/12/16/24/32; radii sm4/md8/lg16; elevation e0/e1/e2;
+                     type scale (display 24/700/1.2, body 16/400/1.5, mono 14/500/1.4 with letter-spacing);
+                     component-state matrix (button/input/card × default/pressed/disabled/focus/error)
+          tokens:    colour/space/type/radius as CSS custom properties + theme config; dark mode by value-swap
           components: shadcn/Radix inventory (dialog, table, form, toast); container-query cards
-          flows:     log → assign → track; IA; a11y floor (focus/contrast/reduced-motion/labels)
-          scores:    hierarchy 8, type 7, colour 8, spacing 8, motion 6, a11y pass,
+          navigation: full screen inventory (onboarding, list, detail, assign-sheet, empty/error)
+                     + navigation graph (every screen→action→screen edge, back behaviour) +
+                     one Mermaid screen-flow diagram per cluster, stacked (fac diagram check);
+                     primary flows walk the map
+          a11y:      floor (focus order/contrast/reduced-motion/labels)
+          scores:    hierarchy 8, type 8, colour 8, spacing 8, motion 6, a11y pass,
                      content 7, distinctiveness 7  (+ what a 10 looks like per dim)
           ai-slop:   revised the hero away from "big-number + gradient" default → timeline thesis
         Handoff → build loop (implement web component → /review → /qa → /ship).
@@ -187,9 +239,18 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
 
 1. Read the stack; design only components that have a UI. API-only → no-op, hand back.
 2. Never write `tech_stack`/`commands`/`skills` — that's `/plan-arch`. Read them, don't touch them.
-3. Every dimension gets a 0–10 score with a concrete gap; accessibility is pass/fail, not scored.
-4. Always run the AI-slop check before handoff; record what you revised.
-5. Record the UI spec as a run artifact so the build loop resumes from it.
+3. Define the full token & primitive system — spacing scale, radius scale, elevation scale, a
+   complete type scale (size/weight/line-height/letter-spacing), and a component-state matrix — and
+   **emit it as code**. Never defer a primitive to "open for build loop"; that is this skill's job.
+4. Map the navigation completely: every screen (incl. onboarding, modals, empty/error routes), every
+   `screen → action → screen` edge with entry/back behaviour, and a Mermaid screen-flow diagram —
+   emitted as **one diagram per navigation cluster, stacked** (never one crammed multi-subgraph
+   diagram) — not just the primary flows and an IA tree.
+4. Every dimension gets a 0–10 score with a concrete gap; accessibility is pass/fail, not scored. A
+   *missing* primitive (undefined spacing scale, radii, or states) is not a "gap to 10" — it is
+   incomplete output. Define it, then score.
+5. Always run the AI-slop check before handoff; record what you revised.
+6. Record the UI spec as a run artifact so the build loop resumes from it.
 
 ## Gotchas
 
@@ -202,6 +263,17 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
    mode this skill exists to prevent.
 5. **Spec too vague to build**: unnamed tokens and hand-wavy components force the build loop to
    guess. Make the spec implementable verbatim.
+6. **Deferring the primitives**: pushing the spacing scale, radii, elevation, or component states to
+   "open for build loop" means the build *improvises* them — the exact opposite of "implements
+   verbatim". Define every primitive here, as code. This is the most common way a strong direction
+   still ships a thin spec.
+7. **Primary flows mistaken for the map**: 5 happy paths + an IA tree is a *sketch*, not the
+   navigation map. Enumerate every screen (onboarding, modals, empty/error routes) and every
+   `screen → action → screen` edge, and draw the Mermaid screen-flow — or the build invents the
+   routes you left out.
+8. **One crammed screen-flow diagram**: cramming every tab into a single Mermaid diagram makes its
+   disconnected subgraphs render side-by-side as narrow, unreadable columns. Emit **one diagram per
+   navigation cluster, stacked vertically**, so each gets the full page width.
 
 ## Integration
 
@@ -209,7 +281,9 @@ Output: run artifact 02a-plan-design.md (ui-spec) —
 - `plan-arch` — owns the stack this skill reads (which components have a UI); design never writes it.
 - `frontend-design` — supplies the visual direction and the AI-slop critique this skill applies.
 - `modern-css-design-systems` — supplies the token system and accessible component inventory.
-- `ux-designer` — supplies user flows, IA, and the WCAG/accessibility process.
+- `ux-designer` — supplies the complete navigation map (screen inventory + graph), user flows, IA,
+  and the WCAG/accessibility process.
+- `diagram` (`fac diagram`) — validates (`check`) and renders the Mermaid screen-flow diagram.
 - `visualization-expert` — supplies chart selection for data-presenting components.
 - `flutter-dart-expert` — implements the **mobile** UI spec (Flutter widgets, platform patterns,
   MASVS); the design here routes mobile implementation to it, not the web craft skills.

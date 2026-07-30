@@ -4,7 +4,7 @@
 > Turn one builder + AI into a full virtual engineering team that plans, builds, reviews,
 > tests, and ships your products end to end.
 
-*Status: draft v0.6 · Last updated: 2026-07-22*
+*Status: draft v0.7 · Last updated: 2026-07-30*
 
 ---
 
@@ -1285,6 +1285,66 @@ cloud-key or state-secret egress. The Factory **plans, scans, and verifies**; a 
 
 ---
 
+### Phase 9 — UI prototype lane (`/prototype` → `/fac-prototype`) 🔜 PLANNED (deferred; build later)
+
+`/plan-design` produces the **design record** (`02a-plan-design.md`): tokens-as-code, a complete
+screen inventory, an every-edge navigation graph, and stacked Mermaid screen-flows. What it does not
+produce is something the operator can *look at* — you cannot see the screens until the build loop
+implements them. This phase adds a **UI-prototype lane** that turns the design record into a
+**clickable, high-fidelity prototype** the operator reviews **before** any code is written, on the
+**same engine** (run/artifact/gate harness, redaction, memory, eval tiers) — a lane, like mobile
+(Phase 5) and infra (Phase 8), not a fork. It is **on-demand**: run it when a UI product wants a
+visual proof of the design before build.
+
+**Why a separate skill, not folded into `/plan-design`.** `/plan-design` owns the *specification*
+(the contract the build implements verbatim); a prototype is a *rendered proof* of that spec —
+different output type, different craft composition (`frontend-design` + `visualization-expert` +
+`browse`), and a different lifecycle (optional, re-run on demand when the design changes, gates
+nothing). `/plan-design` is also near the ~500-line skill budget; bolting on an HTML-generation
+workflow would blow it and blur one-skill-one-job. The prototype is the higher-fidelity sibling of
+the screen-flow diagram, one step downstream.
+
+**Tool decision (locked): a self-contained clickable HTML prototype — not Figma, not draw.io.**
+
+| Option | Fidelity | Clickable | Free / offline | Verdict |
+|---|---|---|---|---|
+| **HTML/CSS prototype** | **high** — reuses the design record's *exact* emitted tokens | **yes** — nav-graph edges → `<a href>` links | **yes**, self-contained | **chosen** |
+| Figma | high | yes | ✗ paid SaaS, manual, external | rejected — cost + custody + not generable |
+| draw.io / Excalidraw | low (wireframe) | weak | free | rejected — wireframe fidelity only |
+
+HTML wins because `02a-plan-design.md` already hands the generator everything **mechanically**: the
+token files give real visual fidelity (not an approximation), the screen inventory gives one page
+per screen, and the every-edge navigation graph maps directly to working in-prototype links. It
+renders in the existing `browse` tool, ships zero external dependencies, and is diffable as a run
+artifact — none of which a Figma/SaaS or a wireframe tool offers.
+
+- **Workflow skill — `/prototype` (installs as `/fac-prototype`).** Reads `02a-plan-design.md` and
+  emits a **branch artifact** `02b-prototype/` (sub-sequence `2b`, next free letter under step 2,
+  after `/plan-design`'s `2a`): one self-contained HTML file per screen in the inventory, an
+  `index.html` gallery, a device frame, styled **from the design tokens verbatim**, and wired by the
+  navigation graph so the operator clicks through real routes. Composes `frontend-design` +
+  `visualization-expert`; uses `browse` to self-verify the rendered result. It **re-designs
+  nothing** — a prototype that invents colours/spacing the spec did not set is the failure mode, the
+  design-fidelity analogue of `/plan-design`'s AI-slop gate.
+- **Agent — Designer (extended, no new persona).** Agent #3 (Designer) already owns the design
+  record; it gains `/prototype` alongside `/plan-design`. The app agents are unchanged.
+- **Pure helper — `lib/prototype-plan.ts`** (in the `lib/tls-verify.ts` / `lib/infra-plan-verify.ts`
+  mould): parses the design record's screen inventory + navigation graph and asserts, **offline
+  against a fixture**, full **coverage** — every screen has a page, every `screen → action → screen`
+  edge resolves to a link that lands on an existing page, and no page uses a colour/space token
+  absent from the record. Backs the `/prototype` completeness gate; holds no external state.
+- **Context.** No new `tech_bindings` required — fidelity is *derived* from the design record's
+  tokens. An optional `prototype.tool` binding (default `html`) leaves room for an alternate
+  renderer later without changing the skill.
+- **Exit:** (1) `/prototype` renders one clickable HTML page per screen in the inventory — a screen
+  with no page **fails** (`lib/prototype-plan.ts` coverage negative test); (2) every navigation-graph
+  edge resolves to a working in-prototype link — a dangling edge **fails** (link-coverage negative
+  test); (3) the prototype uses the design record's tokens verbatim — an invented token **fails** a
+  fidelity check; (4) the prototype opens in `browse` fully offline with zero external dependencies
+  (self-contained, proven by a no-network render).
+
+---
+
 ## 10. Immediate next steps
 
 **Done (2026-07-22).** Naming settled (`fac`). Phase 0 scaffolded and then hardened: shared `lib/`,
@@ -1335,6 +1395,7 @@ a per-repo lock. Nothing further is blocked on a decision.
 | **DAST + container scan** — ZAP baseline + Grype/Trivy image scan | Phase 7 (new, later) | a product ships a running preview or a Docker image to scan |
 | **Infrastructure lane (IaC)** — `terraform`/`pulumi` + per-cloud craft skills; `/plan-infra`, `/provision`, `/infra-review`, `/cost`, `/drift`; Platform agent; `lib/infra-plan-verify.ts` | Phase 8 (new) | a product must provision its own AWS/Azure/GCP infrastructure from code |
 | Separate **`ai-infrastructure-factory`** (extract shared engine into a core; both Factories as front-ends) | Phase 8 (new) | the infra lane needs an independent release cadence/governance or the SRE persona diverges from app dev |
+| **UI prototype lane** — `/prototype` (`/fac-prototype`) renders a clickable, token-faithful HTML prototype from `02a-plan-design.md` (one page per screen + nav-graph links → `02b-prototype/`); Designer agent extended; `lib/prototype-plan.ts` coverage gate | Phase 9 (new) | the operator wants to *see* the screens as a clickable prototype before the build loop implements them |
 | **Hard token budget (cap, not just warn)** — a `guardrails.budget.max_tokens` ceiling that *halts* a run at a hard gate, complementing today's measure-and-warn (`budgetStatus` in `lib/run.ts` warns past `warn_tokens` but never stops) | Cross-cutting §8.1 (deferred by design) | an operator needs a spend ceiling that stops an unattended multi-day run rather than only warning |
 | **Provider prompt-cache configuration** — explicit Anthropic/Bedrock cache-breakpoint wiring in the host adapters (`hosts/*.ts`) so the stable-preamble-first, per-run-artifact layout is actually cached; today the layout is cache-*friendly* but the Factory sets no breakpoints (host-level concern) | Cross-cutting §8 (deferred) | measured token spend on repeated long runs justifies host-side caching, or a host exposes a first-class cache-control primitive |
 | Browser security L4/L4b/L6 | v1 | `browse` is pointed at a page the operator did not author |

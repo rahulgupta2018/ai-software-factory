@@ -162,6 +162,61 @@ export function stripBunPathBlock(content: string): string {
   return out.join('\n');
 }
 
+// ── Install drift check ──────────────────────────────────────────────────────
+//
+// Editing a skill's SKILL.md.tmpl updates the repo, but the skill Claude Code actually loads is the
+// installed copy at ~/.claude/skills/fac-<name>/. Until `fac install` re-runs, that copy is stale and
+// a re-run reproduces pre-fix behaviour with no error. `fac install --check` reads both the source
+// and the installed version and reports any skill whose install lags the repo, so the reinstall step
+// is never silently skipped. These helpers are the pure version math; the script reads the files.
+
+/** A skill's declared version, parsed from the `version:` field in its SKILL.md frontmatter. */
+export function parseSkillVersion(content: string): string | null {
+  const end = content.indexOf('\n---', 3); // stay inside the leading frontmatter block
+  const head = end === -1 ? content : content.slice(0, end);
+  const m = head.match(/^\s*version:\s*["']?([0-9][0-9.]*)["']?\s*$/m);
+  return m ? m[1] : null;
+}
+
+/** Compare dotted numeric versions: -1 if a<b, 0 if equal, 1 if a>b. Missing segments count as 0. */
+export function compareVersions(a: string, b: string): -1 | 0 | 1 {
+  const pa = a.split('.');
+  const pb = b.split('.');
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = Number(pa[i] ?? 0);
+    const y = Number(pb[i] ?? 0);
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+export type SkillSyncStatus = 'ok' | 'stale' | 'ahead' | 'missing' | 'unknown';
+
+export interface SkillSyncRow {
+  /** Installed command name, e.g. `fac-plan-design`. */
+  name: string;
+  source: string | null;
+  installed: string | null;
+  status: SkillSyncStatus;
+}
+
+/**
+ * Classify one skill's install freshness from its source and installed versions (pure):
+ * `missing` (not installed), `stale` (installed < repo — the reinstall-needed case), `ahead`
+ * (installed > repo — repo not regenerated), `unknown` (source unreadable), or `ok`.
+ */
+export function classifySkillSync(source: string | null, installed: string | null): SkillSyncStatus {
+  if (installed === null) return 'missing';
+  if (source === null) return 'unknown';
+  const c = compareVersions(installed, source);
+  return c < 0 ? 'stale' : c > 0 ? 'ahead' : 'ok';
+}
+
+/** A status that means the install is behind the repo and a reinstall is needed. */
+export function isDrift(status: SkillSyncStatus): boolean {
+  return status === 'stale' || status === 'missing';
+}
+
 /** Resolve the full install plan. Pure — no filesystem access. */
 export function planInstall(env: InstallEnv): InstallPlan {
   const available = new Set(env.availableClis);

@@ -11,7 +11,12 @@
  * with a built-in command). Codex keeps its whole-dir link. A stale prior layout (the old
  * `~/.claude/skills/factory` nesting Claude couldn't discover) is removed first.
  *
- * Run:  fac install [--dry-run] [--json]
+ * `--check` / `--soft` install nothing: they compare each installed skill's version against the repo
+ * and report any that lag (a stale install silently reproduces pre-fix behaviour on the next run).
+ * `--check` exits non-zero on drift (a gate); `--soft` only advises and stays silent when nothing is
+ * installed, so it is safe to chain after `build`.
+ *
+ * Run:  fac install [--dry-run] [--json] [--check | --soft]
  */
 import {
   cpSync,
@@ -27,7 +32,17 @@ import {
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
-import { INSTALL_PREFIX, planInstall, transformForInstall, type InstallEntry } from '../lib/install-plan.ts';
+import {
+  INSTALL_PREFIX,
+  classifySkillSync,
+  isDrift,
+  parseSkillVersion,
+  planInstall,
+  transformForInstall,
+  type InstallEntry,
+  type InstallPlan,
+  type SkillSyncRow,
+} from '../lib/install-plan.ts';
 import { skillNames } from './gen-skill-docs.ts';
 
 const ROOT = join(import.meta.dir, '..');
@@ -93,9 +108,69 @@ interface HostResult {
   reason: string;
 }
 
+/** Read a file, or '' if it is not there — so a missing SKILL.md parses to a null version. */
+function readIfPresent(p: string): string {
+  try {
+    return readFileSync(p, 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Compare each Claude skill's installed version against the repo's, without installing anything.
+ * `--check` exits non-zero on any drift (stale/missing); `--soft` only advises (always exit 0) and
+ * stays silent when nothing is installed on this host — safe to chain after `build` in CI.
+ */
+function runCheck(plan: InstallPlan, asJson: boolean, soft: boolean): number {
+  const rows: SkillSyncRow[] = [];
+  for (const entry of plan.entries) {
+    if (entry.host !== 'claude' || entry.kind !== 'skill' || entry.action !== 'link') continue;
+    const source = parseSkillVersion(readIfPresent(join(entry.source, 'SKILL.md')));
+    const installed = parseSkillVersion(readIfPresent(join(entry.dest, 'SKILL.md')));
+    rows.push({ name: entry.installedName ?? '', source, installed, status: classifySkillSync(source, installed) });
+  }
+
+  const drift = rows.filter((r) => isDrift(r.status));
+  const installedCount = rows.filter((r) => r.installed !== null).length;
+  // Soft mode is for the build chain: nothing installed here (e.g. CI) → nothing to warn about.
+  const silent = soft && installedCount === 0;
+
+  if (asJson) {
+    console.log(JSON.stringify({ mode: soft ? 'soft' : 'check', rows, drift: drift.length }, null, 2));
+  } else if (!silent) {
+    printCheck(rows, drift, soft);
+  }
+  // --check fails on drift so a script/CI gate catches it; --soft never fails the caller.
+  return !soft && drift.length > 0 ? 1 : 0;
+}
+
+function printCheck(rows: SkillSyncRow[], drift: SkillSyncRow[], soft: boolean): void {
+  const label = soft ? 'install:check (advisory)' : 'install --check';
+  if (rows.length === 0) {
+    console.log(`${label} — no Claude skills installed (nothing to compare).`);
+    return;
+  }
+  if (drift.length === 0) {
+    const ahead = rows.filter((r) => r.status === 'ahead');
+    console.log(`${label} — all ${rows.length} installed skill(s) match the repo.`);
+    for (const r of ahead) console.log(`  ! ${r.name.padEnd(22)} installed ${r.installed} > repo ${r.source} (repo not regenerated?)`);
+    return;
+  }
+  console.log(`${label} — ${drift.length} of ${rows.length} skill(s) lag the repo:`);
+  for (const r of drift) {
+    const detail =
+      r.status === 'missing' ? 'not installed' : `installed ${r.installed} < repo ${r.source}`;
+    console.log(`  ✗ ${r.name.padEnd(22)} ${detail}`);
+  }
+  console.log('  → run `./setup` (or `bun scripts/install.ts`) to refresh — Claude Code loads skills at session start.');
+}
+
 function main(): void {
   const dryRun = hasFlag('--dry-run');
   const asJson = hasFlag('--json');
+  const check = hasFlag('--check');
+  const soft = hasFlag('--soft');
   const skills = skillNames();
   const plan = planInstall({
     root: ROOT,
@@ -104,6 +179,11 @@ function main(): void {
     availableClis: detectClis(['claude', 'codex']),
     skills,
   });
+
+  // Read-only drift check — report which installed skills lag the repo, install nothing.
+  if (check || soft) {
+    process.exit(runCheck(plan, asJson, soft && !check));
+  }
 
   // Remove any stale prior-layout install first (the old ~/.claude/skills/factory nesting).
   const cleaned: string[] = [];

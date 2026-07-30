@@ -1,6 +1,6 @@
 {
   "name": "ai-software-factory",
-  "version": "0.51.0",
+  "version": "0.55.0",
   "private": true,
   "description": "Product-agnostic AI engineering workflow: a team of specialist agents that turn a PRD into shipped software.",
   "type": "module",
@@ -13,6 +13,7 @@
     "vendor": "bun run scripts/vendor.ts",
     "vendor:check": "bun run scripts/vendor-check.ts",
     "sync-context": "bun run scripts/sync-context.ts",
+    "install:check": "bun run scripts/install.ts --check",
     "version:check": "bun run scripts/version-check.ts",
     "browse": "bun run tools/browse/browse.ts",
     "diagram": "bun run tools/diagram/diagram.ts",
@@ -20,7 +21,7 @@
     "design": "bun run tools/design/design.ts",
     "eval:select": "bun run scripts/eval-select.ts",
     "typecheck": "tsc --noEmit",
-    "build": "bun run version:check && bun run gen:skills && bun run skill:check && bun run vendor:check && bun run typecheck",
+    "build": "bun run version:check && bun run gen:skills && bun run skill:check && bun run vendor:check && bun run typecheck && bun run scripts/install.ts --soft",
     "test": "bun test",
     "test:evals": "FACTORY_EVAL_LLM=1 bun test test/skill-llm-eval.test.ts",
     "test:e2e": "FACTORY_EVAL_E2E=1 bun test test/skill-e2e.test.ts"

@@ -3,6 +3,83 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.55.0.0] — 2026-07-29
+
+**`/plan-design` now emits the screen-flow as one Mermaid diagram per navigation cluster, stacked vertically — so each is readable at full width instead of crammed side-by-side.**
+
+A single Mermaid diagram holding several *disconnected* subgraphs (one per tab/section) gets laid
+out horizontally by Mermaid, packing each cluster into a narrow, unreadable column. This makes the
+skill split the navigation flow into one diagram per cluster, stacked one after another, each
+`fac diagram check`-validated — optionally led by a compact top-level overview.
+
+### Changed — readable screen-flow diagrams
+- Core Concept, Workflow step 4, Guideline 4, and a new Gotcha 8 all now require **one diagram per
+  navigation cluster, stacked** — never a single crammed multi-subgraph diagram.
+- **Eval:** the `complete-navigation-map` rubric dimension gains a required anchor
+  (`one diagram per navigation cluster`), so dropping the stacking guidance fails the gate.
+
+## [0.54.0.0] — 2026-07-29
+
+**`fac install --check` catches a stale install — a skill you edited in the repo but never reinstalled — before it silently reproduces old behaviour.**
+
+Editing a skill's `SKILL.md.tmpl` updates the repo, but Claude Code loads the *installed* copy at
+`~/.claude/skills/fac-<name>/`. Until `./setup` (or `fac install`) re-runs, that copy is stale, and
+re-running the skill reproduces pre-fix output with no error — exactly what happened when a fresh
+`/plan-design` run came back byte-identical to the pre-fix artifact. This adds a guard that compares
+each installed skill's version against the repo and names any that lag.
+
+### Added — install-drift guard
+- **`fac install --check`** (also `bun run install:check`) — reports every skill whose installed
+  version is behind the repo, or missing entirely, and **exits non-zero** so it can gate a workflow.
+  Installs nothing.
+- **`bun run build` now ends with a soft drift check** — advisory only, never fails the build, and
+  stays silent when no skills are installed (so CI is unaffected). If you edit a skill and forget to
+  reinstall, the next `build` reminds you.
+- Both modes report `stale` (installed < repo), `missing` (not installed), and `ahead` (repo not
+  regenerated); only `stale`/`missing` count as drift. Version math is pure and fully unit-tested.
+
+## [0.53.0.0] — 2026-07-28
+
+**`/plan-design` now maps the *complete* navigation — every screen, every screen→action→screen transition, and a Mermaid screen-flow diagram — not just a handful of primary flows and an IA tree.**
+
+Same failure mode as the primitives and the `/plan-arch` diagrams: the skill produced the
+*representative* version of a deliverable it should produce *completely*. A build team can't build
+the routes a spec never enumerated. This makes the full navigation map a first-class, mandatory
+output of the existing design skill — not a separate command.
+
+### Changed — `/plan-design` produces the whole navigation map
+- **Screen inventory** — *every* screen: onboarding, core-feature screens, modals, sheets, settings
+  sub-screens, and the empty / error / permission / offline routes.
+- **Navigation graph** — *every* edge as `from-screen → trigger/action → to-screen`, with back
+  behaviour and modal dismissal (a transition graph, alongside the containment IA tree).
+- **Entry points** — how each screen is reached: cold start, deep link, notification, restore.
+- **A Mermaid screen-flow diagram**, validated with `fac diagram check` and embedded. The primary
+  V1 flows are now explicitly a *walkthrough* of this map, not a substitute for it.
+- **Eval:** a new Tier-2 rubric dimension (weight 3) fails the build if the navigation map is
+  reduced to primary flows — verified 1.00 on the real body, 0.83 (fail) when stripped.
+
+## [0.52.0.0] — 2026-07-28
+
+**`/plan-design` now defines the design-system primitives — spacing scale, radii, elevation, a complete type scale, and a component-state matrix — as code, instead of deferring them to the build loop.**
+
+Reviewing a real UI spec showed the same failure mode as `/plan-arch`: the *direction* was A-grade
+(palette, typography, the signature element, flows, accessibility) but the **systematic primitives**
+were named-then-deferred — a spacing scale "to be defined before the first widget", component states
+left to "appropriate padding". A design the build loop implements *verbatim* can't leave the grid
+undefined.
+
+### Changed — `/plan-design` produces a buildable primitive layer
+- **Primitives are mandatory, not deferred.** The spec must now define, as code: a **spacing scale**
+  (base unit + steps), a **radius scale**, an **elevation/shadow scale**, a **complete type scale**
+  (size + weight + line-height + letter-spacing per role — not just size/font), and a
+  **component-state matrix** (padding/radius/border/elevation × default/pressed/disabled/focus/error).
+- **Emitted as code** — CSS custom properties + a theme/Tailwind config (web) or a Dart `ThemeData` +
+  token file (mobile) — so "the build implements it verbatim" is true, not aspirational.
+- **A missing primitive is incomplete output, not a "gap to 10".** Scoring can't paper over an
+  undefined spacing scale or component-state matrix; define it, then score.
+- **Eval:** a new Tier-2 rubric dimension (weight 3) fails the build if the primitives discipline is
+  dropped — verified it scores 1.00 on the real body and 0.80 (fail) when stripped.
+
 ## [0.51.0.0] — 2026-07-28
 
 **`/plan-arch` now produces a real architecture *document* — with diagrams, a module map, and a decided (not templated) stack — and every installed skill cross-references its siblings by their real `/fac-` command name.**
