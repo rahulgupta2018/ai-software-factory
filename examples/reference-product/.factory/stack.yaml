@@ -136,11 +136,11 @@ skills:
   - name: fullstack-developer
     version: "1.1.0"
   - name: react-frontend-architect      # web component: React module architecture
-    version: "0.1.0"
+    version: "0.2.0"
   - name: modern-css-design-systems     # web component: Tailwind v4 + tokens + shadcn
-    version: "0.1.0"
+    version: "0.2.0"
   - name: frontend-design               # design phase: visual direction
-    version: "0.1.0"
+    version: "0.2.0"
   - name: ux-designer                   # design phase: flows, IA, WCAG
     version: "1.2.0"
   - name: visualization-expert          # design phase: chart selection

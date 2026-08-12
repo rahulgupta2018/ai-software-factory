@@ -10,8 +10,8 @@ description: >
 license: MIT
 metadata:
   author: Ported from Anthropic's frontend-design skill (adapted for this library)
-  version: "0.1.0"
-  last_updated: 2026-07-22
+  version: "0.2.0"
+  last_updated: 2026-08-12
   category: design
 ---
 
@@ -75,6 +75,14 @@ animation reads as AI-generated.
 directions need precision in spacing, type, and detail. Elegance is executing the chosen vision
 well.
 
+**Match the register to the domain.** A design inherits trust expectations from its domain: a bank,
+a children's app, a luxury spa, and a developer tool each carry different conventions for colour
+temperature, density, motion, and ornament — and each has anti-patterns that read as *wrong* however
+well executed (a bank that looks playful; a spa that looks like a trading terminal). Identify the
+domain's expectations first, then decide deliberately where to *meet* them (so the product feels
+credible) and the one place you'll *break* them (so it feels distinctive). Never inherit a domain
+cliché by default.
+
 **Consider written content carefully.** A brief often lacks real copy, and generic copy makes a
 design feel as templated as the layout. See "More on writing" below.
 
@@ -90,11 +98,14 @@ for one of these looks. Where it leaves an axis free, don't spend that freedom o
 
 Work in two passes:
 
-1. **Brainstorm a compact design plan** — a token system with four parts. **Color:** 4–6 named hex
+1. **Brainstorm a compact design plan** — a token system with five parts. **Color:** 4–6 named hex
    values. **Type:** typefaces for 2+ roles (a characterful display face used with restraint, a
    complementary body face, and a utility face for captions/data if needed). **Layout:** a layout
    concept described in one-sentence prose plus ASCII wireframes to ideate and compare.
-   **Signature:** the single unique element the page will be remembered by, embodying the brief.
+   **Motion:** the one orchestrated moment plus the ambient interaction feel (page-load, scroll
+   reveal, hover character), described as *intent* — `modern-css-design-systems` owns the
+   timing/implementation. **Signature:** the single unique element the page will be remembered by,
+   embodying the brief.
 2. **Critique the plan against the brief before building.** If any part reads like the generic
    default you'd produce for any similar page (work through a similar prompt and see if you land in
    the same place), revise it and say what you changed and why. Only once the plan is genuinely

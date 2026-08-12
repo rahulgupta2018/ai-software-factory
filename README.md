@@ -475,6 +475,39 @@ workflow skills and resolved through the merged product context at runtime. A ve
 newer version later, re-run `fac vendor <name>`; `fac vendor:check` flags upstream drift and any
 forbidden in-place edit.
 
+### Updating a vendored skill after an upstream change
+
+You edited a craft skill in the `agent-skills` library and want the Factory to pick up the new
+version. This is the exact sequence — **step 3 is the one people forget:**
+
+```bash
+# 1. In the library: make your edit AND bump the skill's `version` in its frontmatter.
+cd ~/…/agent-skills
+$EDITOR skills/my-craft-skill/SKILL.md
+
+# 2. In the Factory: re-vendor it (copies the new bytes + re-pins version + sha256).
+cd ai-software-factory
+fac vendor my-craft-skill
+
+# 3. If the skill's VERSION changed, update the fixture pins in the reference product to match —
+#    otherwise vendor:check fails with
+#    "reference product pins <name> @ 0.1.0 but the vendored version is 0.2.0".
+#    Bump the skill's `version:` in all three files:
+#      examples/reference-product/.factory/stack.yaml          (the owner)
+#      examples/reference-product/.agents/project-context.yaml
+#      examples/reference-product/.factory/context.gen.yaml
+
+# 4. Verify.
+fac vendor:check     # should end: "… 0 failed, 0 warning(s)."
+```
+
+> **Troubleshooting — `error: An internal error occurred (CouldntReadCurrentDirectory)`.**
+> If you run these `fac`/`bun` commands from inside a *sandboxed* terminal — for example the
+> terminal an AI coding agent drives — Bun can be blocked from reading its own working directory and
+> refuses to start. **Fix: run the command in a normal Terminal window instead** (a plain
+> `cd ai-software-factory && fac vendor <name>` works fine). This never happens in your own
+> terminal; it's only the restricted agent sandbox.
+
 ### So in simple terms:
 
 1. New **craft** skill → author in `agent-skills`, then `fac vendor <name>` + `fac vendor:check` in

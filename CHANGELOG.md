@@ -3,6 +3,30 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.57.0.0] — 2026-08-12
+
+The three web-design craft skills the build loop routes to (`frontend-design`,
+`modern-css-design-systems`, `react-frontend-architect`) get a round of upgrades vendored from the
+`agent-skills` library. The headline: first-class **micro-frontend (Module Federation)** guidance, so
+a React build can be split into independently-deployable remotes that still share one design system.
+
+### Changed — design craft skills upgraded to 0.2.0
+- **`react-frontend-architect`** — a new **Micro-Frontends (MFE)** section: when to reach for Module
+  Federation (an escalation, not the default), a shell + remotes topology, singleton shared deps (one
+  React across the whole federation), and a design-system `shareScope` contract so remotes inherit
+  tokens instead of each shipping their own. Two new gotchas — "two Reacts in a federation" and "MFE
+  by default".
+- **`frontend-design`** — aesthetics now condition on the domain ("match the register to the
+  domain"), and the compact design plan gains a **Motion** element so interaction feel is stated as
+  intent before code.
+- **`modern-css-design-systems`** — treats the design system as a **persisted artifact** (a MASTER
+  file plus per-surface overrides) that MFE remotes can inherit, and adds review items for real SVG
+  icon sets (never emoji-as-icon) and hover/cursor affordances with short (≈150–300ms) transitions.
+
+### For contributors
+- Vendored the three skills at 0.2.0 (refreshed sha256 in `vendor-skills/manifest.json`) and bumped
+  the reference-product fixture pins to match, so `vendor:check` stays green (37 skills, 0 failed).
+
 ## [0.56.0.0] — 2026-07-30
 
 Two changes: a prompt-cache mechanism for the Factory's own model calls, and motion joins the

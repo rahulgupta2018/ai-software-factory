@@ -11,8 +11,8 @@ description: >
 license: MIT
 metadata:
   author: AI Software Factory (for this library)
-  version: "0.1.0"
-  last_updated: 2026-07-22
+  version: "0.2.0"
+  last_updated: 2026-08-12
   category: coding
 ---
 
@@ -72,6 +72,10 @@ Activate when:
 - **Accessibility is structural, not a coat of paint.** Radix/shadcn gives correct roles, focus
   management, and keyboard handling; keep them. Visible focus, adequate contrast, respected
   `prefers-reduced-motion`, and real labels are the floor, not extras.
+- **A design system is a persisted artifact, not tribal knowledge.** Write the token set and its
+  rules to a single source-of-truth doc (e.g. `design-system/MASTER.md`) with per-surface override
+  files for genuine deviations; every component reads from it. This keeps a multi-page or multi-team
+  UI coherent — and lets a micro-frontend remote inherit the same tokens instead of re-deriving them.
 
 ## Output Template (tokens + a themed component)
 
@@ -115,13 +119,16 @@ export function Card({ children }: { children: React.ReactNode }) {
 - [ ] Visible keyboard focus on every interactive element; contrast meets AA
 - [ ] Motion is `motion-safe:` / respects `prefers-reduced-motion`
 - [ ] Real labels/`aria-*` where content isn't self-describing; icons-only buttons have names
+- [ ] Icons come from an SVG set (Heroicons/Lucide), never emoji-as-icon
+- [ ] Clickables show `cursor-pointer` + a hover state with a short transition (150–300ms)
 
 ## Guidelines
 
 1. Name a token before you use a value twice; never inline a raw colour or spacing in a component.
 2. Build interactive widgets on Radix/shadcn primitives — don't hand-roll a dialog/menu/combobox.
 3. Prefer container queries for component responsiveness; reserve viewport queries for page layout.
-4. Gate every animation behind `motion-safe:`; keep durations short and purposeful.
+4. Gate every animation behind `motion-safe:`; keep durations short and purposeful (≈150–300ms for
+   hovers/transitions).
 5. Reach for vanilla-extract/Panda only when you need compile-time-checked tokens; reach for plain
    CSS Modules only when framework lock-in is disallowed.
 

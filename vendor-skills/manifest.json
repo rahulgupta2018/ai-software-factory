@@ -62,11 +62,41 @@
       "vendored_at": "2026-07-22",
       "sha256": "b2a9d050255a132faf703fcbe96149016f07172350bca9e7afda1ba938cc83fd"
     },
+    "context-compression": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "75eb17a32702b9c455b7e7d71ff1f33035b83f8b220aa318755461e4ff69566d"
+    },
+    "context-degradation": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "a37267d794d291913073e2e8b654e3095376556543129ec12a6750f90b49fc1b"
+    },
+    "context-fundamentals": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "3b7d164b04d199de62a13339d6b6a42581a0e58523210969438fda935b173c5c"
+    },
+    "context-optimization": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "97a83cb8bf1053ae9b224ff2c6a2557bd447e345b47a8190732937ed8e983a77"
+    },
     "database-expert": {
       "version": "0.1.0",
       "source_last_updated": "2026-07-23",
       "vendored_at": "2026-07-23",
       "sha256": "c2d3ebdd80b0c5cca6bfa3416d3697f720270fa1e50a5f56855c82a0b5ae81ea"
+    },
+    "filesystem-context": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "81d623ab68a4e3165d3d7da8bee5be5eef2ae6ac8ea3d39bd11782f8e83cb983"
     },
     "flutter-dart-expert": {
       "version": "0.1.0",
@@ -75,10 +105,10 @@
       "sha256": "8fdc2f287b02c5ef6641e91cfed6d985d08a6e8ad84a0b01e1a05762c802671b"
     },
     "frontend-design": {
-      "version": "0.1.0",
-      "source_last_updated": "2026-07-22",
-      "vendored_at": "2026-07-22",
-      "sha256": "5f62a25ada562f9d9f1ec2ebb5b4de5238114ea0155a5f969fb50fa09cbb2be8"
+      "version": "0.2.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "a59517104dd84e155ef859b85af4c0790b414959184f5b65e153ae196af7cb97"
     },
     "fullstack-developer": {
       "version": "1.1.0",
@@ -93,10 +123,10 @@
       "sha256": "c67c5ac21f94b755ac018bdb8401ab189492692d13ba2a4bed0b859c081afb40"
     },
     "modern-css-design-systems": {
-      "version": "0.1.0",
-      "source_last_updated": "2026-07-22",
-      "vendored_at": "2026-07-22",
-      "sha256": "309751f20e6221ee4760304b80183f89f52c36c2c89e14e596f8a87fd22bb731"
+      "version": "0.2.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "f11d1dd6177e3c8718d0ee8c3fef26c6cadb8cca4a0e553200c62868d7d55d4c"
     },
     "multi-agent-patterns": {
       "version": "2.2.0",
@@ -134,10 +164,10 @@
       "sha256": "9f6d12e13955b61006cddbf19a87cd84fe91ce5f782e079d2df0292afbed7d73"
     },
     "react-frontend-architect": {
-      "version": "0.1.0",
-      "source_last_updated": "2026-07-22",
-      "vendored_at": "2026-07-23",
-      "sha256": "4c4380ab36bcee886d98eb85fecd2406928f22ed7e2fb449a6c6146125448a2a"
+      "version": "0.2.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "a68b26554dae53e561ee1d66488349f6e064288a64257b4077e61a38aef28469"
     },
     "self-improving-agent-skills": {
       "version": "1.1.0",
@@ -162,6 +192,12 @@
       "source_last_updated": "2026-07-02",
       "vendored_at": "2026-07-22",
       "sha256": "5534279ce19e10525b78b31f49f04d1c77ab0e0ea96a1105abe4c5b0a4bfce21"
+    },
+    "tool-design": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-11",
+      "vendored_at": "2026-08-11",
+      "sha256": "7a83b8c544737f55452810fe11b3742a9fb9cc0be020ca2204cf43ab6dd34b98"
     },
     "typed-service-contracts": {
       "version": "1.3.0",

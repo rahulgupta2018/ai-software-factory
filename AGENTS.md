@@ -14,6 +14,15 @@ workflow skill (Layer 1) that composes vendored craft skills (Layer 2) and tooli
 
 See `docs/implementation-plan.md` for the full design.
 
+## Library & API documentation (Context7)
+
+Always use the Context7 MCP server to fetch current, version-specific library/API
+documentation before generating code that uses a third-party library, framework, or SDK —
+without being asked. This reinforces the "Search before building" ethos: prefer Context7's
+`resolve-library-id` / `query-docs` over training-data recall for setup steps, configuration,
+or API signatures. Pin a library/version when it matters (e.g. "Flutter drift 2.x, use context7").
+
+
 ## 2. Start here — load the product context first
 
 **A product is defined by TWO files, split by who writes them.** Load both at the start of
