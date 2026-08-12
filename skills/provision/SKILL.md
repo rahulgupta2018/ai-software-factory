@@ -1,0 +1,215 @@
+---
+name: provision
+description: >-
+  Takes an infra design from plan → HARD GATE → apply — runs terraform plan (or pulumi
+  preview), verifies it offline with lib/infra-plan-verify.ts (no protected resource
+  destroyed/replaced without consent, no long-lived key, no secret in state, no high-severity
+  policy finding), stops for explicit consent on the irreversible apply, then applies and
+  confirms. State- and staleness-aware. Composes terraform-expert and the per-cloud expert.
+  Activates once /infra-review is clean; owns the gated apply, not the design (/plan-infra) or
+  the static scan (/infra-review).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.1.0
+  last_updated: 2026-08-12
+  layer: Ship
+  priority: V1
+---
+
+# Provision
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/provision` is the Factory's infrastructure apply. Given a reviewed IaC design, it runs the plan,
+**verifies the plan is safe**, gates the irreversible apply on explicit consent, applies, and
+confirms the result — recording each step as a run artifact (`06f-provision.md`). It is to
+infrastructure what `/deploy` is to the application: the release tail that turns an approved design
+into live, verified reality.
+
+Its defining trait is the **hard gate on the apply**, backed by a verifier. Before applying,
+`/provision` runs `terraform plan` (or `pulumi preview`), translates it to a plan observation, and
+checks it offline with `lib/infra-plan-verify.ts`: no **protected** resource is destroyed or
+replaced without explicit consent, no **long-lived downloadable credential** is created, no **raw
+secret** is written to state, and no **high-severity policy** finding rides along. A failing verdict
+blocks the apply. `apply` is then a hard gate — irreversible, so it stops for consent and is never
+batched. The Factory holds no cloud state and no keys; it authenticates via the OIDC identity the
+design declares.
+
+## When to Activate
+
+Activate when:
+- `/plan-infra` designed the infrastructure and `/infra-review` is clean — the operator says
+  "provision", "apply the Terraform", "create the infrastructure", "terraform apply".
+- The change is ready to touch a cloud.
+
+**Do not activate** (adjacent skills own this):
+- `plan-infra` — owns the *design* (`02d-plan-infra.md`); `/provision` applies it.
+- `infra-review` — owns the *static* scan (`tfsec`/Checkov + OPA/Conftest) that must be clean
+  *before* `/provision`; it consumes that verdict, it doesn't re-run the source scan.
+- `deploy` — owns the *application* release (merge → deploy → verify); `/provision` is its
+  infrastructure sibling. Infra is usually provisioned before the app deploys onto it.
+- `investigate` — if the apply fails or the result is unhealthy, root-cause routes there (or roll
+  back / destroy the partial apply with consent).
+- `terraform-expert` / `gcp-cloud-expert` — the craft skills this wrapper composes for plan-reading
+  and the baseline; it orchestrates and gates them.
+
+## Core Concepts
+
+- **The plan is the review artifact — read it, then verify it.** `terraform plan -out=tfplan`, then
+  apply *that* file, so the applied change is exactly the reviewed one. The plan is translated to a
+  plan observation and checked by `lib/infra-plan-verify.ts` before any apply.
+- **The verifier is a hard gate.** A protected resource destroyed/replaced without consent, a
+  long-lived key, a secret in state, or a high/critical policy finding **blocks the apply**. The
+  gate fails closed — a plan it can't verify is not applied.
+- **Consent gates only destroy/replace — never custody or policy.** The `consentToDestroy` flag lets
+  an operator deliberately replace a protected resource; it never waives the key, secret, or policy
+  rules. Those block regardless.
+- **Apply is irreversible — HARD GATE.** A production apply (and any `escalation_policy.triggers`
+  match) stops, shows the plan summary (creates/updates/destroys/replaces, protected touched), and
+  requires explicit consent. Never `-auto-approve` a plan a human hasn't seen.
+- **State- and staleness-aware.** Refresh against remote state before planning; a lock or a drifted
+  state stops the apply. State is remote, encrypted, and locked — never local.
+- **Keyless custody.** Authenticate via the OIDC workload-identity federation the design declares;
+  the Factory takes custody of no key. The redaction guard blocks any key/secret egress.
+
+## Workflow
+
+Freedom level: **low** — the plan → verify → gate → apply → confirm sequence and the hard gate are
+fixed; the resource work is the craft skills'.
+
+1. **Preflight.** Confirm `/infra-review` is clean (no high/critical). Read `${ctx.tech_bindings.infra}`
+   (cloud, `iac_tool`, protected resources, identity), `commands`, and `escalation_policy`. Load
+   `terraform-expert` and the per-cloud expert.
+2. **Plan.** `terraform plan -out=tfplan` (or `pulumi preview --json`) against refreshed remote
+   state. A state lock or unexpected drift stops here — resolve before proceeding.
+3. **Verify the plan — HARD GATE.** Translate the plan (`terraform show -json tfplan`) into a plan
+   observation (changes, protected resources, consent flag, policy findings) and run
+   `lib/infra-plan-verify.ts`. A `destroy-protected`, `replace-protected`, `long-lived-key`,
+   `secret-in-state`, or `policy-high` finding **blocks** — fix the IaC/design and re-plan. Set
+   `consentToDestroy` only on an explicit operator decision to replace a protected resource.
+4. **Show the blast radius.** Render `planSummary` for the operator: creates / updates / destroys /
+   replaces, protected touched, high policy findings.
+5. **Apply — HARD GATE.** A production apply (and any `escalation_policy.triggers` match) stops for
+   explicit consent, then `terraform apply tfplan` (or `pulumi up`). Irreversible — never batched,
+   never auto-approved.
+6. **Confirm.** Verify the resources exist and are healthy (outputs present, a smoke check on the
+   provisioned endpoint). Unhealthy → **roll back** (or fix-forward with consent) and route to
+   `/investigate`.
+7. **Record the provision log as a run artifact.** `/provision` is the infra release tail, a
+   **sub-sequenced Ship artifact** reading the design + review as inputs:
+   ```bash
+   fac run artifact --seq 6f --step provision --inputs .factory/runs/$RUN/02d-plan-infra.md,.factory/runs/$RUN/02e-infra-review.md --body-file provision-log.md
+   ```
+
+## Practical Guidance
+
+- Plan to a file and apply that file — never apply a re-planned diff, or you apply something the
+  operator never reviewed.
+- Have the rollback/`destroy -target` command ready *before* you apply, not after it fails.
+- Never `-auto-approve` on a shared environment; the gate is the point.
+- Read the deploy/plan/apply commands from `commands` and the cloud from
+  `${ctx.tech_bindings.infra}` — don't hardcode a provider.
+- A `-/+` (replace) on a stateful resource is data loss — it needs explicit `consentToDestroy`, not
+  a shrug; prefer an in-place change or a migrate-then-cutover.
+
+## Examples
+
+**Example — a safe plan applies.**
+```
+Input:  Repair Tracker infra, /infra-review clean. terraform plan: +bucket, +service account,
+        +iam binding, ~sql instance (in-place). No protected destroy/replace, no key, no secret.
+Verify: lib/infra-plan-verify.ts → pass. planSummary: 3 create, 1 update, 0 destroy, 0 replace.
+Gate:   apply is a production change → HARD GATE → operator consents → terraform apply tfplan.
+Confirm: outputs present, bucket + SA + DB reachable. run artifact 06f-provision.md.
+```
+
+**Example — a protected replace blocks.**
+```
+Input:  plan shows google_sql_database_instance.main must be REPLACED (-/+) — a tier change forces it.
+Verify: lib/infra-plan-verify.ts → replace-protected (BLOCK): replacing the SQL instance is data loss.
+Action: do NOT apply. Options: change tier in place, or snapshot + migrate, or (if truly intended)
+        set consentToDestroy after an explicit operator decision + a snapshot. Never auto-approve.
+```
+
+## Guidelines
+
+1. Plan to a file, verify that plan with `lib/infra-plan-verify.ts`, apply that same file.
+2. The verifier is a hard gate: protected destroy/replace (without consent), long-lived key, secret
+   in state, or a high/critical policy finding blocks the apply.
+3. Consent gates only destroy/replace — never the key, secret, or policy rules.
+4. The apply is a HARD GATE — irreversible, never batched, never `-auto-approve`d on shared infra.
+5. State is remote, encrypted, and locked; refresh and respect locks/drift before applying.
+6. Authenticate via OIDC federation; take custody of no key. Record the log as `06f-provision.md`.
+
+## Gotchas
+
+1. **Auto-approving a plan nobody read**: the whole gate exists because one apply can destroy live
+   data — always read + verify + consent.
+2. **A stateful `-/+`**: "forces replacement" on a database/bucket/DNS zone is data loss, not an
+   edit — it needs explicit consent and a snapshot, or a different approach.
+3. **Re-planning between plan and apply**: applying a fresh plan skips the review; apply the exact
+   `tfplan` you verified.
+4. **A long-lived key or embedded secret in the plan**: blocked regardless of consent — replace with
+   OIDC federation / a secret-manager reference.
+5. **Ignoring a state lock or drift**: applying over a lock corrupts state; applying over drift
+   reverts someone's change — stop and resolve first.
+
+## Integration
+
+- `plan-infra` — writes the design `/provision` applies; a design change re-opens the apply.
+- `infra-review` — the static scan that must be clean before `/provision`; a high/critical finding
+  blocks it.
+- `terraform-expert` / `gcp-cloud-expert` (craft) — supply the plan-reading discipline and the
+  baseline the provisioned resources must meet.
+- `deploy` — the application release sibling; infra is usually provisioned before the app deploys.
+- `investigate` — where a failed/unhealthy apply routes for root-cause (or rollback).
+- Run harness (`fac run`) — records the provision log as a sub-sequenced `06f-provision.md`.
+- Verifier — `lib/infra-plan-verify.ts` proves the plan is safe to apply (blast radius, custody,
+  plan-time policy), offline.
+
+## References
+
+- Verifier: `lib/infra-plan-verify.ts` (the apply gate)
+- Craft: vendored `terraform-expert` (plan/apply discipline) + `gcp-cloud-expert` (baseline)
+- Binding: `${ctx.tech_bindings.infra}` in `.factory/stack.yaml`
+- Related skills: `plan-infra`, `infra-review`, `deploy`
+- Agent: `agents/platform.md`

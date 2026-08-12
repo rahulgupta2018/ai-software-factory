@@ -1,0 +1,209 @@
+---
+name: drift
+description: >-
+  Detects when the live cloud has diverged from the Infrastructure-as-Code that owns it —
+  reads a state-vs-reality diff the operator provides (terraform plan -refresh-only, or pulumi
+  refresh JSON), classifies each divergence offline with lib/infra-drift-report.ts (modified /
+  deleted out of band, or an unmanaged shadow resource), and produces a prioritised bug-list
+  with security-sensitive drift first. Reports drift so the operator can reconcile; it is the
+  finding half, not the fix. Records the report as a run artifact. Activates on a scheduled or
+  ad-hoc drift check after /provision; owns the drift bug-list, not the apply (/provision) or
+  the root-cause fix (/investigate).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: 0.1.0
+  last_updated: 2026-08-12
+  layer: Ops
+  priority: V1
+---
+
+# Drift
+
+<!-- FACTORY:ETHOS (generated — do not edit) -->
+> **Factory ethos.** Every action inherits these principles:
+>
+> - Boil the ocean
+> - Search before building
+> - User sovereignty
+> - One owner per file
+> - Mechanism vs parameters
+> - Ground your claims
+> - Defensibility is the product
+
+<!-- FACTORY:WRITING-STYLE (generated — do not edit) -->
+### Writing style
+
+- Gloss jargon on first use. Short sentences. Lead with user impact.
+- Frame questions in outcome terms ("what breaks for your users if…"), not implementation terms.
+- Be direct about quality and trade-offs. Cite sources for factual claims.
+
+<!-- FACTORY:CONFIG-PROTOCOL (generated — do not edit) -->
+### Config protocol
+
+A product is defined by two files, split by who writes them:
+
+| File | Owner | Holds |
+|---|---|---|
+| `PRD.md` | **human** | frontmatter: `product`, `domain`, `meta` · body: the requirements |
+| `.factory/stack.yaml` | **`/plan-arch`** | `tech_stack`, `commands`, `skills`, `guardrails`, `escalation_policy`, `tech_bindings` |
+
+Before doing anything else:
+
+1. **Read** both — or the merged `.factory/context.gen.yaml` if it is current. Skills bind via `${ctx.*}`.
+2. If a value you need is **missing**, ask the user with AskUserQuestion — never guess.
+3. **Persist** the answer to the file that *owns* that key, then re-run `fac sync-context`.
+   Never write a machine key into `PRD.md`; `sync-context` rejects it.
+4. When a key is absent and the user cannot supply it, fall back to your documented generic default.
+
+Precedence: per-skill `overrides` → merged product context → skill generic default.
+
+## Overview
+
+`/drift` is the Factory's infrastructure drift monitor — the `/qa` of the infra lane. After
+`/provision` applies a plan, the live cloud can diverge from the IaC that owns it: a firewall rule
+edited in the console, a resource deleted out of band, or a shadow resource created that no IaC
+manages. `/drift` reads a state-vs-reality diff (`terraform plan -refresh-only`, or `pulumi refresh
+--json`), classifies each divergence, and produces the infrastructure analogue of a QA bug-list:
+which managed resources have drifted and which resources exist unmanaged, with security-sensitive
+drift surfaced first. It **reports** drift so the operator can reconcile (re-apply, import, or
+codify) — it is the finding half, not the fix.
+
+It composes `lib/infra-drift-report.ts` (a pure verifier: parse the refresh diff → classify
+modified / deleted / unmanaged → bug-list). The Factory holds no cloud credentials and runs no live
+refresh — the operator provides the offline diff JSON, exactly as the rest of the infra lane
+operates on plan/preview/refresh JSON.
+
+## When to Activate
+
+Activate when:
+- Checking whether provisioned infrastructure still matches its IaC — the operator says "check for
+  drift", "has anything changed out of band", "run a refresh", "reconcile the state".
+- Running a scheduled or ad-hoc drift sweep after `/provision`.
+
+**Do not activate** (adjacent skills own this):
+- `provision` — owns the *apply* (plan → gate → apply); `/drift` checks the live estate *after* it,
+  and hands a reconcile plan back to `/provision` when a re-apply is the fix.
+- `infra-review` — owns the *static* policy scan of the IaC *before* apply; `/drift` compares the
+  applied IaC to *reality* after apply.
+- `investigate` — owns *root-cause* debugging; if drift caused an incident, `/drift` finds the
+  divergence and `/investigate` finds why it happened.
+- `qa` / `qa-report` — own *application* behaviour bug-lists; `/drift` is their infrastructure
+  sibling (state divergence rather than UI behaviour).
+- `terraform-expert` / `pulumi-expert` — the craft skills this wrapper composes for reading the
+  refresh diff; it orchestrates them.
+
+## Core Concepts
+
+- **Report, don't fix.** `/drift` produces a bug-list; reconciliation (re-apply to restore, import
+  to adopt, or codify the change) is a follow-up decision, routed to `/provision` or `/investigate`.
+  Finding and fixing are separate steps.
+- **The diff comes from offline JSON.** `terraform plan -refresh-only` (or `pulumi refresh --json`)
+  is run by the operator; `/drift` reads the JSON. The Factory holds no cloud credentials and calls
+  no cloud — consistent with the whole infra lane.
+- **Three drift classes.** `resource-modified` (a managed resource changed out of band),
+  `resource-deleted` (a managed resource vanished out of band), and `unmanaged-resource` (a resource
+  exists in the environment with no IaC managing it — a shadow resource).
+- **Security-sensitive drift first.** Drift touching a firewall, IAM binding, public-access setting,
+  or credential is flagged `securitySensitive` and listed first — an out-of-band open firewall is an
+  incident, not a nit.
+- **The report is a run artifact.** The drift bug-list is recorded (`06g-drift.md`) so the state of
+  the estate over time is part of its reviewable history.
+
+## Workflow
+
+Freedom level: **low** — the refresh → classify → prioritise → record sequence is fixed; the
+reconcile decision is the operator's.
+
+1. **Get the diff.** Have the operator run `terraform plan -refresh-only` (→ `terraform show -json`)
+   or `pulumi refresh --json` against the target environment; read the JSON. Never run a live
+   refresh from the Factory.
+2. **Read the environment context.** Load `${ctx.tech_bindings.infra}` (cloud, `iac_tool`, the
+   environment) so the report names the right estate.
+3. **Classify.** Translate the diff into a drift observation (resources, drift type, changed
+   attributes, security-sensitivity) and run `lib/infra-drift-report.ts`. It returns `drifted` plus
+   a finding per divergence: `resource-modified` / `resource-deleted` / `unmanaged-resource`.
+4. **Prioritise.** Render `driftSummary` (modified / deleted / unmanaged / security-sensitive) and
+   order the bug-list with security-sensitive drift first.
+5. **Recommend a reconcile path.** For each finding, suggest the lever — re-apply to restore a
+   deleted/modified resource, `import` to adopt an unmanaged one, or codify a deliberate change back
+   into the IaC. A recommendation, not an apply.
+6. **Record the report as a run artifact.** `/drift` is a post-provision ops check, a
+   **sub-sequenced Ops artifact** reading the provision log as its input:
+   ```bash
+   fac run artifact --seq 6g --step drift --inputs .factory/runs/$RUN/06f-provision.md --body-file drift.md
+   ```
+
+## Practical Guidance
+
+- Read the offline refresh JSON — never wire the Factory to cloud credentials or run a live refresh.
+- Lead with security-sensitive drift; an out-of-band firewall or IAM change is the finding that
+  matters most.
+- Recommend the reconcile path but don't apply it — `/provision` owns the apply behind its hard gate.
+- Distinguish deliberate-but-uncodified change from unauthorised change; the fix for the first is to
+  codify it, for the second is to re-apply and investigate.
+- An unmanaged resource is not always wrong (it may be out of scope) — flag it, name it, let the
+  operator decide to import or ignore.
+
+## Examples
+
+**Example — an in-sync estate.**
+```
+Input:  terraform plan -refresh-only against prod → no changes.
+Classify: lib/infra-drift-report.ts → drifted false, no findings.
+Report: driftSummary all zero. Estate matches its IaC. run artifact 06g-drift.md.
+```
+
+**Example — security-sensitive drift.**
+```
+Input:  refresh diff: google_compute_firewall.allow_ssh modified out of band (source_ranges now
+        0.0.0.0/0), google_storage_bucket.legacy exists with no IaC.
+Classify: resource-modified [SECURITY-SENSITIVE] on the firewall + unmanaged-resource on the bucket.
+Report: firewall drift listed FIRST (open SSH is an incident) → recommend re-apply to restore the
+        locked source_ranges + route to /investigate for how it changed; bucket → import or remove.
+        run artifact 06g-drift.md.
+```
+
+## Guidelines
+
+1. Report, don't fix — `/drift` produces a bug-list; reconciliation routes to `/provision` or
+   `/investigate`.
+2. Read the operator-provided offline refresh JSON; the Factory holds no cloud credentials and runs
+   no live refresh.
+3. Classify every divergence as `resource-modified` / `resource-deleted` / `unmanaged-resource`.
+4. Surface security-sensitive drift first — an out-of-band firewall/IAM/public-access change is an
+   incident.
+5. Recommend a reconcile path (re-apply / import / codify) per finding; never apply it here.
+6. Record the report as `06g-drift.md`, reading the provision log as its input.
+
+## Gotchas
+
+1. **Fixing drift inside `/drift`**: don't — finding and fixing are separate. The apply belongs to
+   `/provision` behind its hard gate.
+2. **Burying security drift in the list**: an out-of-band open firewall or IAM change must lead the
+   report, not sit among cosmetic diffs.
+3. **Running a live refresh from the Factory**: never — read the offline JSON. The Factory takes
+   custody of no cloud credential.
+4. **Treating every unmanaged resource as a bug**: some are legitimately out of scope; flag and name
+   them, let the operator decide to import or ignore.
+5. **Conflating deliberate-uncodified with unauthorised**: the first is codified back into IaC, the
+   second is re-applied and investigated — say which a finding is.
+
+## Integration
+
+- `provision` — applies the IaC `/drift` later checks against reality; a re-apply is the usual
+  reconcile path for modified/deleted drift, behind its hard gate.
+- `infra-review` — the pre-apply static scan; `/drift` is the post-apply reality check (IaC vs live).
+- `investigate` — root-causes *why* an unauthorised out-of-band change happened once `/drift` finds
+  *what* changed.
+- `lib/infra-drift-report.ts` (pure verifier) — parses the refresh diff and classifies the drift
+  this skill renders.
+- Run harness (`fac run`) — records the report as `06g-drift.md` reading the provision log.
+
+## References
+
+- Verifier: `lib/infra-drift-report.ts`
+- Craft: vendored `terraform-expert` / `pulumi-expert` (reading the refresh diff)
+- Binding: `${ctx.tech_bindings.infra}` in `.factory/stack.yaml`
+- Related skills: `provision`, `infra-review`, `investigate`, `qa`
+- Agent: `agents/platform.md`

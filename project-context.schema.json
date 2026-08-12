@@ -467,6 +467,197 @@
               "description": "Alerts below this confidence are treated as noise and never gate. Default: low."
             }
           }
+        },
+        "infra": {
+          "type": "object",
+          "description": "Infrastructure-as-Code bindings (Phase 8 — optional, for products that provision cloud infrastructure). Records the cloud, the IaC tool, the remote+locked state backend, the OIDC (keyless) identity CI authenticates as, the allowed regions, the protected (stateful/irreversible) resources, and the landing-zone/environment/pillar/budget/drift/MLOps design (Phase 8b). /plan-infra designs the IaC (foundation → environments → pillars → ML platform), /infra-review scans it (tfsec/Checkov + OPA/Conftest), /cost prices it against cost_budget (advisory), /provision applies it behind a hard gate verified offline by lib/infra-plan-verify.ts (no protected destroy/replace without consent, no long-lived key, no secret in state, no high-severity policy), and /drift checks the live estate against it afterward. Multi-cloud at the binding level — the per-cloud experts are chosen by `cloud` (custody principle — the Factory holds no cloud key).",
+          "additionalProperties": false,
+          "properties": {
+            "cloud": {
+              "type": "string",
+              "enum": [
+                "aws",
+                "azure",
+                "gcp"
+              ],
+              "description": "The target cloud. GCP first; the mechanism-vs-parameters model lets a second cloud be a binding, not a rewrite. Selects the per-cloud expert craft skill (gcp-cloud-expert, ...)."
+            },
+            "iac_tool": {
+              "type": "string",
+              "enum": [
+                "terraform",
+                "pulumi"
+              ],
+              "description": "The Infrastructure-as-Code tool. Terraform first; selects the IaC craft skill (terraform-expert)."
+            },
+            "state_backend": {
+              "type": "string",
+              "description": "The remote, encrypted, LOCKED state backend, e.g. `gcs` / `s3` / `azurerm`. Never local, never in the repo — state holds secrets in plaintext."
+            },
+            "identity": {
+              "type": "string",
+              "description": "The OIDC workload-identity federation CI authenticates as (e.g. the GitHub Actions subject federated to the cloud) — a short-lived token, never a long-lived downloadable key."
+            },
+            "regions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The allowed cloud regions (data residency), e.g. [\"europe-west2\"]. Enforced as org policy so a stray resource can't land elsewhere."
+            },
+            "protected_resources": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Resource addresses OR types that are stateful/irreversible (databases, state buckets, DNS zones). /provision blocks any destroy/replace of these without explicit consent, and the IaC wires prevent_destroy on each."
+            },
+            "org": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The landing-zone foundation (gcp-landing-zone-expert): the organisation/billing/folder hierarchy the workloads run on. /plan-infra designs the seed/bootstrap project, links billing at creation, and applies org-policy guardrails at the folder so they inherit.",
+              "properties": {
+                "org_id": {
+                  "type": "string",
+                  "description": "The cloud organisation id the estate lives under."
+                },
+                "billing_account": {
+                  "type": "string",
+                  "description": "The billing account linked to projects at creation (never after — an unbilled project is a foot-gun)."
+                },
+                "folders": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The folder hierarchy (e.g. [\"bootstrap\", \"common\", \"envs\"]) org-policy guardrails attach to and projects nest under."
+                }
+              }
+            },
+            "environments": {
+              "type": "array",
+              "description": "The environment ladder — ELICITED per product, never a baked INT/SIT/PRE-PROD/PROD default. Each environment is an isolated blast radius (own project(s), state prefix, service accounts) with one-way promotion.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The environment name (e.g. dev, staging, prod, or INT/SIT/PRE-PROD/PROD)."
+                  },
+                  "region_strategy": {
+                    "type": "string",
+                    "enum": [
+                      "single",
+                      "multi"
+                    ],
+                    "description": "Single-region (simplest/cheapest) or multi-region (resiliency/latency/DR) — decided PER environment; dev may be single while prod is multi."
+                  },
+                  "regions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The regions this environment runs in, enforced by the gcp.resourceLocations org policy."
+                  },
+                  "promotion_from": {
+                    "type": "string",
+                    "description": "The lower environment this one promotes from (one-way); absent for the first rung."
+                  }
+                }
+              }
+            },
+            "runtimes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The compute runtimes in scope (e.g. cloud-run, gke, cloud-functions, gce) — the well-architected 'runtimes' pillar the design addresses."
+            },
+            "data_stores": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The managed data stores in scope (e.g. cloud-sql, firestore, bigquery, memorystore) — protected/stateful ones must also appear in protected_resources."
+            },
+            "messaging": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The event-driven / messaging services in scope (e.g. pubsub, eventarc, cloud-tasks) — the 'event-driven' pillar the design addresses."
+            },
+            "observability": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "The observability posture — central logging sink, monitoring, alerting. Free-form so a product can record its logging/monitoring/tracing choices."
+            },
+            "cost_budget": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The monthly cost budget /cost prices an infra change against (measure-and-warn, never a gate). Absent, /cost reports the projection with no advisory.",
+              "properties": {
+                "monthly": {
+                  "type": "number",
+                  "description": "The monthly budget ceiling in `currency`."
+                },
+                "warn_threshold": {
+                  "type": "number",
+                  "description": "Fraction of the ceiling (0..1, e.g. 0.8) at which /cost raises a near-budget advisory. Default 0.8."
+                },
+                "spike_threshold": {
+                  "type": "number",
+                  "description": "Per-resource monthly delta (in `currency`) at which /cost raises a cost-spike advisory. Inert when <= 0."
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "The budget currency (e.g. GBP, USD)."
+                }
+              }
+            },
+            "drift": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The drift-monitoring posture /drift uses to check the live estate against its IaC after /provision.",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether /drift runs a scheduled/ad-hoc refresh check for this product."
+                }
+              }
+            },
+            "mlops": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The MLOps/LLMOps platform (gcp-mlops-expert), designed as first-class infra when the product serves ML/LLM features. Absent for products with no models.",
+              "properties": {
+                "platform": {
+                  "type": "string",
+                  "description": "The ML platform (e.g. vertex)."
+                },
+                "model_registry": {
+                  "type": "string",
+                  "description": "The model registry that is the source of truth for deployable model versions."
+                },
+                "feature_store": {
+                  "type": "string",
+                  "description": "The feature store that kills training/serving skew (absent when not used)."
+                },
+                "eval": {
+                  "type": "string",
+                  "description": "The evaluation gate (held-out + incumbent comparison) a model must pass before serving."
+                },
+                "guardrails": {
+                  "type": "string",
+                  "description": "The LLM guardrail layer (safety/PII/injection) for generative features (absent for classical ML)."
+                }
+              }
+            }
+          }
         }
       }
     },

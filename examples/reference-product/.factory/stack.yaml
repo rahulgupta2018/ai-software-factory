@@ -125,6 +125,51 @@ tech_bindings:
     block_risk: high                # low | medium | high
     min_confidence: low             # alerts below this confidence are noise and never gate
 
+  # Phase 8 (optional) — Infrastructure-as-Code. /plan-infra designs the IaC, /infra-review scans it
+  # (tfsec/Checkov + OPA/Conftest), and /provision applies it behind a hard gate verified offline by
+  # lib/infra-plan-verify.ts. GCP first; a second cloud is a binding change, not a rewrite. Custody:
+  # the Factory holds no cloud key — CI authenticates via the keyless OIDC identity below.
+  infra:
+    cloud: gcp                      # aws | azure | gcp — selects the per-cloud expert (gcp-cloud-expert)
+    iac_tool: terraform             # terraform | pulumi — selects the IaC expert (terraform-expert)
+    state_backend: gcs              # remote, encrypted, LOCKED — never local, never in the repo
+    identity: https://github.com/example/reference-product/.github/workflows/release.yml@refs/heads/main  # OIDC WIF — short-lived token, no key
+    regions: [europe-west2]         # data residency, enforced as org policy (resourceLocations)
+    protected_resources:            # stateful/irreversible — /provision blocks destroy/replace without consent
+      - google_sql_database_instance.main
+      - google_storage_bucket.tf_state
+    org:                            # landing-zone foundation (gcp-landing-zone-expert)
+      org_id: "123456789012"
+      billing_account: "ABCDEF-012345-6789AB"   # linked at project creation, never after
+      folders: [bootstrap, common, envs]        # org-policy guardrails attach here and inherit
+    environments:                   # ELICITED per product — never a baked INT/SIT/PRE-PROD/PROD default
+      - name: dev
+        region_strategy: single
+        regions: [europe-west2]
+      - name: prod
+        region_strategy: multi
+        regions: [europe-west2, europe-west1]
+        promotion_from: dev
+    runtimes: [cloud-run]           # well-architected 'runtimes' pillar
+    data_stores: [cloud-sql, memorystore]        # stateful ones also appear in protected_resources
+    messaging: [pubsub]             # event-driven pillar
+    observability:                  # central logging sink + monitoring + alerting
+      logging: central-sink
+      monitoring: cloud-monitoring
+    cost_budget:                    # /cost prices a change against this (advisory, never a gate)
+      monthly: 2000
+      warn_threshold: 0.8
+      spike_threshold: 500
+      currency: GBP
+    drift:
+      enabled: true                 # /drift checks the live estate against its IaC after /provision
+    mlops:                          # first-class ML platform (gcp-mlops-expert) — for model-serving products
+      platform: vertex
+      model_registry: vertex-model-registry
+      feature_store: vertex-feature-store
+      eval: held-out-plus-incumbent
+      guardrails: safety-pii-injection
+
 # Multi-tenant repairs product; database-expert binds ${ctx.tenancy} for per-query isolation.
 tenancy:
   model: multi-tenant
@@ -159,12 +204,24 @@ skills:
     version: "1.0.0"
   - name: strategy-advisor              # /plan-product: option generation + trade-offs
     version: "1.1.0"
-  - name: project-planner               # /spec + architecture: work breakdown
+  - name: project-planner               # /plan-delivery + /spec: work breakdown, dependencies
+    version: "1.1.0"
+  - name: sprint-planner                # /plan-delivery: increment sizing + realistic backlog
     version: "1.1.0"
   - name: multi-agent-patterns          # architecture: agent topology / context isolation
     version: "2.2.0"
   - name: technical-writer              # /document: release notes + Diataxis
     version: "1.1.0"
+  - name: terraform-expert              # infra lane: IaC method — modules, locked state, plan/apply
+    version: "0.1.0"
+  - name: pulumi-expert                 # infra lane: IaC method (Pulumi) — routed when iac_tool: pulumi
+    version: "0.1.0"
+  - name: gcp-cloud-expert              # infra lane: GCP well-architected security baseline
+    version: "0.1.0"
+  - name: gcp-landing-zone-expert       # infra lane: org/folder/project/billing/network foundation
+    version: "0.1.0"
+  - name: gcp-mlops-expert              # infra lane: Vertex AI ML/LLM platform (MLOps/LLMOps)
+    version: "0.1.0"
 
 guardrails:
   pii_handling: detect_and_stop

@@ -3,6 +3,138 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.61.0.0] — 2026-08-12
+
+**The infrastructure lane now goes from ground zero to a ready environment — and tells you what it
+costs and when it drifts.** Building on the design→review→provision spine, the Platform Engineer can
+now design your **landing-zone foundation** (organisation, projects, billing, guardrails), stand up
+**exactly the environments you ask for** (no baked ladder — it always asks), plan the
+**well-architected pillars** and an **MLOps/LLMOps platform**, **price** a change before you apply
+it, and **detect drift** after. Still GCP-first, still keyless, still holds no cloud credential —
+every cost and drift input is offline JSON you provide.
+
+### Added — `/cost` (installs as `/fac-cost`)
+- Estimates the **monthly cost** of an infra change before it ships: reads your `infracost` plan
+  JSON, compares it to the budget in `tech_bindings.infra.cost_budget`, and **warns** — never blocks
+  — when a change is over budget, near budget, or a single resource spikes. Names the cost drivers
+  and records `02f-cost.md`. Measure-and-warn, the budget sibling of `/benchmark`.
+
+### Added — `/drift` (installs as `/fac-drift`)
+- The **`/qa` of your infrastructure**: reads a `terraform plan -refresh-only` / `pulumi refresh`
+  diff and produces a prioritised bug-list of what changed out of band — resources modified, deleted,
+  or created unmanaged — with **security-sensitive drift first** (an out-of-band open firewall leads
+  the report). Recommends a reconcile path; records `06g-drift.md`. Reports, it doesn't fix.
+
+### Added — three new craft skills (auto-selected by your infra binding)
+- **`pulumi-expert`** — the Pulumi IaC method (locked remote state, KMS secrets provider, protected
+  resources), routed automatically when `iac_tool: pulumi`.
+- **`gcp-landing-zone-expert`** — the ground-zero GCP foundation: organisation → folders → projects,
+  billing linked at creation with budgets, org-policy guardrails, shared networking, and an IAM group
+  model.
+- **`gcp-mlops-expert`** — the Vertex AI **MLOps/LLMOps** platform: reproducible pipelines, a model
+  registry, a feature store, canary serving with rollback, an evaluation gate, LLM guardrails, and
+  drift monitoring.
+
+### Changed — `/plan-infra` now designs the whole estate
+- Extended from module/state/identity to the **landing-zone foundation**, **elicited environments**
+  (it always asks how many and their names — no INT/SIT/PRE-PROD/PROD default), a **per-environment
+  region strategy** (single vs multi-region), the **well-architected pillars** (scalability,
+  resiliency, observability, IAM/RBAC, SSL, secrets, runtimes, data stores, event-driven messaging),
+  and an **MLOps/LLMOps** platform when your product serves models.
+- **`tech_bindings.infra`** gained `org`, `environments[]`, `runtimes`, `data_stores`, `messaging`,
+  `observability`, `cost_budget`, `drift`, and `mlops`. The **Platform Engineer** now owns the full
+  `/plan-infra` → `/infra-review` → `/cost` → `/provision` → `/drift` lane.
+
+## [0.60.0.0] — 2026-08-12
+
+**You can now provision your cloud before you ship onto it.** A new **infrastructure lane** — a
+`/plan-infra` → `/infra-review` → `/provision` chain, owned by a new **Platform Engineer** — designs
+your infrastructure as code, scans it for misconfiguration and policy before anything is applied,
+and applies it behind a hard gate. GCP first; a second cloud is a config change, not a rewrite. The
+Factory takes custody of no cloud key — CI authenticates with keyless OIDC.
+
+### Added — the infrastructure lane (installs as `/fac-plan-infra`, `/fac-infra-review`, `/fac-provision`)
+- **`/plan-infra`** — writes the IaC design record: the module layout, a remote **encrypted, locked**
+  state backend, keyless OIDC workload-identity (never a downloadable key), the environments, and
+  the **protected** (stateful/irreversible) resources. Composes two new craft skills, `terraform-expert`
+  (IaC method) and `gcp-cloud-expert` (the GCP well-architected security baseline). Records
+  `02d-plan-infra.md`.
+- **`/infra-review`** — scans the written IaC before any apply: `tfsec`/Checkov for misconfiguration
+  and OPA/Conftest for organisation policy. A **high/critical** finding blocks `/provision`. Records
+  `02e-infra-review.md`.
+- **`/provision`** — `terraform plan` → verifies the plan **offline** (no protected destroy/replace
+  without explicit consent, no long-lived key, no secret in state, no high-severity policy) → **hard
+  gate** on the irreversible apply → apply → confirm. Records `06f-provision.md`.
+- **Platform Engineer** persona — owns the infra lane end to end, distinct from the app build. Hands
+  off to the Release Engineer once infrastructure is provisioned and verified.
+- **`tech_bindings.infra`** — a new binding: `cloud` (aws/azure/gcp), `iac_tool` (terraform/pulumi),
+  `state_backend`, keyless `identity`, `regions`, and `protected_resources`. The reference product
+  ships a GCP fixture.
+
+Deferred (a later, larger scope): cost estimation (`/cost`), drift detection (`/drift`), Pulumi, and
+the full AWS/Azure cloud-expert baselines.
+
+## [0.59.0.0] — 2026-08-12
+
+**You can now see your product before it's built.** A new `/prototype` step renders your approved
+design record into a **clickable, high-fidelity HTML prototype** — one page per screen, wired by the
+navigation graph, styled from your design tokens verbatim — that opens in the browser fully offline.
+Click through the real routes and sign off on the look and feel *before* any code is written. It's
+on-demand: run it when a UI product wants a visual proof of the design.
+
+### Added — `/prototype` (installs as `/fac-prototype`)
+- Sits in PLAN, after `/plan-design`. It reads the design record (`02a-plan-design.md`) and emits a
+  self-contained HTML prototype — one page per screen plus an `index.html` gallery and a device
+  frame — styled from the design tokens **verbatim** and wired by the navigation graph so you click
+  through real routes. Composes the `frontend-design` and `visualization-expert` craft skills and
+  self-verifies the render offline in `browse`.
+- Renders the design, never redesigns it. A coverage gate fails the prototype if a screen has no
+  page, a navigation link dangles, or a page invents a token the design record never set — the
+  fidelity analogue of the design AI-slop check.
+- Records its work as the branch artifact `02b-prototype.md`; a design change re-opens it. The
+  Designer agent gains `/prototype` alongside `/plan-design` (no new persona).
+
+## [0.58.0.0] — 2026-08-12
+
+**The Factory now plans once and delivers in tracked increments.** A new `/plan-delivery` step turns
+your approved PRD into an ordered backlog of shippable increments in a committed `PLAN.md` — each
+tracing to a PRD goal, each with an effort + estimated-token budget — and the build loop advances it
+one increment per `/ship`. The PLAN → BUILD boundary is a hard sign-off gate: nothing gets built
+until you approve the sequence.
+
+### Added — `/plan-delivery` (installs as `/fac-plan-delivery`)
+- Sits in PLAN, after `/plan-arch` (+ `/plan-design`) and before the build loop. It reads `PRD.md` +
+  `.factory/stack.yaml` and decomposes the product into a **prioritised, vertical-slice increment
+  backlog**, composing the `project-planner` craft skill for the work breakdown and dependencies and
+  the `sprint-planner` craft skill for increment sizing and a realistic, committable backlog.
+- Records its plan as the branch artifact `02c-plan-delivery.md`, so it slots into the run chain
+  without disturbing the existing design/spec steps.
+
+### Added — `PLAN.md`, the delivery backlog + cost ledger
+- A committed, human-owned file beside `PRD.md`. Its frontmatter is the machine source of truth
+  (increment `id` / `order` / `status` / `goals` / `est_tokens`); the body is your narrative.
+- Statuses move `todo → in-progress → shipped`, one increment active at a time. Each increment
+  traces to a PRD goal — an orphan increment is scope creep and fails validation.
+- Doubles as a **token cost ledger**: `/ship` records `actual_tokens` against each increment's
+  `est_tokens`, so estimates calibrate against real usage over time.
+- A scaffold (`templates/PLAN.template.md`) and a worked example
+  (`examples/reference-product/PLAN.md`) ship with it.
+
+### Added — PLAN → BUILD sign-off gate
+- The first build run is a **hard gate**: it stays blocked until you approve the delivery plan. Later
+  builds gate routine. This is the one place a human commits to the sequence before effort is spent.
+
+### For contributors
+- New pure verifier `lib/delivery-plan.ts` — parses `PLAN.md` and checks (offline) goal traceability,
+  valid statuses, unique ids/orders, a single active increment, and forward-only advance (a backward
+  status jump needs an explicit `reopened` flag). `nextIncrement` / `advanceIncrement` /
+  `verifyAdvance` back the increment binding. Fully unit-tested with a negative case per rule.
+- `lib/run.ts` `gateTier` now honours a `signoff` flag (the PLAN → BUILD gate).
+- The Tier-0 acceptance test (`test/pipeline-acceptance.test.ts`) drives the full chain through the
+  new `02c-plan-delivery` step, the sign-off gate, and one-increment-per-`/ship` advance.
+- Vendored the `sprint-planner` craft skill (@ 1.1.0) from the `agent-skills` library and wired it
+  into `/plan-delivery` alongside `project-planner`; pinned in the reference product's `stack.yaml`.
+
 ## [0.57.0.0] — 2026-08-12
 
 The three web-design craft skills the build loop routes to (`frontend-design`,

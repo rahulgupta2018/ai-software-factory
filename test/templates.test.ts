@@ -16,6 +16,7 @@ import { parseYamlObject } from '../lib/yaml.ts';
 import { parseFrontmatter } from '../lib/frontmatter.ts';
 import { loadProductContext, mergeContext } from '../lib/context.ts';
 import { validateContext } from '../lib/schema.ts';
+import { parseDeliveryPlan, verifyDeliveryPlan } from '../lib/delivery-plan.ts';
 
 const ROOT = join(import.meta.dir, '..');
 const PRD_TEMPLATE = join(ROOT, 'templates', 'PRD.template.md');
@@ -78,6 +79,19 @@ describe('PRD.template.md', () => {
     ]) {
       expect(text).toContain(heading);
     }
+  });
+});
+
+describe('PLAN.template.md', () => {
+  const PLAN_TEMPLATE = join(ROOT, 'templates', 'PLAN.template.md');
+
+  test('the skeleton parses and is a well-formed (verifier-clean) delivery plan', () => {
+    const text = readFileSync(PLAN_TEMPLATE, 'utf-8');
+    const plan = parseDeliveryPlan(text, 'PLAN.template.md');
+    // One live goal + one live increment tracing to it; extra rows stay commented (don't leak).
+    expect(plan.goals.map((g) => g.id)).toEqual(['G1']);
+    expect(plan.increments.map((i) => i.id)).toEqual(['INC-1']);
+    expect(verifyDeliveryPlan(plan).findings).toEqual([]);
   });
 });
 

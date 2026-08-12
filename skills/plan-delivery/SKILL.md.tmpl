@@ -1,0 +1,167 @@
+---
+name: plan-delivery
+description: >-
+  Decomposes an approved PRD into an ordered backlog of shippable increments and records it in a
+  committed PLAN.md — each increment tracing to a PRD goal, carrying an effort + estimated-token
+  field, and moving through a fixed todo → in-progress → shipped lifecycle. Composes project-planner
+  for the work breakdown and dependencies and sprint-planner for increment sizing and a realistic
+  backlog. Sets the PLAN → BUILD sign-off gate and the increment the
+  build loop binds. Activates once the stack is settled and the product needs a delivery sequence;
+  owns the increment backlog, not the product vision (/plan-product), the stack (/plan-arch), or a
+  single feature's spec (/spec).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-08-12
+  layer: "Plan"
+  priority: "V1"
+---
+
+# Plan-Delivery
+
+{{PREAMBLE}}
+
+## Overview
+
+`/plan-delivery` is the Factory's delivery-planning pass — it turns a settled `PRD.md` (plus the
+`.factory/stack.yaml` the architecture pass wrote) into an ordered, tracked backlog of shippable
+**increments**, recorded in a committed `PLAN.md` beside the PRD. Each increment is a slice of value
+that traces back to a PRD goal, carries an effort and estimated-token field, and moves through a
+fixed lifecycle (`todo → in-progress → shipped`). The build loop binds one increment at a time;
+`/ship` flips exactly one to `shipped` per loop and records its actual token spend.
+
+It is a *wrapper*: it composes `project-planner` for the genuine work breakdown — milestones,
+dependencies, sequencing — and `sprint-planner` for increment sizing and committing a realistic
+backlog, and adds the Factory's delivery discipline: goal traceability, a single active increment,
+the PLAN → BUILD sign-off gate, and a cost ledger (estimated vs actual tokens) so the estimates
+calibrate against real usage over time.
+
+## When to Activate
+
+Activate when:
+- A `PRD.md` is settled (`status: in-design` or `in-build`) and `.factory/stack.yaml` exists, and
+  the product needs a delivery sequence before the build loop starts.
+- The user asks "what do we build first", "break this into increments", "plan the roadmap",
+  "what's the delivery order", or "how do we phase this".
+
+**Do not activate** (adjacent skills own this):
+- `plan-product` — decides *what/why* (is this the right product/scope); `/plan-delivery` is
+  downstream and takes the settled scope as given.
+- `plan-arch` — owns the tech stack and architecture in `stack.yaml`; `/plan-delivery` sequences the
+  *work*, not the *stack*.
+- `spec` — turns ONE increment into a precise, buildable spec; `/plan-delivery` produces the ordered
+  set of increments `/spec` then sharpens one at a time.
+- `project-planner` (craft) — the work-breakdown engine this wrapper composes; `/plan-delivery`
+  frames it as a committed, goal-traced, gate-bearing PLAN.md.
+- `sprint-planner` (craft) — the increment-sizing / realistic-backlog engine this wrapper composes;
+  `/plan-delivery` uses it to size increments, not to run a sprint ceremony.
+
+## Core Concepts
+
+- **PLAN.md is the artifact.** A committed, human-owned file beside `PRD.md`. Its frontmatter is the
+  machine source of truth (the verifier reads it); the body is the human narrative. It doubles as
+  the token cost ledger.
+- **Every increment traces to a PRD goal.** `goals:` cites goal ids from `PRD.md` §3. An increment
+  serving no goal is scope creep and fails the verifier (`orphan-increment`).
+- **One increment is active at a time.** Statuses are `todo | in-progress | shipped`; at most one is
+  `in-progress`. `order` defines the delivery sequence and must be unique.
+- **The PLAN → BUILD boundary is a hard sign-off gate.** The first build run stays blocked until the
+  operator approves the delivery plan — the one place a human commits to the sequence before effort
+  is spent.
+- **PLAN.md is a cost ledger.** Each increment carries `effort` (human-team → AI-assisted) and
+  `est_tokens`; once shipped, `/ship` writes `actual_tokens` from `run.json`. The gap recalibrates
+  the next estimate.
+- **Forward-only advance.** Status moves forward (`todo → in-progress → shipped`). Re-opening a
+  shipped increment requires an explicit `reopened: true` flag — a deliberate, recorded backward move.
+
+## Workflow
+
+Freedom level: **medium** — the PLAN.md shape and the rules are fixed; the decomposition is yours.
+
+1. **Read the settled inputs.** `PRD.md` (goals §3, features §10) and `.factory/stack.yaml`
+   (components, commands). Note dependencies between features.
+2. **List the PRD goals.** Extract the goal ids/summaries into `prd_goals:` — the traceability
+   anchor every increment must cite.
+3. **Decompose into increments (`project-planner`).** Slice the PRD into the smallest shippable
+   increments that each deliver value; sequence them by dependency and value. Give each a unique
+   `id` and `order`.
+4. **Size, trace and estimate (`sprint-planner`).** Size each increment so it is realistically
+   shippable in one build loop, then set `goals:` (the PRD goal ids it serves), an `effort`
+   estimate, and `est_tokens`. An increment that traces to no goal is scope creep — drop it or find
+   the goal it serves; an increment too big for one loop should be split.
+5. **Set the initial statuses.** A fresh backlog is all `todo`; mark the first increment
+   `in-progress` when the build loop is about to start it. At most one `in-progress`.
+6. **Write PLAN.md** (from `templates/PLAN.template.md`) and record the run artifact. Delivery
+   planning follows the architecture pass, so it is a **branch artifact** under step 2 — the next
+   free sub-sequence after plan-design (`02a`) and spec (`02b`):
+   ```bash
+   fac run artifact --seq 2c --step plan-delivery \
+     --inputs PRD.md .factory/stack.yaml --body-file plan-delivery.md
+   ```
+7. **Gate the hand-off.** The PLAN → BUILD boundary is a hard sign-off gate: the first build run
+   stays blocked until the operator approves the plan.
+8. **Hand off.** The bound increment goes to `/spec` (to sharpen) and the build loop (to implement);
+   `/ship` advances the increment and records its actual token spend back into PLAN.md.
+
+## Practical Guidance
+
+- Slice by shippable value, not by layer — an increment that ships a thin end-to-end path beats one
+  that finishes the whole backend but ships nothing.
+- Keep the first increment small enough to prove the pipeline end to end.
+- Sequence by dependency: an increment that another blocks comes first.
+- Name the PRD goal each increment serves out loud; if you can't, it is scope creep.
+- Estimate honestly and revisit: the estimated-vs-actual token gap on shipped increments is the
+  signal that recalibrates the next estimate.
+
+## Examples
+
+**Example:**
+```
+Input:  PRD.md (Repair Tracker) — goals G1 "nothing falls through the cracks", G2 "a single answer
+        to what is outstanding"; stack.yaml with api/web/reminders/mobile components.
+Work breakdown (project-planner): INC-1 core tracking (log/assign/status/list) → G1,G2;
+        INC-2 SLA reminders → G1; INC-3 contractor mobile app → G1.
+Output: PLAN.md — three ordered increments, each tracing to a goal, with effort + est_tokens.
+        INC-1 in-progress; the PLAN → BUILD sign-off gates the first build.
+Handoff → /spec (sharpen INC-1) → build loop; /ship ships INC-1, records actual_tokens, binds INC-2.
+```
+
+## Guidelines
+
+1. Decompose, don't re-scope — take the settled PRD as given; sequence the work, don't reopen what.
+2. Every increment cites at least one real PRD goal; drop orphans.
+3. Keep exactly one increment `in-progress`; `order` is unique and defines the sequence.
+4. Set the PLAN → BUILD sign-off as a hard gate before the first build.
+5. Record `effort` + `est_tokens` per increment; let `/ship` fill `actual_tokens`.
+6. Write PLAN.md and record the run artifact (`02c-plan-delivery.md`); hand the bound increment to
+   `/spec` and the build loop.
+
+## Gotchas
+
+1. **Orphan increments**: an increment tracing to no PRD goal is scope creep — the verifier fails it.
+2. **Two active increments**: more than one `in-progress` makes "what's next" ambiguous — keep one.
+3. **Slicing by layer**: a "finish the backend" increment ships nothing; slice by shippable value.
+4. **Re-scoping the PRD**: deciding *what* to build is `/plan-product`; stay on the delivery order.
+5. **Silent backward moves**: reverting a shipped increment without `reopened: true` is a lost audit
+   trail — record the deliberate re-open.
+
+## Integration
+
+- `plan-arch` — writes `stack.yaml`; `/plan-delivery` reads it to sequence the work.
+- `plan-product` — settles the scope `/plan-delivery` decomposes.
+- `project-planner` (craft) — supplies the work breakdown, dependencies, and sequencing.
+- `sprint-planner` (craft) — supplies increment sizing and a realistic, committable backlog.
+- `spec` — receives one increment at a time to turn into a buildable spec.
+- `ship` — advances the bound increment to `shipped` and records its actual token spend in PLAN.md.
+- Run harness (`fac run`) — records the plan as `02c-plan-delivery.md`; the PLAN → BUILD sign-off is
+  a hard gate (`gateTier({ signoff: true })`).
+- Verifier — `lib/delivery-plan.ts` checks PLAN.md is well-formed and only advances forward.
+
+## References
+
+- Planning craft: vendored `project-planner` (work breakdown) + `sprint-planner` (increment sizing)
+- Human context: `PRD.md` (owned by `/discover` / `/plan-product`); `PLAN.md` (owned by this skill)
+- Template: `templates/PLAN.template.md`
+- Related skills: `plan-arch`, `plan-product`, `spec`, `ship`
+- Agent: `agents/orchestrator.md`

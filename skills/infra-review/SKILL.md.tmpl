@@ -1,0 +1,163 @@
+---
+name: infra-review
+description: >-
+  Scans the Infrastructure-as-Code /plan-infra produced for misconfiguration and policy violations
+  before anything is provisioned — tfsec/Checkov for provider misconfig plus OPA/Conftest for
+  organisation policy — and writes a findings artifact. A high-severity finding is a hard gate that
+  blocks /provision. Composes terraform-expert and the per-cloud expert (gcp-cloud-expert) for the
+  baseline it checks against. Activates once IaC exists and before /provision; owns the pre-apply
+  security+policy scan, not the design (/plan-infra) or the apply (/provision).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-08-12
+  layer: "Review"
+  priority: "V1"
+---
+
+# Infra-Review
+
+{{PREAMBLE}}
+
+## Overview
+
+`/infra-review` is the Factory's pre-apply gate on infrastructure. `/plan-infra` designs the IaC and
+the module code is written; before `/provision` touches a cloud, that code must be **scanned for
+misconfiguration and policy violations**. `/infra-review` runs the static analysis — `tfsec` /
+Checkov for provider misconfiguration (a public bucket, an open firewall, unencrypted state) and
+**OPA/Conftest** for organisation policy (no service-account keys, private-IP databases, allowed
+regions) — and records the findings as a run artifact (`02e-infra-review.md`).
+
+Its defining trait is the **hard gate**: a **high or critical** finding **blocks `/provision`**. The
+Factory runs no cloud and provisions nothing here; it reads the scanner output and enforces the
+policy. It composes `terraform-expert` (IaC correctness) and the per-cloud expert (`gcp-cloud-expert`,
+the baseline the scan is measured against), and hands a clean-or-blocked verdict to `/provision`.
+
+## When to Activate
+
+Activate when:
+- `/plan-infra` has produced an IaC design and the module code is written, and the operator wants a
+  security/policy review before provisioning.
+- The user asks to "scan the Terraform", "run tfsec/Checkov", "check the infra policy", or "review
+  the infrastructure before apply".
+
+**Do not activate** (adjacent skills own this):
+- `plan-infra` — owns the *design*; `/infra-review` reviews the code that design produced.
+- `provision` — owns the *apply*; `/infra-review` is the gate it must pass. `/provision` also runs a
+  plan-time verifier (`lib/infra-plan-verify.ts`) on the concrete plan; `/infra-review` is the
+  earlier *static* scan of the source, not the plan.
+- `review` / `security` — own application code review (the diff) and the app-security audit;
+  `/infra-review` is their infrastructure sibling, scanning IaC not app code.
+- `terraform-expert` / `gcp-cloud-expert` — the craft skills whose baseline this scan measures
+  against; it enforces their standard, it doesn't replace them.
+
+## Core Concepts
+
+- **The findings list is the artifact, and severity gates.** `02e-infra-review.md` records every
+  finding with a severity; a **high/critical** finding **blocks `/provision`**. Low/medium are
+  recorded and advised, not blocking — a gate that cries wolf gets ignored.
+- **Two scanners, two jobs.** `tfsec`/Checkov catch provider *misconfiguration* (encryption, public
+  exposure, logging); **OPA/Conftest** enforce *organisation policy* as code (keyless-only,
+  private-IP-only, allowed regions). Run both.
+- **Measured against the per-cloud baseline.** The pass/fail bar is the per-cloud expert's
+  well-architected security baseline (`gcp-cloud-expert`: least-privilege IAM, default-deny network,
+  CMEK, audit logging, org policy). The scan checks the IaC meets it.
+- **Static scan, not the plan.** `/infra-review` scans the *source* (`.tf`/`.hcl`) before a plan
+  exists. `/provision` separately verifies the concrete `terraform plan` with
+  `lib/infra-plan-verify.ts` (blast radius, secrets in state, plan-time policy). Both gates, two
+  moments.
+- **Custody enforced.** A finding that the IaC creates a long-lived key, embeds a secret, or writes
+  a plaintext credential is high-severity by construction — the custody principle is a policy rule,
+  not a suggestion.
+
+## Workflow
+
+Freedom level: **low** — the scanners, the baseline, and the severity gate are fixed; the remediation
+advice is yours.
+
+1. **Read the design and the binding.** Load `02d-plan-infra.md` and `${ctx.tech_bindings.infra}`
+   (cloud, `iac_tool`, protected resources, regions, identity). Load `terraform-expert` and the
+   per-cloud expert for the baseline.
+2. **Run misconfiguration scanners.** `tfsec` and/or Checkov over the IaC. Gather every finding with
+   its severity and the resource it hit.
+3. **Run policy-as-code.** OPA/Conftest against the organisation-policy rules from the baseline
+   (keyless-only, no primitive roles, private-IP databases, uniform bucket access, allowed regions,
+   audit logging on). Gather violations with severity.
+4. **Classify and gate.** Any **high/critical** finding **blocks `/provision`**. Record low/medium
+   as advisories. Map each custody violation (long-lived key, embedded secret, plaintext credential)
+   to high by construction.
+5. **Record the findings artifact.** `/infra-review` follows `/plan-infra` in the design band, so it
+   is a **sub-sequenced artifact** reading the design as its input:
+   ```bash
+   fac run artifact --seq 2e --step infra-review --inputs .factory/runs/$RUN/02d-plan-infra.md --body-file infra-review.md
+   ```
+6. **Hand off.** Clean (no high/critical) → `/provision` may proceed. Blocked → fix the IaC (or the
+   design in `/plan-infra`) and re-run; never provision over a high-severity finding.
+
+## Practical Guidance
+
+- Run both scanner classes — misconfiguration (`tfsec`/Checkov) *and* policy (OPA/Conftest); they
+  catch different failures.
+- Read the block threshold and protected set from `${ctx.tech_bindings.infra}`; don't hardcode a
+  provider or a severity bar.
+- Treat a long-lived-key or embedded-secret finding as high regardless of the scanner's label — the
+  custody principle is not negotiable.
+- Give each finding a concrete fix (the HCL change), not just a rule id — a finding without a
+  remedy is noise.
+- Keep the gate calibrated: block on high/critical, advise on low/medium, so the block means
+  something.
+
+## Examples
+
+**Example:**
+```
+Input:  02d-plan-infra.md + the written Terraform (Repair Tracker, GCP). Scanners run:
+        tfsec → google_storage_bucket.assets allows public ACL (HIGH); Checkov → Cloud SQL has a
+        public IP (HIGH); Conftest → a google_service_account_key resource violates keyless-only
+        (HIGH, custody); tfsec → bucket access logging not set (LOW).
+Output: 02e-infra-review.md — 3 high findings (public bucket, public-IP DB, SA key) + 1 low
+        (logging). Verdict: BLOCK /provision until the three highs are fixed. Each finding carries
+        the HCL remediation.
+Handoff → fix the IaC → re-run /infra-review → clean → /provision.
+```
+
+## Guidelines
+
+1. Run misconfiguration (`tfsec`/Checkov) and policy (OPA/Conftest) scans — both, every time.
+2. A high/critical finding blocks `/provision`; low/medium are advisories.
+3. A long-lived key, embedded secret, or plaintext credential is high by construction (custody).
+4. Measure against the per-cloud expert's baseline; route by `${ctx.tech_bindings.infra.cloud}`.
+5. Give every finding a concrete HCL fix, not just a rule id.
+6. Record the findings as `02e-infra-review.md` reading `02d-plan-infra.md` as its input.
+
+## Gotchas
+
+1. **Skipping policy-as-code**: `tfsec` won't catch an org-policy violation (a forbidden region, a
+   permitted SA key) — run Conftest too.
+2. **Trusting the scanner's severity blindly**: a custody violation the scanner rates medium is
+   still high here — re-classify it.
+3. **Blocking on noise**: flagging low/medium as blockers trains the operator to ignore the gate —
+   calibrate to high/critical.
+4. **Reviewing the plan instead of the source**: `/infra-review` scans the `.tf` source; the
+   concrete-plan check is `/provision`'s `lib/infra-plan-verify.ts` — don't conflate them.
+5. **A finding with no fix**: a rule id without a remediation wastes the operator's time — always
+   propose the HCL change.
+
+## Integration
+
+- `plan-infra` — writes the design and IaC `/infra-review` scans; a design change re-opens the scan.
+- `terraform-expert` / `gcp-cloud-expert` (craft) — supply the baseline the scan measures against.
+- `provision` — the gated apply this review protects; a high/critical finding blocks it. `/provision`
+  separately runs the plan-time verifier `lib/infra-plan-verify.ts`.
+- `security` — the application-security sibling (OWASP/STRIDE on app code); `/infra-review` is the
+  IaC analogue.
+- Run harness (`fac run`) — records the findings as a sub-sequenced `02e-infra-review.md`; the
+  high/critical gate is enforced before `/provision`.
+
+## References
+
+- Scanners: `tfsec` / Checkov (IaC misconfiguration), OPA/Conftest (policy-as-code)
+- Craft: vendored `terraform-expert` + `gcp-cloud-expert` (the baseline)
+- Related skills: `plan-infra`, `provision`, `security`
+- Agent: `agents/platform.md`

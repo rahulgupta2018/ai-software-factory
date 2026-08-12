@@ -4,14 +4,15 @@ description: >-
   Reflect across recent runs and the decision log to surface what worked, what stalled, and
   what to change next — a lightweight retrospective, not a status report. Reads the run
   history and the active decisions, groups by theme, and proposes concrete adjustments (and
-  durable decisions to log). Activates on "retro", "what did we learn", a weekly review, or
-  after a rough stretch of work; owns cross-run reflection. Does not resume a single task
-  (/context-restore) or run quality gates (/health).
+  durable decisions to log). Composes sprint-planner to reflect on delivery velocity and
+  recalibrate the next plan's estimates from the PLAN.md cost ledger. Activates on "retro",
+  "what did we learn", a weekly review, or after a rough stretch of work; owns cross-run
+  reflection. Does not resume a single task (/context-restore) or run quality gates (/health).
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.1.0
-  last_updated: 2026-07-25
+  version: 0.2.0
+  last_updated: 2026-08-12
   layer: Reflect
   priority: FF
 ---
@@ -91,6 +92,9 @@ Activate when:
   timeline nobody reads.
 - **Lessons become decisions.** A durable "we should always X" is logged with `fac decision`, so it
   survives to shape the next run.
+- **Velocity is evidence too.** When a `PLAN.md` exists, its shipped increments and the
+  estimated-vs-actual token gap are a signal `/retro` reflects on (via `sprint-planner`) to
+  recalibrate the next plan's estimates and capacity assumptions.
 
 ## Workflow
 
@@ -99,7 +103,9 @@ Freedom level: **medium** — gather evidence, find patterns, propose changes.
 1. **Gather the history.** List recent runs and skim their steps/artifacts; read the active
    decisions (`fac decision list`). Look for repeats: same step failing, rework, decisions reversed.
 2. **Group by theme.** Cluster the signals — e.g. "review kept catching the same class of bug",
-   "arch decisions churned twice", "tests flaked on the API component".
+   "arch decisions churned twice", "tests flaked on the API component". When a `PLAN.md` is present,
+   add a **velocity** theme: how many increments shipped per cycle and where `actual_tokens` overran
+   `est_tokens` (compose `sprint-planner`'s velocity/capacity discipline to read the ledger).
 3. **Ask the three questions** per theme: what worked, what stalled, what to change.
 4. **Propose concrete actions.** Each observation gets an action a human or agent can actually take
    (change a gate, add a check, adjust a convention) — not a platitude.
@@ -154,11 +160,17 @@ Handoff → /learn (Track 3) can promote the logged lesson into a standing rule.
 - `fac decision` — both a source (past decisions) and a sink (new logged lessons).
 - Run harness (`fac run`) — the run history is the evidence base; the retro is recorded as a reflection-band artifact
   `09-retro.md` (seq 9).
+- `plan-delivery` — owns `PLAN.md`; `/retro` reads its shipped increments + cost ledger for the
+  velocity theme.
+- `sprint-planner` (craft) — supplies the velocity/capacity discipline `/retro` composes to
+  recalibrate estimates from the est-vs-actual token gap.
 - `learn` (Track 3) — promotes logged retro lessons into standing rules.
 - `context-save` — retro often follows a save at a milestone boundary.
 
 ## References
 
 - Substrate CLIs: `fac decision list`, `fac run status`, `fac run artifact`
-- Related skills: `learn`, `health`, `context-save`
+- Planning craft: vendored `sprint-planner` (velocity / estimate calibration)
+- Delivery ledger: `PLAN.md` (owned by `/plan-delivery`)
+- Related skills: `learn`, `health`, `context-save`, `plan-delivery`
 - Libraries: `lib/decision.ts`, `lib/run.ts`

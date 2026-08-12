@@ -225,12 +225,18 @@ export function findResumePoint(
   return { done: true };
 }
 
-/** Classify a step boundary. Irreversible actions and matched escalation triggers are hard. */
+/**
+ * Classify a step boundary. Irreversible actions, an explicit design sign-off, and matched
+ * escalation triggers are all hard gates (unbatchable, always asked). The sign-off flag models
+ * the PLAN→BUILD approval gate: the first build run stays blocked until the operator approves.
+ */
 export function gateTier(opts: {
   irreversible?: boolean;
+  signoff?: boolean;
   matchedTriggers?: string[];
 }): GateTier {
   if (opts.irreversible) return 'hard';
+  if (opts.signoff) return 'hard';
   if (opts.matchedTriggers && opts.matchedTriggers.length > 0) return 'hard';
   return 'routine';
 }

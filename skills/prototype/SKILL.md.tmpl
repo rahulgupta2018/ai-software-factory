@@ -1,0 +1,185 @@
+---
+name: prototype
+description: >-
+  Turns the design record (02a-plan-design.md) into a clickable, self-contained HTML prototype the
+  operator can look at BEFORE any code is written — one page per screen in the inventory, wired by
+  the navigation graph, styled from the design tokens VERBATIM. Composes frontend-design and
+  visualization-expert and self-verifies the render with browse, fully offline. Re-designs nothing:
+  a prototype that invents a colour or spacing the spec never set is the failure mode. Activates
+  on demand once /plan-design has produced a design record for a UI product; owns the rendered
+  proof, not the design spec (/plan-design) or the implementation (the build loop).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-08-12
+  layer: "Plan"
+  priority: "V1"
+---
+
+# Prototype
+
+{{PREAMBLE}}
+
+## Overview
+
+`/prototype` is the Factory's UI-prototype lane. `/plan-design` produces the **design record**
+(`02a-plan-design.md`): tokens-as-code, a complete screen inventory, an every-edge navigation
+graph, and stacked Mermaid screen-flows. What it does not produce is something the operator can
+*look at* — you cannot see the screens until the build loop implements them. `/prototype` closes
+that gap: it renders the design record into a **clickable, high-fidelity HTML prototype** the
+operator reviews **before** any code is written, on the same engine (run/artifact/gate harness,
+redaction, memory) as every other lane.
+
+It is **on-demand**: run it when a UI product wants a visual proof of the design before build. It
+is a *wrapper* — it composes `frontend-design` (intentional visual direction) and
+`visualization-expert` (any data-viz), and uses the `browse` tool to self-verify the rendered
+result. On top of them it adds the Factory's fidelity discipline: the prototype is styled from the
+design record's emitted tokens **verbatim**, and a coverage gate (`lib/prototype-plan.ts`) proves
+every screen has a page, every navigation edge resolves, and no page invents a token.
+
+## When to Activate
+
+Activate when:
+- `/plan-design` has written a design record (`02a-plan-design.md`) for a component with a UI
+  (`framework: react`/`flutter`), and the operator wants to *see* the screens as a clickable
+  prototype before the build loop implements them.
+- The user asks to "prototype the UI", "make a clickable mockup", "show me the screens", or "render
+  the design so I can click through it".
+
+**Do not activate** (adjacent skills own this):
+- `plan-design` — owns the *specification* (the design record the build implements verbatim);
+  `/prototype` renders a *proof* of that spec, it never writes or revises the spec. If the design
+  is wrong, fix it in `/plan-design` and re-run `/prototype`.
+- `frontend-design` / `visualization-expert` — the craft skills this wrapper composes; it
+  orchestrates and fidelity-checks them, it doesn't replace them.
+- The build loop (Implementer + `/review`) — owns *implementing* the design as real app code;
+  `/prototype` produces a throwaway visual proof, not shippable UI.
+- `discover` / `plan-arch` / `plan-delivery` — own the PRD, the stack, and the increment backlog;
+  `/prototype` is a design-fidelity step, not a planning one, and gates nothing downstream.
+
+## Core Concepts
+
+- **The prototype is the artifact, and it renders the design — it does not redesign.** A prototype
+  that invents colours, spacing, or type the design record never set is the failure mode — the
+  design-fidelity analogue of `/plan-design`'s AI-slop gate. Fidelity is *derived*: the token files
+  give real visual accuracy, not an approximation.
+- **One clickable HTML page per screen.** The design record's screen inventory maps one-to-one to
+  self-contained HTML pages; an `index.html` gallery and a device frame tie them together. The
+  every-edge navigation graph maps directly to working in-prototype `<a href>` links, so the
+  operator clicks through real routes.
+- **Self-contained and offline.** The prototype ships zero external dependencies — tokens inlined,
+  no CDN, no network. It renders in the `browse` tool with the network off, and is diffable as a
+  run artifact. That is why HTML wins over Figma (paid, external, not generable) or a wireframe
+  tool (low fidelity).
+- **Coverage is a gate, not a garnish.** Before hand-off, `lib/prototype-plan.ts` proves, offline:
+  every screen has a page (`missing-page`), every navigation edge resolves to a working link that
+  lands on an existing page (`dangling-link`), and no page uses a token absent from the record
+  (`invented-token`). A gap fails the lane.
+- **On-demand, gates nothing.** Unlike `/plan-delivery`'s PLAN → BUILD sign-off, `/prototype` is
+  optional and re-run on demand when the design changes. It is the higher-fidelity sibling of the
+  screen-flow diagram, one step downstream of `/plan-design`.
+
+## Workflow
+
+Freedom level: **medium** — the fidelity rule and the coverage gate are fixed; the render is yours.
+
+1. **Read the design record.** Load `02a-plan-design.md`: the screen inventory (every screen), the
+   navigation graph (every `screen → action → screen` edge), and the design tokens emitted as code
+   (colour / space / type / radius). If there is no design record, stop and hand back to
+   `/plan-design`.
+2. **Inline the tokens verbatim (`frontend-design`).** Turn the record's emitted tokens into a
+   single self-contained stylesheet (CSS custom properties inlined, no CDN). Use *only* the tokens
+   the record defines — do not invent a colour or a spacing step. Any data-viz uses
+   `visualization-expert` and the same tokens.
+3. **Render one page per screen.** For each screen in the inventory, emit one self-contained HTML
+   page styled from the tokens, plus an `index.html` gallery and a device frame. A screen with no
+   page is a coverage failure.
+4. **Wire the navigation graph.** For each `from → action → to` edge, add a working in-prototype
+   `<a href>` on the `from` page that lands on the `to` page. Every edge must resolve; a dangling
+   route is a coverage failure.
+5. **Self-verify with `browse`, offline.** Open `index.html` and click through the wired routes
+   with the network off — prove it renders self-contained with zero external dependencies.
+6. **Run the coverage gate.** Emit the prototype manifest (screens + nav + tokens from the record;
+   pages + their links + tokens-used from what you generated) and verify it with
+   `lib/prototype-plan.ts`: screen-coverage, link-coverage, and token-fidelity must all pass. Fix
+   any finding in the render, never by loosening the record.
+7. **Record the run artifact.** The prototype follows `/plan-design` in step 2, so it is a **branch
+   artifact** with a sub-sequence seq — `2b`, recording the manifest as `02b-prototype.md` beside
+   the `02b-prototype/` HTML directory:
+   ```bash
+   fac run artifact --seq 2b --step prototype \
+     --inputs .factory/runs/$RUN/02a-plan-design.md --body-file prototype-manifest.md
+   ```
+   It records `02a-plan-design.md` as its input, so a design change re-opens the prototype
+   (make-like cascade).
+8. **Hand off.** Show the operator the clickable prototype for sign-off. If they approve, the design
+   proceeds to `/plan-delivery` + the build loop; if not, the change goes back to `/plan-design`.
+
+## Practical Guidance
+
+- Render the tokens, don't reinterpret them — the whole point is a faithful proof, so a swatch the
+  operator sees must be the exact token the build will implement.
+- Keep every page self-contained: inline the CSS, no external fonts or CDNs — the offline render is
+  a hard exit criterion, not a nicety.
+- Wire every edge the navigation graph lists, including back/dismiss transitions; a prototype you
+  can't click all the way through isn't a proof.
+- If a screen or edge feels missing, the fix is in `/plan-design` (the spec), not an invented page
+  here — hand it back.
+- Treat the prototype as throwaway: it proves the design, it is not the start of the build.
+
+## Examples
+
+**Example:**
+```
+Input:  02a-plan-design.md (Repair Tracker web) — 5 screens (onboarding, repair-list, repair-detail,
+        assign-sheet, empty-state), a navigation graph of 6 edges, tokens as CSS custom properties.
+Output: 02b-prototype/ — index.html gallery + a device frame + 5 self-contained HTML pages styled
+        from the tokens verbatim, wired by the 6 navigation edges (every <a href> resolves).
+        Coverage gate (lib/prototype-plan.ts): 5/5 screens covered, 6/6 edges resolved, 0 invented
+        tokens → pass. Self-verified in browse with the network off.
+        run artifact 02b-prototype.md (the manifest) records 02a-plan-design.md as its input.
+Handoff → operator sign-off → /plan-delivery + build loop (or back to /plan-design on a change).
+```
+
+## Guidelines
+
+1. Render the design record; never redesign it — invented tokens fail the fidelity gate.
+2. One self-contained HTML page per screen in the inventory; a missing page fails coverage.
+3. Wire every navigation edge as a working in-prototype link; a dangling route fails coverage.
+4. Ship zero external dependencies; prove the offline render in `browse`.
+5. Record the manifest as `02b-prototype.md` with `02a-plan-design.md` as its input.
+6. Hand the clickable prototype to the operator for sign-off; changes go back to `/plan-design`.
+
+## Gotchas
+
+1. **Invented fidelity**: a colour/spacing/type the record never set is the primary failure mode —
+   the token-fidelity gate catches it.
+2. **A missing screen**: skipping an inventory screen (or an empty/error/permission route) fails
+   screen-coverage — render them all.
+3. **A dangling link**: a navigation edge that lands nowhere (or a page that never wires the link)
+   fails link-coverage — wire every edge.
+4. **External dependencies**: a CDN font or script breaks the offline render — inline everything.
+5. **Redesigning here**: fixing a design problem by inventing a page/token instead of handing it
+   back to `/plan-design` corrupts the spec-vs-proof boundary.
+
+## Integration
+
+- `plan-design` — writes the design record (`02a-plan-design.md`) `/prototype` renders; a design
+  change re-opens the prototype.
+- `frontend-design` (craft) — supplies the intentional visual direction the render honours verbatim.
+- `visualization-expert` (craft) — supplies any data-viz, styled from the same tokens.
+- `browse` (tool) — renders and clicks through the prototype to self-verify it, offline.
+- `plan-delivery` — runs after operator sign-off to decompose the approved design into increments.
+- Run harness (`fac run`) — records the manifest as a sub-sequenced `02b-prototype.md`; the lane
+  gates nothing downstream (it is an on-demand proof).
+- Verifier — `lib/prototype-plan.ts` proves the prototype covers the design record (screen-coverage,
+  link-coverage, token-fidelity).
+
+## References
+
+- Design craft: vendored `frontend-design` (visual direction) + `visualization-expert` (data-viz)
+- Design record: `02a-plan-design.md` (owned by `/plan-design`)
+- Verifier: `lib/prototype-plan.ts` (coverage gate)
+- Related skills: `plan-design`, `plan-delivery`, `review`
+- Agent: `agents/designer.md`

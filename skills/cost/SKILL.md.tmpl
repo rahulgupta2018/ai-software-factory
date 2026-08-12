@@ -1,0 +1,166 @@
+---
+name: cost
+description: >-
+  Estimates the monthly cost of an infrastructure change before it ships — runs a cost estimator
+  (infracost breakdown/diff) over the plan JSON the operator provides, verifies it offline with
+  lib/infra-cost-report.ts against the product's budget from tech_bindings.infra.cost_budget, and
+  WARNS (measure-and-warn, never a gate) when the projection is over or near budget or a single
+  resource spikes. Records the estimate as a run artifact. Composes terraform-expert / pulumi-expert
+  for reading the plan. Activates after /plan-infra, alongside /infra-review, before /provision; owns
+  the cost advisory, not the apply (/provision) or the policy scan (/infra-review).
+license: MIT
+metadata:
+  author: AI Software Factory
+  version: "0.1.0"
+  last_updated: 2026-08-12
+  layer: "Review"
+  priority: "V1"
+---
+
+# Cost
+
+{{PREAMBLE}}
+
+## Overview
+
+`/cost` is the Factory's infrastructure cost advisory. Given the plan JSON for an infra change
+(`infracost breakdown --format json` or `infracost diff`), it reads the projected monthly spend,
+compares it to the product's budget, and tells the operator — before `/provision` applies anything —
+whether the change is affordable and whether any single resource spiked. It is the cost analogue of
+the `/benchmark` performance check: **measure-and-warn, never a hard gate.** A change can be over
+budget and still be the right call; `/cost` makes the number visible so that call is deliberate, not
+a surprise on the invoice.
+
+It composes `lib/infra-cost-report.ts` (a pure verifier: parse the estimate → compare to budget +
+thresholds → advisories) and reads the budget from `${ctx.tech_bindings.infra.cost_budget}`. The
+Factory holds no cloud credentials and runs no live billing API — the operator provides the offline
+`infracost` JSON, exactly as the rest of the infra lane operates on plan/preview JSON.
+
+## When to Activate
+
+Activate when:
+- `/plan-infra` has produced an IaC design and there is a plan to price — the operator says
+  "estimate the cost", "how much will this cost", "run infracost", "check the budget".
+- Reviewing an infra change alongside `/infra-review`, before `/provision`.
+
+**Do not activate** (adjacent skills own this):
+- `plan-infra` — owns the *design*; `/cost` prices the plan that design produces.
+- `infra-review` — owns the *policy/security* scan (a hard gate); `/cost` is the *budget* advisory
+  (never a gate). They run side by side as the two pre-provision checks.
+- `provision` — owns the *apply* and its hard gate; `/cost` informs the decision, it doesn't apply.
+- `benchmark` — owns *application* performance regression; `/cost` is its infrastructure-spend
+  sibling. Same measure-and-warn philosophy, different signal.
+- `terraform-expert` / `pulumi-expert` — the craft skills this wrapper composes for reading the
+  plan; it orchestrates them.
+
+## Core Concepts
+
+- **Measure-and-warn, never a gate.** `/cost` never blocks `/provision`. It surfaces the projected
+  spend and any advisory; the operator decides. A hard budget gate would fight legitimate,
+  deliberate spend increases.
+- **The estimate comes from offline JSON.** `infracost breakdown --format json` (or `diff`) is run
+  by the operator; `/cost` reads the JSON. The Factory holds no billing credentials and calls no
+  cloud — consistent with the whole infra lane.
+- **Budget and thresholds come from the binding.** `${ctx.tech_bindings.infra.cost_budget}` supplies
+  the monthly ceiling, the warn threshold (e.g. 80%), and the per-resource spike threshold. Absent a
+  budget, `/cost` reports the number with no advisory.
+- **Three advisories.** `over-budget` (projection exceeds the ceiling), `near-budget` (projection at
+  or above the warn threshold but under the ceiling), and `cost-spike` (a single resource's monthly
+  delta meets the spike threshold).
+- **The number is a run artifact.** The estimate is recorded (`02f-cost.md`) so the cost of a change
+  is part of its reviewable history, not a one-off terminal print.
+
+## Workflow
+
+Freedom level: **low** — the estimate → verify → warn → record sequence is fixed; the remediation
+(rightsize, defer, accept) is the operator's call.
+
+1. **Get the estimate.** Have the operator run `infracost breakdown --format json --out-file
+   cost.json` (or `infracost diff`) against the plan; read the JSON. Never run a live billing API.
+2. **Read the budget.** Load `${ctx.tech_bindings.infra.cost_budget}` (monthly ceiling, warn
+   threshold, spike threshold) and the currency. Absent a budget, report the projection only.
+3. **Verify — ADVISORY.** Translate the estimate into a cost observation (projected monthly,
+   baseline, per-resource line items with delta) and run `lib/infra-cost-report.ts`. It returns
+   `withinBudget` plus any `over-budget` / `near-budget` / `cost-spike` advisory. Nothing here
+   blocks.
+4. **Show the roll-up.** Render `costSummary` for the operator: projected vs baseline monthly, the
+   delta, and the spike count. Name the top cost drivers.
+5. **Advise.** For each advisory, suggest a concrete lever (rightsize, change tier, add lifecycle
+   rules, reserve/commit, defer the resource) — a recommendation, never a block.
+6. **Record the estimate as a run artifact.** `/cost` sits in the design band beside `/infra-review`,
+   reading the infra design as its input:
+   ```bash
+   fac run artifact --seq 2f --step cost --inputs .factory/runs/$RUN/02d-plan-infra.md --body-file cost.md
+   ```
+
+## Practical Guidance
+
+- Read the offline `infracost` JSON — never wire the Factory to a billing API or cloud credentials.
+- Report the number even when there is no budget; visibility is the point.
+- Name the top drivers, not just the total — "the SQL instance and the GPU worker are 80% of the
+  delta" is actionable; "£1,450/mo" alone is not.
+- Keep it advisory: recommend a lever, let the operator decide. An over-budget change is often the
+  right one.
+- Pair with `/infra-review`: the two together (budget + policy) are the pre-provision review of an
+  infra change.
+
+## Examples
+
+**Example — a within-budget change.**
+```
+Input:  infracost JSON: projected GBP 1,450/mo, baseline GBP 1,200/mo, budget GBP 2,000, warn 80%.
+Verify: lib/infra-cost-report.ts → withinBudget true, no advisory (under the GBP 1,600 warn line).
+Report: costSummary 1,450 vs 1,200 (+250/mo). No advisory. run artifact 02f-cost.md.
+```
+
+**Example — a spike advisory (still not a gate).**
+```
+Input:  projected GBP 1,700/mo (85% of the GBP 2,000 budget); the new GPU worker adds GBP 620/mo,
+        over the GBP 500 spike threshold.
+Verify: near-budget (85% ≥ 80% warn) + cost-spike (GPU worker ≥ 500/mo delta).
+Advise: near budget; the GPU worker is the driver — consider a smaller machine type, spot/preemptible,
+        or a committed-use discount. WARN, not block. Operator decides. run artifact 02f-cost.md.
+```
+
+## Guidelines
+
+1. Measure-and-warn — `/cost` never gates `/provision`; it informs the decision.
+2. Read the operator-provided offline `infracost` JSON; the Factory holds no billing credentials and
+   calls no cloud.
+3. Budget, warn threshold, and spike threshold come from `${ctx.tech_bindings.infra.cost_budget}`;
+   absent a budget, report the projection with no advisory.
+4. Surface `over-budget` / `near-budget` / `cost-spike` advisories and name the top cost drivers.
+5. Recommend a concrete lever for each advisory; never block.
+6. Record the estimate as `02f-cost.md`, reading the infra design as its input.
+
+## Gotchas
+
+1. **Treating `/cost` as a gate**: it isn't — a legitimate, deliberate spend increase must not be
+   blocked. Report and advise; let the operator decide.
+2. **Reporting only the total**: the delta and the top drivers are what's actionable; a bare monthly
+   figure hides where the money goes.
+3. **Wiring a live billing API**: never — read the offline JSON, like the rest of the infra lane.
+   The Factory takes custody of no cloud credential.
+4. **Ignoring the baseline**: an estimate without the baseline can't show the *change* a plan
+   introduces — always diff against the current projected spend.
+5. **No budget set**: don't invent one — report the number and note that no budget is configured in
+   `${ctx.tech_bindings.infra.cost_budget}`.
+
+## Integration
+
+- `plan-infra` — produces the IaC design `/cost` prices; the design names the resources being costed.
+- `infra-review` — the policy/security gate that runs beside `/cost`; together they are the
+  pre-provision review (policy + budget).
+- `provision` — consumes the cost picture as part of the apply decision; `/cost` never blocks it.
+- `lib/infra-cost-report.ts` (pure verifier) — parses the estimate and raises the advisories this
+  skill renders.
+- Run harness (`fac run`) — records the estimate as `02f-cost.md` reading the infra design; a design
+  change re-opens the cost picture.
+
+## References
+
+- Verifier: `lib/infra-cost-report.ts`
+- Craft: vendored `terraform-expert` / `pulumi-expert` (reading the plan)
+- Binding: `${ctx.tech_bindings.infra.cost_budget}` in `.factory/stack.yaml`
+- Related skills: `plan-infra`, `infra-review`, `provision`, `benchmark`
+- Agent: `agents/platform.md`

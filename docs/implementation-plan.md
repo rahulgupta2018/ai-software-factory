@@ -1,10 +1,10 @@
 # AI Software Factory — Implementation Plan
 
-> A gstack-class AI engineering workflow, built on the curated `agent-skills` library.
+> A production-grade AI engineering workflow, built on the curated `agent-skills` library.
 > Turn one builder + AI into a full virtual engineering team that plans, builds, reviews,
 > tests, and ships your products end to end.
 
-*Status: draft v0.7 · Last updated: 2026-07-30*
+*Status: draft v0.8 · Last updated: 2026-08-12*
 
 ---
 
@@ -27,7 +27,7 @@ These decisions are now locked and are reflected throughout the plan:
    *Caveat (§5):* this holds for the **skills** layer. `agents/` are Claude-Code subagents and have
    no Codex equivalent — on Codex the Factory degrades to skills-only, with the Orchestrator's
    routing done inline rather than by spawning isolated sub-agents.
-3. **Browser security is staged against exposure, not shipped whole in v1.** We adopt gstack's
+3. **Browser security is staged against exposure, not shipped whole in v1.** We adopt a proven
    6-layer design in full, but build it in the order the threat actually arrives. **L1–L3 + L5**
    (datamarking, hidden-element stripping, blocklist, canary — all cheap string operations) ship
    with `browse` in Phase 1. **L4/L4b/L6** (ONNX classifier, transcript judge, ensemble verdict)
@@ -55,7 +55,7 @@ We are building **an AI software factory** — call it **Factory** (CLI codename
 
 Three layers to build:
 
-1. **Workflow skills** (the gstack layer we lack) — slash-command "specialists" that run a sprint:
+1. **Workflow skills** (the orchestration layer we lack) — slash-command "specialists" that run a sprint:
    Think → Plan → Build → Review → Test → Ship → Reflect.
 2. **Craft skills** (we already have these) — the implementation/design/planning skills, reused as-is.
 3. **Tooling binaries** — a fast headless browser, doc/diagram/PDF generators, and the generation +
@@ -124,7 +124,8 @@ skills, not an unguided model.
 ```mermaid
 flowchart TB
     T["<b>THINK</b><br/>/discover"]
-    P["<b>PLAN</b><br/>/plan-product · /plan-arch<br/>/plan-design · /spec"]
+    P["<b>PLAN</b><br/>/plan-product · /plan-arch · /plan-design<br/>/prototype · /plan-delivery · /spec"]
+    G{"<b>SIGN-OFF</b><br/>arch + prototype<br/>approved?"}
     B["<b>BUILD</b><br/>craft skills<br/>python-expert · fullstack-dev<br/>tdd + typed-contracts"]
     R["<b>REVIEW</b><br/>/review · /investigate<br/>/security · /second-opinion"]
     Q["<b>TEST</b><br/>/qa · /qa-report · /benchmark"]
@@ -132,11 +133,13 @@ flowchart TB
     F["<b>REFLECT</b><br/>/retro · /health<br/>/learn · /skill-smith"]
 
     T -->|"PRD.md"| P
-    P -->|"plan + tests"| B
+    P -->|"PLAN.md (increments)"| G
+    G -->|"approved"| B
     B -->|"code"| R
     R -->|"fixes / flags"| Q
     Q -->|"verified"| S
     S -->|"shipped PR"| F
+    S -.->|"next increment"| B
     F -.->|"improves skills"| T
 ```
 ```
@@ -150,7 +153,7 @@ back into the next THINK.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  LAYER 1 — WORKFLOW SKILLS  (build new; the gstack shell)            │
+│  LAYER 1 — WORKFLOW SKILLS  (build new; the sprint shell)            │
 │  /discover /plan-* /spec /review /investigate /security /qa /ship    │
 │  /deploy /canary /benchmark /retro /health /learn /careful /freeze   │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -169,7 +172,7 @@ back into the next THINK.
         ▲ all bound at runtime by  PRD.md  (frontmatter → derived .factory/context.gen.yaml)
 ```
 
-### 3.3 Skill generation pipeline (the gstack mechanism we adopt)
+### 3.3 Skill generation pipeline (the generation mechanism)
 
 Workflow skills are **generated**, not hand-edited, so the shared ethos/preamble stays consistent:
 
@@ -231,16 +234,15 @@ defines is reproduced, so domain-knowledge skills (`jurisdictions`, `authority_h
 `sources`, `confidence_tiers`…) bind without a fork. Each property carries an `x-owner` annotation
 naming the file that authors it.
 
-The harness (`AGENTS.md`) points every session at `PRD.md` first — exactly like gstack points at
-`CLAUDE.md`. Load it before any skill binds.
+The harness (`AGENTS.md`) points every session at `PRD.md` first. Load it before any skill binds.
 
 ### 3.5 Repository structure
 
 ```
 ai-software-factory/
 ├── AGENTS.md                     # harness: load PRD.md first, skill router, conventions
-├── VERSION                       # monotonic release id (gstack-style)
-├── CHANGELOG.md                  # user-facing release notes (gstack voice discipline)
+├── VERSION                       # monotonic release id
+├── CHANGELOG.md                  # user-facing release notes (users-not-contributors voice)
 ├── ETHOS.md                      # builder philosophy (injected into preamble)
 ├── package.json                  # Bun scripts: gen:skills, test, test:evals, build
 ├── docs/
@@ -303,42 +305,42 @@ ai-software-factory/
 
 ## 4. Skills strategy — reuse / modify / build
 
-The heart of the plan. This maps every gstack capability to what you already own.
+The heart of the plan. This maps every workflow capability to what you already own.
 
 ### 4.1 Coverage matrix
 
 Legend: **REUSE** = vendor as-is · **MODIFY** = wrap/extend an existing skill · **BUILD** = new
 workflow skill · **TOOL** = needs a binary.
 
-| Lifecycle | Factory skill | gstack analogue | Your library asset | Action |
-|---|---|---|---|---|
-| Think | `/discover` | `/office-hours` | `strategy-advisor` (framing) | **BUILD** (product interrogation; borrows strategy-advisor's option generation) |
-| Plan | `/plan-product` | `/plan-ceo-review` | `strategy-advisor` | ✅ **BUILT (2026-07-22)** — wraps strategy-advisor into a scoped plan-review workflow (Expand/Hold/Reduce modes) with dimension scoring |
-| Plan | `/plan-arch` | `/plan-eng-review` | `typed-service-contracts`, `multi-agent-patterns`, `project-planner` | **BUILD** — architecture-lock workflow that *composes* these craft skills |
-| Plan | `/plan-design` | `/plan-design-review` | `ux-designer` | ✅ **BUILT (2026-07-22)** — composes `frontend-design` + `modern-css-design-systems` + `ux-designer` + `visualization-expert` into a UI spec, with 0–10 dimension scoring + AI-slop detection |
-| Plan | `/spec` | `/spec` | `project-planner` (partial) | ✅ **BUILT (2026-07-22)** — vague intent → executable spec (testable acceptance criteria + task breakdown) |
-| Plan | (delivery/sprint) | — | `project-planner`, `sprint-planner` | **REUSE** as-is for roadmap/sprint mechanics |
-| Build | implementation (multi-lang) | (raw Claude) | `python-expert`, `fullstack-developer`, `tdd-red-green-refactor`, `typed-service-contracts` + **`java-quarkus-expert` (NEW)** | **REUSE + 1 BUILD** — *our advantage; gstack has none of this.* Language chosen per component at design time, then routed to the matching craft skill |
-| Build | UI/design build | `/design-html` | `ux-designer` + `visualization-expert` | **MODIFY** — add HTML/React component output step |
-| Review | `/review` | `/review` | *gap* (a `code-reviewer` exists in your social-housing project, not the library) | **BUILD** — port `code-reviewer` into the library standard + workflow wrapper |
-| Review | `/investigate` | `/investigate` | — | ✅ **BUILT (2026-07-22)** — root-cause debugging (Iron Law: no fix without investigation) |
-| Review | `/security` | `/cso` | — | ✅ **BUILT (2026-07-22)** — OWASP Top 10 + STRIDE audit with low false-positive gate |
-| Review | `/second-opinion` | `/codex` | — | ✅ **BUILT (2026-07-22)** — cross-model consult path with mandatory `fac redact` egress screening |
-| Review | agent/skill review | — | `quality-governance` | ✅ **VENDORED (2026-07-22)** — the pre-land readiness gate `/skill-smith` runs on a new/optimised skill |
-| Test | `/qa`, `/qa-report` | `/qa`, `/qa-only` | — | ✅ **BUILT (2026-07-22)** + **TOOL** (browse binary) — `/qa-report` is report-only |
-| Test | `/benchmark` | `/benchmark` | — | ✅ **BUILT (2026-07-22)** — baseline-driven perf gate backed by product-scope memory |
-| Test | reporting/dashboards | — | `visualization-expert` | **REUSE** — for benchmark/QA report visuals |
-| Ship | `/ship` | `/ship` | — | **BUILD** — sync, test, coverage audit, push, open PR |
-| Ship | `/deploy` | `/land-and-deploy` | — | ✅ **BUILT (2026-07-22)** — merge → CI → deploy → verify, hard gate on every irreversible step |
-| Ship | `/canary` | `/canary` | — | ✅ **BUILT (2026-07-22)** — post-deploy monitoring loop over live paths + escalation gate |
-| Ship | `/document` | `/document-release`, `/document-generate` | `technical-writer` | ✅ **BUILT (2026-07-22)** — wraps technical-writer into release-notes + Diataxis generator |
-| Reflect | `/retro` | `/retro` | `sprint-planner` (partial) | ✅ **BUILT (2026-07-22)** — cross-run reflection over run history + decisions |
-| Reflect | `/health` | `/health` | — | ✅ **BUILT (2026-07-22)** — read-only quality dashboard from stack-owned gates |
-| Reflect | `/learn` | `/learn` | `self-improving-agent-skills` | ✅ **BUILT (2026-07-22)** — promotes durable decisions/retro findings into `product/learnings` + the decision log |
-| Reflect | `/skill-smith` | — | `self-improving-agent-skills` + `quality-governance` | ✅ **BUILT (2026-07-22)** — authors a generator-owned skill or optimises one via the self-improving loop, behind a governance gate |
-| Memory | `/context-save`, `/context-restore` | same | `memory-systems` (design only) | ✅ **BUILT (2026-07-22)** — runtime checkpoint/rehydration on the memory + decision substrate |
-| Safety | `/careful`, `/freeze`, `/guard` | same | — | ✅ **BUILT (2026-07-22)** — mechanical guardrails: `lib/guard.ts` classifies destructive commands + edit-boundary containment, surfaced via `fac guard`; the three skills confirm/restrict on top |
-| Docs/craft | technical docs | — | `technical-writer` | **REUSE** |
+| Lifecycle | Factory skill | Your library asset | Action |
+|---|---|---|---|
+| Think | `/discover` | `strategy-advisor` (framing) | ✅ **BUILT (2026-07-23)** — product interrogation; borrows strategy-advisor's option generation |
+| Plan | `/plan-product` | `strategy-advisor` | ✅ **BUILT (2026-07-22)** — wraps strategy-advisor into a scoped plan-review workflow (Expand/Hold/Reduce modes) with dimension scoring |
+| Plan | `/plan-arch` | `typed-service-contracts`, `multi-agent-patterns`, `project-planner` | ✅ **BUILT (2026-07-23)** — architecture-lock workflow that *composes* these craft skills; writes `.factory/stack.yaml` |
+| Plan | `/plan-design` | `ux-designer` | ✅ **BUILT (2026-07-22)** — composes `frontend-design` + `modern-css-design-systems` + `ux-designer` + `visualization-expert` into a UI spec, with 0–10 dimension scoring + AI-slop detection |
+| Plan | `/spec` | `project-planner` (partial) | ✅ **BUILT (2026-07-22)** — vague intent → executable spec (testable acceptance criteria + task breakdown) |
+| Plan | `/plan-delivery` | `project-planner`, `sprint-planner` | ✅ **BUILT (2026-08-12)** — decomposes the approved PRD + `stack.yaml` into a tracked increment backlog (`PLAN.md`); composes `project-planner` (work breakdown) + `sprint-planner` (increment sizing). See Phase 10 |
+| Build | implementation (multi-lang) | `python-expert`, `fullstack-developer`, `tdd-red-green-refactor`, `typed-service-contracts` + **`java-quarkus-expert` (NEW)** | **REUSE + 1 BUILD** — *our advantage.* Language chosen per component at design time, then routed to the matching craft skill |
+| Build | UI/design build | `ux-designer` + `visualization-expert` | **MODIFY** — add HTML/React component output step |
+| Review | `/review` | `code-reviewer` (vendored) | ✅ **BUILT (2026-07-23)** — pre-land diff review in priority order (Security → Performance → Correctness → Maintainability → Testing); composes the vendored `code-reviewer` rule catalogue |
+| Review | `/investigate` | — | ✅ **BUILT (2026-07-22)** — root-cause debugging (Iron Law: no fix without investigation) |
+| Review | `/security` | — | ✅ **BUILT (2026-07-22)** — OWASP Top 10 + STRIDE audit with low false-positive gate |
+| Review | `/second-opinion` | — | ✅ **BUILT (2026-07-22)** — cross-model consult path with mandatory `fac redact` egress screening |
+| Review | agent/skill review | `quality-governance` | ✅ **VENDORED (2026-07-22)** — the pre-land readiness gate `/skill-smith` runs on a new/optimised skill |
+| Test | `/qa`, `/qa-report` | — | ✅ **BUILT (2026-07-22)** + **TOOL** (browse binary) — `/qa-report` is report-only |
+| Test | `/benchmark` | — | ✅ **BUILT (2026-07-22)** — baseline-driven perf gate backed by product-scope memory |
+| Test | reporting/dashboards | `visualization-expert` | **REUSE** — for benchmark/QA report visuals |
+| Ship | `/ship` | — | ✅ **BUILT (2026-07-23)** — sync, test, coverage audit, push, open PR |
+| Ship | `/deploy` | — | ✅ **BUILT (2026-07-22)** — merge → CI → deploy → verify, hard gate on every irreversible step |
+| Ship | `/canary` | — | ✅ **BUILT (2026-07-22)** — post-deploy monitoring loop over live paths + escalation gate |
+| Ship | `/document` | `technical-writer` | ✅ **BUILT (2026-07-22)** — wraps technical-writer into release-notes + Diataxis generator |
+| Reflect | `/retro` | `sprint-planner` | ✅ **BUILT (2026-07-22)** — cross-run reflection over run history + decisions; composes `sprint-planner` (2026-08-12) for the velocity theme (reads `PLAN.md`'s shipped increments + est-vs-actual token gap) |
+| Reflect | `/health` | — | ✅ **BUILT (2026-07-22)** — read-only quality dashboard from stack-owned gates |
+| Reflect | `/learn` | `self-improving-agent-skills` | ✅ **BUILT (2026-07-22)** — promotes durable decisions/retro findings into `product/learnings` + the decision log |
+| Reflect | `/skill-smith` | `self-improving-agent-skills` + `quality-governance` | ✅ **BUILT (2026-07-22)** — authors a generator-owned skill or optimises one via the self-improving loop, behind a governance gate |
+| Memory | `/context-save`, `/context-restore` | `memory-systems` (design only) | ✅ **BUILT (2026-07-22)** — runtime checkpoint/rehydration on the memory + decision substrate |
+| Safety | `/careful`, `/freeze`, `/guard` | — | ✅ **BUILT (2026-07-22)** — mechanical guardrails: `lib/guard.ts` classifies destructive commands + edit-boundary containment, surfaced via `fac guard`; the three skills confirm/restrict on top |
+| Docs/craft | technical docs | `technical-writer` | **REUSE** |
 
 **Score:** of ~30 capabilities — **8 REUSE**, **6 MODIFY**, **~16 BUILD workflow skills** + **3
 BUILD craft skills** (`java-quarkus-expert`, `flutter-dart-expert` for cross-platform mobile, and a
@@ -407,10 +409,11 @@ Each of these is a *generated workflow skill* that loads a craft skill and adds 
 behaviour (scoring, artifact write, handoff, AskUserQuestion gates):
 - `/plan-product` wraps `strategy-advisor`
 - `/plan-design` wraps `ux-designer`
+- `/plan-delivery` wraps `project-planner` + `sprint-planner`
 - `/document` wraps `technical-writer`
 - `/learn` wraps `self-improving-agent-skills`
 
-### 4.4 Build new (the gstack shell — mostly prompt-only)
+### 4.4 Build new (the workflow shell — mostly prompt-only)
 Ordered by priority:
 1. **P1 (core loop):** `/discover`, `/plan-arch`, `/review`, `/qa`, `/ship`
 2. **P2 (rigor):** `/investigate`, `/security`, `/spec`, `/qa-report`, `/deploy`
@@ -418,7 +421,7 @@ Ordered by priority:
 4. **P4 (safety):** ✅ **BUILT (2026-07-22)** — `/careful`, `/freeze`, `/guard`  (`/skill-smith` ✅ built in Track 3)
 
 Each new skill follows your **AUTHORING-GUIDE** (frontmatter, ≤500 lines, Do-not-activate) *and*
-the gstack template pipeline (preamble injection). This is the fusion point.
+the Factory's template pipeline (preamble injection). This is the fusion point.
 
 ---
 
@@ -426,7 +429,7 @@ the gstack template pipeline (preamble injection). This is the fusion point.
 
 "Agents" here are **specialist personas** — each is an agent-definition file in `agents/` that
 declares: identity, the skills it loads, its allowed tools, its inputs/outputs, and its handoffs.
-They map 1:1 to the gstack "virtual team." The **Orchestrator** routes a request to the right agent;
+They map 1:1 to the "virtual team" model. The **Orchestrator** routes a request to the right agent;
 agents can spawn sub-agents for context isolation (per `multi-agent-patterns`).
 
 | # | Agent | Persona | Loads skills | Tools | Consumes → Produces |
@@ -467,7 +470,7 @@ Engineer (that's the minimum viable team), then Strategist/Architect/Designer, t
 
 ## 6. Tooling layer (Layer 3 binaries)
 
-Build with **Bun + TypeScript** (matches gstack; single-binary compile, fast).
+Build with **Bun + TypeScript** (single-binary compile, fast).
 
 | Tool | Purpose | Build vs adopt |
 |---|---|---|
@@ -479,10 +482,10 @@ Build with **Bun + TypeScript** (matches gstack; single-binary compile, fast).
 ### 6.1 Browser security stack (staged against exposure — decision 3)
 
 The browser ingests untrusted page content, which is a live prompt-injection vector. We port
-gstack's **6-layer layered defense** rather than a token wrapper. Layers L1–L3 and L5–L6 are
+a proven **6-layer layered defense** rather than a token wrapper. Layers L1–L3 and L5–L6 are
 pure-string operations safe to run in the compiled `browse` binary; the ML layers (L4/L4b) run in
 the agent process, never inside the Bun-compiled binary (ONNX `dlopen` fails from a compiled
-temp-extract dir — a gstack lesson we adopt up front).
+temp-extract dir — a lesson we adopt up front).
 
 **Build order.** L1–L3 + L5 are cheap and ship with `browse` in Phase 1. L4/L4b/L6 are the
 single largest Layer-3 item in the plan, and every skill that uses `browse` in Phase 1–2 (`/qa`,
@@ -626,7 +629,7 @@ the redaction guard (§8) + a secret manager / KMS own that.
 
 ## 7. Evaluation & quality harness
 
-This is what separates "a folder of prompts" from a gstack-class product. Adopt gstack's three
+This is what separates "a folder of prompts" from a production-grade product. Adopt three
 tiers:
 
 **Tier 0 — the Factory's own acceptance test (the gap v0.3 missed).** Tiers 1–3 evaluate
@@ -664,7 +667,7 @@ handoff-hash integrity, staleness cascade, hard gates, and re-runnability — fr
    `bun test`: fixture integrity (a scenario naming a dropped section fails), the selector, and
    `checkExpectation` scoring, each with a negative case.
 
-Adopted gstack's **diff-based selection** and **gate/periodic tiers** in `lib/eval-select.ts`: a
+Adopted a **diff-based selection** and **gate/periodic tiers** in `lib/eval-select.ts`: a
 scenario ties to one skill, so editing `skills/review/…` selects only `review`; editing a GLOBAL
 touchfile (generator, a shared resolver, host configs) selects everything. `gate` scenarios block a
 merge; `periodic` run on a cadence. `fac eval:select [--base main] [--changed …] [--tier gate]
@@ -676,8 +679,13 @@ remains the engine behind the LLM-judge optimisation loop (owned by `/skill-smit
 ## 8. Cross-cutting systems
 
 - **Memory + decision store.** Two files under `.factory/`: `runs/<id>/` for per-run artifacts,
-  and an append-only `decisions.jsonl` event log (gstack pattern) so settled calls aren't
+  and an append-only `decisions.jsonl` event log (event-sourced pattern) so settled calls aren't
   re-litigated. Design it with the `memory-systems` skill; `/context-save|restore` read/write it.
+- **Delivery plan & incremental tracking.** A product-level `PLAN.md` (committed, human-visible) —
+  sibling to `PRD.md` — holds the increment backlog with live status (`todo`/`in-progress`/`shipped`),
+  each increment tracing to a PRD goal. `/plan-delivery` drafts it (wrapping `project-planner` +
+  `sprint-planner`); a PLAN→BUILD sign-off hard gate guards the first build; the build/ship loop
+  advances one increment per pass. Validated by the pure `lib/delivery-plan.ts`. See Phase 10.
 - **Config protocol.** Every skill: read the merged context (`PRD.md` frontmatter +
   `.factory/stack.yaml`) → if a needed value is missing, AskUserQuestion → persist the answer to
   **the file that owns that key** (§3.4) and re-run `sync-context`. Never ask twice.
@@ -686,7 +694,7 @@ remains the engine behind the LLM-judge optimisation loop (owned by `/skill-smit
   `redactForSink`, and `containsHighSecret` — the secret-blocking gate the decision log and memory
   store call on every write. Expand the pattern set later.
 - **Versioning + CHANGELOG.** Repo-level `VERSION` (monotonic) + user-facing `CHANGELOG.md` written
-  at `/ship` time. Adopt gstack's "CHANGELOG is for users, not contributors" voice discipline.
+  at `/ship` time. Adopt the "CHANGELOG is for users, not contributors" voice discipline.
 - **Multi-host portability.** `hosts/*.ts` adapters map skills into each agent's install dir.
   **Claude Code and Codex both ship in Phase 1** (decision 2); Cursor/OpenCode later. Keep skills
   host-agnostic so adding a host stays a config file, not a code change. Note the `/second-opinion`
@@ -787,7 +795,16 @@ with `build`.
 
 ## 9. Phased roadmap
 
-Estimates in gstack "compression" terms (human-team → AI-assisted).
+**How to read the estimates.** Each *remaining* phase is sized on two axes:
+- **Effort** in "compression" terms — *human-team → AI-assisted* (the AI does the heavy
+  lifting; a human reviews and steers).
+- **Token consumption** — a planning-grade range for the end-to-end AI build sessions (turns, file
+  reads, tool calls, retries, and running the test/eval suite a few times). Cost assumes a blended
+  **~$6 / 1M tokens** for a Claude-class model on Bedrock *with* prompt caching (shipped 0.56.0.0,
+  `lib/prompt-cache.ts`) — adjust the rate for your provider. These are **order-of-magnitude**
+  planning figures, not commitments; Phase 10's `PLAN.md` records **estimated vs actual tokens per
+  increment**, so each delivery calibrates the next estimate against real usage. The consolidated
+  table for the remaining build (Phases 10 → 9 → 8) is in §10.
 
 > **Sizing note (v0.4).** The v0.3 schedule put 5 workflow skills, 4 brand-new craft skills, 5
 > agents, a Playwright binary with 4 security layers, artifact handoff and the eval harness into a
@@ -1217,9 +1234,63 @@ scans, and verifies** the pipeline; it never takes custody of a push secret.
 
 ---
 
-### Phase 8 — Infrastructure lane (IaC, multi-cloud) 🔜 PLANNED (triggered, ~4–6 days)
+### Phase 8 — Infrastructure lane (IaC, multi-cloud) ✅ IMPLEMENTATION COMPLETE (2026-08-12, 0.60.0.0)
+
+**As built (Lean V1, GCP-first).** Shipped the design → review → provision spine of the infra lane
+on the same engine, GCP-first. Delivered: two craft skills authored in `agent-skills` then vendored
+— **`terraform-expert`** (IaC method: pinned modules, remote **locked** state, plan/apply
+discipline) and **`gcp-cloud-expert`** (the GCP well-architected security baseline: identity,
+network, encryption, logging, org policy); three workflow skills — **`/plan-infra`** (seq `2d`, the
+IaC design record `02d-plan-infra.md`), **`/infra-review`** (seq `2e`, `tfsec`/Checkov + OPA/Conftest,
+high/critical blocks provision, `02e-infra-review.md`), **`/provision`** (seq `6f`, plan → verify →
+hard gate → apply, `06f-provision.md`); a new **Platform Engineer** persona (`agents/platform.md`)
+owning the lane, wired into the orchestrator; the pure offline verifier **`lib/infra-plan-verify.ts`**
+(15 tests — no protected destroy/replace without consent, no long-lived key, no secret in state, no
+high-severity policy) backing the `/provision` gate; and the **`tech_bindings.infra`** schema key
+(`cloud`, `iac_tool`, `state_backend`, keyless `identity`, `regions`, `protected_resources`) with a
+GCP fixture in the reference product. Multi-cloud is proven at the **binding level** —
+mechanism-vs-parameters, `cloud` selects the per-cloud expert — so AWS/Azure are a binding + one
+craft skill, not a rewrite.
+
+**Deferred at Phase 8, now shipped in Phase 8b (2026-08-12, 0.61.0.0):** `/cost` (infracost) and
+`/drift` workflow skills; the `pulumi-expert` craft skill; plus the landing-zone foundation and
+MLOps/LLMOps lane (see Phase 8b below). **Still deferred:** the full `aws-cloud-expert` /
+`azure-cloud-expert` baselines, and a live end-to-end apply on a real cloud (the verifier + gate are
+proven offline against fixtures).
+
+### Phase 8b — Infra lane expansion (cost, drift, landing-zone, MLOps) ✅ IMPLEMENTATION COMPLETE (2026-08-12, 0.61.0.0)
+
+**As built.** Expanded the infra lane from the design→review→provision spine to a full
+foundation→ready-environment lane, GCP-first, on the same engine and offline-JSON custody model (the
+Factory holds no cloud credential; every input is operator-provided plan/preview/refresh JSON).
+Delivered: three new craft skills authored in `agent-skills` then vendored —
+**`pulumi-expert`** (Pulumi IaC method, routed when `iac_tool: pulumi`), **`gcp-landing-zone-expert`**
+(the org/folder/project + billing bootstrap, org-policy guardrails, shared networking, IAM group
+model — the ground-zero estate), and **`gcp-mlops-expert`** (the Vertex AI MLOps/LLMOps platform:
+pipelines, model registry, feature store, serving canary, eval gate + LLM guardrails, monitoring);
+two new pure offline verifiers — **`lib/infra-cost-report.ts`** (parse an `infracost` estimate →
+over/near-budget + per-resource spike advisories; **measure-and-warn, never a gate**; 10 tests) and
+**`lib/infra-drift-report.ts`** (parse a `terraform plan -refresh-only` / `pulumi refresh` diff →
+modified/deleted/unmanaged classification with security-sensitive drift first; 7 tests); two new
+workflow skills — **`/cost`** (seq `2f`, layer Review, `02f-cost.md`, the budget advisory beside
+`/infra-review`) and **`/drift`** (seq `6g`, layer Ops, `06g-drift.md`, the `/qa`-for-infra bug-list
+after `/provision`); an **enriched `/plan-infra`** now covering the landing-zone foundation,
+**elicited** environments (no baked INT/SIT/PRE-PROD/PROD default), per-environment region strategy,
+the well-architected pillars (scalability, resiliency, observability, IAM/RBAC, SSL, secrets,
+runtimes, data stores, event-driven messaging), and the MLOps platform; an **extended
+`tech_bindings.infra`** schema (`org`, `environments[]`, `runtimes`, `data_stores`, `messaging`,
+`observability`, `cost_budget`, `drift`, `mlops`) with a fleshed-out GCP fixture in the reference
+product; and the **Platform agent** updated to load all five new skills. The reference product pins
+all three new craft skills; `vendor:check` (43 vendored, 0 failed) and the free suite (644 pass, 0
+fail) are green.
+
+**Still deferred:** the full `aws-cloud-expert` / `azure-cloud-expert` baselines and a live
+end-to-end apply on a real cloud.
+
+The design-time plan for the full lane follows.
 
 The Factory ships *applications*; it does not yet provision the *infrastructure* they run on. This
+
 phase adds an **infrastructure lane** — Infrastructure-as-Code for **AWS, Azure, and GCP** — as a
 new component type on the **same engine** (skill generation, run/artifact/gate harness, redaction,
 memory, host adapters, eval tiers), exactly as *mobile* (Phase 5) and *store release* (Phase 6) are
@@ -1227,6 +1298,11 @@ lanes rather than separate products. It is **on-demand**: build it when a produc
 own cloud infrastructure from code. It also **closes most of the remaining §6 deploy-stage
 DevSecOps gaps** (IaC scanning, policy-as-code, OIDC identity, secret-manager wiring) in one place —
 Phase 7 and this phase are largely the same hardening work seen from two sides.
+
+**Estimate.** Effort **~4–6 days → ~1–2 days** AI-assisted; **~8–15M tokens** end-to-end
+(**~$50–90** @ ~$6/1M) — the largest planned phase: 5 new skills (`/plan-infra`, `/provision`,
+`/infra-review`, `/cost`, `/drift`), a Platform agent, the `terraform`/`pulumi` craft skills, and
+`lib/infra-plan-verify.ts`, across three clouds.
 
 **Why a lane on the same engine, not a fork.** The whole Factory thesis is a *product-agnostic
 engine*; infra is another domain bound via context, and the multi-cloud reality fits
@@ -1285,7 +1361,7 @@ cloud-key or state-secret egress. The Factory **plans, scans, and verifies**; a 
 
 ---
 
-### Phase 9 — UI prototype lane (`/prototype` → `/fac-prototype`) 🔜 PLANNED (deferred; build later)
+### Phase 9 — UI prototype lane (`/prototype` → `/fac-prototype`) ✅ IMPLEMENTATION COMPLETE (2026-08-12, 0.59.0.0)
 
 `/plan-design` produces the **design record** (`02a-plan-design.md`): tokens-as-code, a complete
 screen inventory, an every-edge navigation graph, and stacked Mermaid screen-flows. What it does not
@@ -1336,20 +1412,119 @@ artifact — none of which a Figma/SaaS or a wireframe tool offers.
 - **Context.** No new `tech_bindings` required — fidelity is *derived* from the design record's
   tokens. An optional `prototype.tool` binding (default `html`) leaves room for an alternate
   renderer later without changing the skill.
-- **Exit:** (1) `/prototype` renders one clickable HTML page per screen in the inventory — a screen
+
+**As built (2026-08-12, 0.59.0.0).** Shipped in the repo:
+- **`/prototype`** (`skills/prototype/SKILL.md.tmpl` → generated for both hosts) — an on-demand
+  PLAN-lane skill that reads `02a-plan-design.md` and renders one self-contained HTML page per
+  screen, an `index.html` gallery, and a device frame, **styled from the design tokens verbatim**
+  and wired by the navigation graph. Composes **`frontend-design`** + **`visualization-expert`**;
+  self-verifies the render in `browse` **offline**. Records its run artifact as the branch step
+  **`02b-prototype.md`** (sub-sequence `2b`, filename-distinct from `02b-spec.md`), reading
+  `02a-plan-design.md` — so a design change re-opens it. It re-designs nothing: an invented token or
+  a dropped screen fails the coverage gate.
+- **Designer agent (extended, no new persona)** — `agents/designer.md` gains `/prototype` in
+  `loads_skills` alongside `/plan-design`, a procedure step, and an artifact-contract line; the
+  prototype is on-demand and gates nothing.
+- **`lib/prototype-plan.ts`** — pure verifier (in the `lib/delivery-plan.ts` / `lib/tls-verify.ts`
+  mould): parses the design record's screen inventory + navigation graph and asserts, **offline
+  against a fixture**, full coverage — `screen-coverage` (every screen has a page), `link-coverage`
+  (every `screen → action → screen` edge resolves to a wired link landing on an existing page),
+  `token-fidelity` (no page uses a token absent from the record), plus `orphan-page`,
+  `unique-screen`, `unique-page`. `coverageSummary` gives the operator roll-up. Offline-tested in
+  `test/prototype-plan.test.ts` with a negative case per rule (14 tests) against the committed
+  reference fixture `test/fixtures/prototype-manifest.md`. Full suite green (`bun run build`: 29
+  skills, skill:check OK, typecheck clean).
   with no page **fails** (`lib/prototype-plan.ts` coverage negative test); (2) every navigation-graph
   edge resolves to a working in-prototype link — a dangling edge **fails** (link-coverage negative
   test); (3) the prototype uses the design record's tokens verbatim — an invented token **fails** a
   fidelity check; (4) the prototype opens in `browse` fully offline with zero external dependencies
   (self-contained, proven by a no-network render).
+- **Estimate.** Effort **~3–4 days → ~5–8 hrs** AI-assisted; **~3–6M tokens** end-to-end
+  (**~$20–35** @ ~$6/1M) — new `/prototype` skill, Designer-agent extension, the HTML render
+  workflow, and `lib/prototype-plan.ts` + coverage fixtures.
 
 ---
 
-## 10. Immediate next steps
+### Phase 10 — Delivery planning & incremental tracking ✅ IMPLEMENTATION COMPLETE (2026-08-12, 0.58.0.0)
 
-**Done (2026-07-22).** Naming settled (`fac`). Phase 0 scaffolded and then hardened: shared `lib/`,
-byte-exact drift detection, real Ajv validation, a schema that is genuinely a superset of the
-library's, the PRD/stack ownership split, `fac vendor` + `vendor:check`, the golden reference
+Unlike the on-demand lanes (Phases 5–9), this is a **core** amendment: it changes how *every*
+product is delivered. Today the Factory produces a full PRD and a locked architecture, then the
+build loop implements **one change at a time** with no product-level plan you can watch advance —
+run state lives in `.factory/runs/<id>/` (one pass through the pipeline), but nothing decomposes the
+PRD into a tracked sequence of increments. That is the non-agile gap: the intended model is **write
+the full PRD (end-to-end view) → design it (architecture + prototype) → sign off → then build and
+deliver incrementally**, and only the first two steps have a home.
+
+`project-planner` is vendored and was marked "REUSE for roadmap/sprint mechanics" (§4.1) but wired
+to nothing. This phase wires it — alongside `sprint-planner` (vendored 2026-08-12 for increment
+sizing) — and adds the missing state.
+
+**As built (2026-08-12, 0.58.0.0).** Shipped in the repo:
+- **`/plan-delivery`** (`skills/plan-delivery/SKILL.md.tmpl` → generated for both hosts) — composes
+  **`project-planner`** (work breakdown) + **`sprint-planner`** (increment sizing). Records its run
+  artifact as the branch step **`02c-plan-delivery.md`** (after `02a-plan-design`,
+  `02b-spec`), reading `PRD.md` + `.factory/stack.yaml` — so a later
+  `stack.yaml` edit keeps the plan fresh and the first build stays the first stale step.
+- **`PLAN.md`** — committed reference fixture (`examples/reference-product/PLAN.md`) + scaffold
+  (`templates/PLAN.template.md`, verifier-clean, extras commented so nothing leaks).
+- **PLAN→BUILD sign-off hard gate** — `gateTier({ signoff: true })` in `lib/run.ts`; the first build
+  step carries `signoff`, later builds gate routine.
+- **`lib/delivery-plan.ts`** — pure verifier (goal-trace / valid-status / unique id+order /
+  single-active) + `nextIncrement` / `advanceIncrement` / forward-only `verifyAdvance`; token ledger
+  (`est_tokens` vs `actual_tokens`). Offline-tested in `test/delivery-plan.test.ts` with a negative
+  case per rule.
+- **`test/pipeline-acceptance.test.ts`** (Tier-0) extended — `02c-plan-delivery` in the artifact
+  chain, the sign-off hard gate, and one-increment-per-`/ship` advance. Full suite green
+  (`bun run build`: 37 vendored skills, 0 failed; typecheck clean).
+
+- **Workflow skill — `/plan-delivery` (installs as `/fac-plan-delivery`).** Sits in PLAN, **after**
+  `/plan-arch` (+ `/plan-design`/`/prototype`) and **before** BUILD. Composes `project-planner`
+  (milestones, dependencies, critical path) + `sprint-planner` (size the next increment into a
+  sprint with a Definition of Done) to decompose the approved PRD + architecture into a
+  **prioritised, vertical-slice increment backlog**. A wrapper skill (§4.3), mostly prompt-only. It
+  writes the delivery-plan artifact and, per increment, a testable acceptance boundary that `/spec`
+  picks up when that increment enters build.
+- **Product-level artifact — `PLAN.md` (committed, human-visible).** The sibling of `PRD.md`:
+  `PRD.md` says *what* we're building (stable); `PLAN.md` holds *the increments and their live
+  status* (`todo` / `in-progress` / `shipped`), each tracing to a PRD goal. This is the
+  "incremental, stateful plan to track the process". Human-owned like `PRD.md` (an operator can
+  re-order or re-scope increments); `/plan-delivery` drafts it, the build/ship loop updates status.
+  Each increment also carries an **effort + estimated-token** field that the ship loop reconciles
+  against **actual** usage (from `run.json`), so `PLAN.md` doubles as the running cost ledger and
+  feeds the next estimate.
+- **Design-approval hard gate at the PLAN→BUILD boundary.** "Architecture + prototype signed off?"
+  — build cannot start until explicit consent, matching the "once everyone is happy" step. Reuses
+  the existing two-tier gate machinery (§8.1); one more hard-gate declaration, batch-approval-exempt.
+- **Increment binding + advance.** A build run binds to the next `todo` increment in `PLAN.md`; on
+  `/ship`, that increment flips to `shipped` and `PLAN.md` advances. The build→review→qa→ship loop
+  repeats per increment until the backlog is drained — agile delivery on the existing engine.
+  `/health` (or a thin `/status`) renders roadmap progress; `/retro` reads it alongside run history.
+- **Pure helper — `lib/delivery-plan.ts`** (in the `lib/tls-verify.ts` mould): parses `PLAN.md` and
+  asserts, **offline against a fixture**, that every increment traces to a PRD goal, statuses are
+  valid and advance monotonically (`todo → in-progress → shipped`, no backward jump without a
+  recorded re-open), no increment is orphaned, and the "next" increment is unambiguous. Backs the
+  increment binding + the sign-off gate; holds no external state.
+- **Context.** No new `tech_bindings` — the plan is derived from `PRD.md` + `stack.yaml`. An optional
+  `guardrails.delivery.slice_size` hint (default: thin vertical slices) leaves room to tune increment
+  granularity without changing the skill.
+- **Sequencing note.** Pull **Phase 9 (`/prototype`) forward** to sit alongside this phase — a
+  clickable prototype is part of the "design → sign-off" step this gate enforces. Recommended order:
+  **Phase 10 → Phase 9 (prototype) → Phase 8 (infra)**.
+- **Estimate.** Effort **~2–3 days → ~3–5 hrs** AI-assisted; **~2–4M tokens** end-to-end
+  (**~$15–25** @ ~$6/1M). The cheapest planned phase — a wrapper skill (`project-planner` +
+  `sprint-planner` already vendored) plus `PLAN.md`, one hard-gate declaration, and a pure
+  `lib/delivery-plan.ts` + fixture test.
+- **Exit ✅ (all met 2026-08-12):** (1) `/plan-delivery` decomposes the reference product's PRD into
+  a tracked increment backlog in `PLAN.md` — an increment with no PRD-goal trace **fails**
+  (`lib/delivery-plan.ts` negative test); (2) the PLAN→BUILD **sign-off hard gate** blocks the first
+  build run until approved (proven by a gate test); (3) a build→ship run flips exactly one increment
+  to `shipped` and the next run binds the following `todo` (proven by a status-advance test on the
+  fixture); (4) the reference product drives `/discover → /plan-* → /plan-delivery → [sign-off] →
+  build → /ship` with the roadmap advancing one increment per loop (extends
+  `test/pipeline-acceptance.test.ts`).
+
+---
+
 product, and 25 Tier-1 tests. Three craft skills are vendored and their bindings verified — which
 is what turns "we already own ~40% of the value" from a premise into a measured fact for the
 TypeScript path.
@@ -1376,6 +1551,41 @@ a per-repo lock. Nothing further is blocked on a decision.
    remaining half — a live agent host driving the chain against **one real repo** to open an actual
    PR — is the operator's acceptance run (needs a real repo + `gh` credentials), not a code
    deliverable.
+5. ✅ **Delivery-planning amendment (Phase 10) — DONE (2026-08-12, 0.58.0.0).** `/plan-delivery` +
+   `PLAN.md` + the PLAN→BUILD sign-off gate + `lib/delivery-plan.ts` shipped, so the Factory plans
+   once and delivers in tracked increments.
+6. ✅ **UI prototype lane (Phase 9) — DONE (2026-08-12, 0.59.0.0).** `/prototype` +
+   the Designer-agent extension + `lib/prototype-plan.ts` shipped, so the operator can see a
+   clickable, token-faithful HTML prototype before the build loop runs. See Phase 9.
+7. ✅ **Infrastructure lane (Phase 8, Lean V1 GCP-first) — DONE (2026-08-12, 0.60.0.0).**
+   `/plan-infra` → `/infra-review` → `/provision` + the Platform agent + `terraform-expert` /
+   `gcp-cloud-expert` craft skills + `lib/infra-plan-verify.ts` + `tech_bindings.infra` shipped,
+   so the Factory designs, scans, and provisions cloud infrastructure behind a hard gate. AWS/Azure
+   deferred. See Phase 8.
+8. ✅ **Infra lane expansion (Phase 8b) — DONE (2026-08-12, 0.61.0.0).** `/cost` (seq `2f`) +
+   `/drift` (seq `6g`) + `pulumi-expert` / `gcp-landing-zone-expert` / `gcp-mlops-expert` craft
+   skills + `lib/infra-cost-report.ts` / `lib/infra-drift-report.ts` verifiers + an enriched
+   `/plan-infra` (landing-zone foundation, elicited environments, region strategy, well-architected
+   pillars, MLOps/LLMOps) + an extended `tech_bindings.infra` shipped, so the Factory covers GCP from
+   ground-zero bootstrap to a ready environment with a cost advisory and drift check. AWS/Azure and a
+   live apply still deferred. See Phase 8b.
+
+**Remaining build — effort & token estimates.** Planning-grade, in the recommended build order.
+Token ranges cover the end-to-end AI build sessions; cost @ a blended **~$6 / 1M tokens** (Claude-class
+on Bedrock, prompt-cached). Order-of-magnitude — `PLAN.md` replaces these with measured actuals as
+each phase ships.
+
+| Phase (build order) | Effort (human-team → AI-assisted) | Est. tokens | Est. cost (~$6/1M) |
+|---|---|---|---|
+| ~~**10 — Delivery planning (CORE)**~~ ✅ **done 0.58.0.0** | ~2–3 days → ~3–5 hrs | ~2–4M | ~$15–25 |
+| ~~**9 — UI prototype lane**~~ ✅ **done 0.59.0.0** | ~3–4 days → ~5–8 hrs | ~3–6M | ~$20–35 |
+| ~~**8 — Infrastructure lane (IaC)**~~ ✅ **done 0.60.0.0 (Lean V1, GCP-first)** | ~4–6 days → ~1–2 days | ~8–15M | ~$50–90 |
+| ~~**8b — Infra lane expansion (cost, drift, landing-zone, MLOps)**~~ ✅ **done 0.61.0.0** | ~3–5 days → ~1 day | ~5–9M | ~$30–55 |
+| **Remaining total** | **all planned phases shipped** | **—** | **—** |
+
+> Excludes operator-side steps that are **not Factory code** — the live scanner/SBOM/cosign/semgrep
+> runs (Phase 7) and the live app-store uploads (Phase 6) execute in a product's own CI with its own
+> credentials, so their token/cost lives in that product's budget, not this build.
 
 **Explicitly deferred, with the trigger that un-defers each:**
 
@@ -1393,9 +1603,10 @@ a per-repo lock. Nothing further is blocked on a decision.
 | **Artifact signing + provenance** — keyless Sigstore/cosign + SLSA attestation, `/deploy` verifies (`lib/provenance-verify.ts`) | Phase 7 (new) | a product must ship signed, provenance-attested release artifacts |
 | **CI/CD pipeline generation + hardening** — `/pipeline` emits least-priv + OIDC GitHub Actions; `/security` audits it | Phase 7 (new) | a product needs a generated/hardened CI/CD pipeline (`tech_bindings.ci`) |
 | **DAST + container scan** — ZAP baseline + Grype/Trivy image scan | Phase 7 (new, later) | a product ships a running preview or a Docker image to scan |
-| **Infrastructure lane (IaC)** — `terraform`/`pulumi` + per-cloud craft skills; `/plan-infra`, `/provision`, `/infra-review`, `/cost`, `/drift`; Platform agent; `lib/infra-plan-verify.ts` | Phase 8 (new) | a product must provision its own AWS/Azure/GCP infrastructure from code |
+| **Infrastructure lane (IaC)** — `terraform`/`pulumi` + per-cloud craft skills; `/plan-infra`, `/provision`, `/infra-review`, `/cost`, `/drift`; Platform agent; `lib/infra-plan-verify.ts` | Phase 8 (new) | ✅ **BUILT (Phase 8: 2026-08-12, 0.60.0.0; Phase 8b: 0.61.0.0)** — `/plan-infra` → `/infra-review` → `/cost` → `/provision` → `/drift` + Platform agent + `terraform-expert`/`pulumi-expert`/`gcp-cloud-expert`/`gcp-landing-zone-expert`/`gcp-mlops-expert` + `lib/infra-plan-verify.ts`/`infra-cost-report.ts`/`infra-drift-report.ts` + `tech_bindings.infra` (landing-zone/environments/pillars/budget/drift/MLOps) shipped; AWS/Azure baselines and a live apply still deferred |
 | Separate **`ai-infrastructure-factory`** (extract shared engine into a core; both Factories as front-ends) | Phase 8 (new) | the infra lane needs an independent release cadence/governance or the SRE persona diverges from app dev |
-| **UI prototype lane** — `/prototype` (`/fac-prototype`) renders a clickable, token-faithful HTML prototype from `02a-plan-design.md` (one page per screen + nav-graph links → `02b-prototype/`); Designer agent extended; `lib/prototype-plan.ts` coverage gate | Phase 9 (new) | the operator wants to *see* the screens as a clickable prototype before the build loop implements them |
+| **UI prototype lane** — `/prototype` (`/fac-prototype`) renders a clickable, token-faithful HTML prototype from `02a-plan-design.md` (one page per screen + nav-graph links → `02b-prototype/`); Designer agent extended; `lib/prototype-plan.ts` coverage gate | Phase 9 (new) | ✅ **BUILT (2026-08-12, 0.59.0.0)** — shipped; the operator wants to *see* the screens as a clickable prototype before the build loop implements them |
+| **Delivery planning + incremental tracking (CORE)** — `/plan-delivery` (composes `project-planner` + `sprint-planner`) → `PLAN.md` increment backlog; PLAN→BUILD sign-off hard gate; increment-bound build/ship loop; `lib/delivery-plan.ts` | Phase 10 (**CORE**) | ✅ **BUILT (2026-08-12, 0.58.0.0)** — shipped |
 | **Hard token budget (cap, not just warn)** — a `guardrails.budget.max_tokens` ceiling that *halts* a run at a hard gate, complementing today's measure-and-warn (`budgetStatus` in `lib/run.ts` warns past `warn_tokens` but never stops) | Cross-cutting §8.1 (deferred by design) | an operator needs a spend ceiling that stops an unattended multi-day run rather than only warning |
 | **Provider prompt-cache configuration** — explicit Anthropic/Bedrock cache-breakpoint wiring in the host adapters (`hosts/*.ts`) so the stable-preamble-first, per-run-artifact layout is actually cached | ✅ **SHIPPED (2026-07-30, 0.56.0.0)** — `lib/prompt-cache.ts` planner + `HostConfig.caching` (Claude ephemeral/4/1h, Codex unsupported) + a stable-first invariant enforced on the Factory's prompt assembly. Serves Factory-owned structured calls (eval model-judge, `/second-opinion`); the interactive path is cached by the host CLI itself |
 | Browser security L4/L4b/L6 | v1 | `browse` is pointed at a page the operator did not author |

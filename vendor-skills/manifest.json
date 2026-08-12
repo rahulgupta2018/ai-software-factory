@@ -116,6 +116,24 @@
       "vendored_at": "2026-07-22",
       "sha256": "41df00b4e7bfc11717d6287c4960695d4d522f8484f196671b3cf94c44a70d02"
     },
+    "gcp-cloud-expert": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "418a106d4e54769b10b588c6a51198b5c16ecba404f0c574ecb003bdc851cb3f"
+    },
+    "gcp-landing-zone-expert": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "17cc7c84527e028eeccbedeb4a1fd5bfb887499a5e1dcc8444e83f3edc9aaab6"
+    },
+    "gcp-mlops-expert": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "477e430f634e905dfd5eb6083ab3bfdb278d53e8f879a94f8f0d6e437cc4fe43"
+    },
     "java-quarkus-expert": {
       "version": "0.1.0",
       "source_last_updated": "2026-07-22",
@@ -152,6 +170,12 @@
       "vendored_at": "2026-07-22",
       "sha256": "b6312083faff2a03b870a7b89ade0816d5763533646588a682465f88d9168752"
     },
+    "pulumi-expert": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "9dbec2d37e374570892cc8c3c98da3245efd08e7a17d0436bc6520d773695b5d"
+    },
     "python-expert": {
       "version": "1.1.0",
       "source_last_updated": "2026-07-02",
@@ -175,6 +199,12 @@
       "vendored_at": "2026-07-22",
       "sha256": "fc2d629b43841b96c649a4b2cf448f2a41183ea7f54c160a439556c8bd02dfd4"
     },
+    "sprint-planner": {
+      "version": "1.1.0",
+      "source_last_updated": "2026-07-02",
+      "vendored_at": "2026-08-12",
+      "sha256": "0e8f42e0e7b633fe18e934fedcb1b5201c0d7fed7905756e9c69a4039cce915a"
+    },
     "strategy-advisor": {
       "version": "1.1.0",
       "source_last_updated": "2026-07-02",
@@ -192,6 +222,12 @@
       "source_last_updated": "2026-07-02",
       "vendored_at": "2026-07-22",
       "sha256": "5534279ce19e10525b78b31f49f04d1c77ab0e0ea96a1105abe4c5b0a4bfce21"
+    },
+    "terraform-expert": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-08-12",
+      "vendored_at": "2026-08-12",
+      "sha256": "304568ff33862413a63536222b7e7774a0209c1f209cf4a0fe9b182ab427d58d"
     },
     "tool-design": {
       "version": "0.1.0",

@@ -26,6 +26,8 @@ reflects, checks the quality floor, and turns the durable lessons into standing 
 1. Read the merged product context and the run history (`fac run list` / `fac run status`) and the
    active decisions (`fac decision list`).
 2. Run `/retro`: group signals by theme, ask the three questions per theme, propose concrete actions.
+   When a `PLAN.md` exists, include the velocity theme — `/retro` composes `sprint-planner` to read
+   the shipped increments and the est-vs-actual token gap and recalibrate the next plan's estimates.
 3. Run `/health` for the current pass/fail picture; fold any red gate into the reflection.
 4. Run `/learn`: separate durable from disposable, persist the durable rules to `product/learnings`
    and log any governing decision.
@@ -34,7 +36,8 @@ reflects, checks the quality floor, and turns the durable lessons into standing 
 
 ## Artifact contract
 
-- **Consumes:** the run history, active decisions, and current health gates.
+- **Consumes:** the run history, active decisions, and current health gates (plus `PLAN.md`'s
+  shipped increments + cost ledger when present, for the velocity reflection).
 - **Produces:** `NN-retro.md` (observations + actions) and updates to `product/learnings`; new
   governing decisions in the decision log.
 - **Handoff:** to `skill-smith` when a durable rule should become an enforced skill; otherwise ends

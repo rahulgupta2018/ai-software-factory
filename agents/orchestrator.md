@@ -4,7 +4,7 @@ description: Routes a product request to the right specialist agent and owns the
 loads_skills: []
 allowed_tools: [Read, AskUserQuestion]
 handoff_from: user
-handoff_to: [product-strategist, eng-architect, designer, implementer, code-reviewer, debugger, qa-engineer, security-officer, release-engineer, doc-writer]
+handoff_to: [product-strategist, eng-architect, platform, designer, implementer, code-reviewer, debugger, qa-engineer, security-officer, release-engineer, doc-writer]
 context_isolation: false
 ---
 

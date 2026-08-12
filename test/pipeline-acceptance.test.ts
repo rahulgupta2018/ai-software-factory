@@ -44,6 +44,12 @@ import {
   writeArtifact,
   type PlanStep,
 } from '../lib/run.ts';
+import {
+  advanceIncrement,
+  nextIncrement,
+  parseDeliveryPlan,
+  verifyAdvance,
+} from '../lib/delivery-plan.ts';
 
 const REFERENCE_PRODUCT = join(import.meta.dir, '..', 'examples', 'reference-product');
 const REFERENCE_PRODUCT_JAVA = join(import.meta.dir, '..', 'examples', 'reference-product-java');
@@ -66,6 +72,8 @@ interface DriveStep {
   file: string;
   inputs: string[];
   irreversible?: boolean;
+  /** True on the first build: the PLAN→BUILD sign-off is a hard gate the operator must approve. */
+  signoff?: boolean;
 }
 
 /**
@@ -82,7 +90,18 @@ function planFor(id: string, components: Component[]): DriveStep[] {
     ? [{ seq: 2, step: 'plan-design', file: '02a-plan-design.md', inputs: ['PRD.md', '.factory/stack.yaml'] }]
     : [];
 
-  const buildSteps: DriveStep[] = components.map((c) => ({
+  // /plan-delivery decomposes the PRD into a tracked increment backlog (PLAN.md). It is a gating
+  // PLAN step present for every product: the first build stays blocked behind the PLAN→BUILD
+  // sign-off until it has run. Like /plan-design it reads PRD + stack (not the plan-arch record),
+  // so a plan-arch record change re-opens the builds, not the delivery plan.
+  const deliveryStep: DriveStep = {
+    seq: 2,
+    step: 'plan-delivery',
+    file: '02c-plan-delivery.md',
+    inputs: ['PRD.md', '.factory/stack.yaml'],
+  };
+
+  const buildSteps: DriveStep[] = components.map((c, i) => ({
     seq: 3,
     step: `build-${c.name}`,
     file: `03-build-${c.name}.md`,
@@ -90,6 +109,8 @@ function planFor(id: string, components: Component[]): DriveStep[] {
     inputs: hasUI(c)
       ? [runRel('02-plan-arch.md'), runRel('02a-plan-design.md')]
       : [runRel('02-plan-arch.md')],
+    // The first build is the PLAN→BUILD boundary: a hard sign-off gate the operator must approve.
+    ...(i === 0 ? { signoff: true } : {}),
   }));
   const buildFiles = buildSteps.map((s) => runRel(s.file));
   return [
@@ -107,6 +128,7 @@ function planFor(id: string, components: Component[]): DriveStep[] {
       inputs: ['PRD.md', runRel('01-discover.md')],
     },
     ...designStep,
+    deliveryStep,
     ...buildSteps,
     { seq: 4, step: 'review', file: '04-review.md', inputs: buildFiles },
     { seq: 5, step: 'qa', file: '05-qa.md', inputs: buildFiles },
@@ -147,6 +169,7 @@ describe('pipeline acceptance — reference product', () => {
     cpSync(join(REFERENCE_PRODUCT, '.factory', 'stack.yaml'), join(repo, '.factory', 'stack.yaml'), {
       recursive: true,
     });
+    cpSync(join(REFERENCE_PRODUCT, 'PLAN.md'), join(repo, 'PLAN.md'));
     merged = mergeContext(loadProductContext(repo)) as Record<string, unknown>;
     const tech = merged.tech_stack as { components?: Component[] } | undefined;
     components = tech?.components ?? [];
@@ -178,6 +201,7 @@ describe('pipeline acceptance — reference product', () => {
       '01-discover.md',
       '02-plan-arch.md',
       '02a-plan-design.md', // web + mobile are UI surfaces, so a design spec gates their builds
+      '02c-plan-delivery.md', // the tracked increment backlog, gating the first build's sign-off
       '03-build-api.md',
       '03-build-mobile.md',
       '03-build-reminders.md',
@@ -229,8 +253,9 @@ describe('pipeline acceptance — reference product', () => {
     });
 
     const resume = findResumePoint(repo, runDir(repo, id), plan as PlanStep[]);
-    // discover(0), plan-arch(1), plan-design(2), build-api(3) — the first build is the first stale.
-    expect(resume).toMatchObject({ done: false, index: 3 });
+    // discover(0), plan-arch(1), plan-design(2), plan-delivery(3), build-api(4) — plan-delivery
+    // reads PRD + stack (fresh), so the first build is still the first stale step.
+    expect(resume).toMatchObject({ done: false, index: 4 });
     if (!resume.done) {
       expect(resume.step.file).toBe('03-build-api.md');
       expect(resume.reason).toMatch(/02-plan-arch\.md changed/);
@@ -292,7 +317,7 @@ describe('pipeline acceptance — reference product', () => {
       }),
     );
 
-    // 10 steps × 36k = 360k — under the 400k threshold, so no warning.
+    // 11 steps × 36k = 396k — under the 400k threshold, so no warning.
     expect(budgetStatus(readRun(repo, id), warn).warn).toBe(false);
     // Push spend past the threshold: it warns, it does not throw or halt.
     recordStep(repo, id, {
@@ -404,6 +429,40 @@ describe('pipeline acceptance — reference product', () => {
     const afterDesignChange = listArtifacts(repo, id).find((a) => a.file === '03-build-web.md');
     expect(afterDesignChange?.staleReasons.some((r) => r.includes('02a-plan-design.md'))).toBe(true);
   });
+
+  test('the PLAN→BUILD boundary is a hard sign-off gate; later builds gate routine', () => {
+    const id = createRun(repo, { product: 'Repair Tracker', id: '2026-07-22-p011' }).id;
+    const builds = planFor(id, components).filter((s) => s.step.startsWith('build-'));
+
+    // The first build carries the sign-off flag → hard gate: it blocks until the plan is approved.
+    expect(builds[0].signoff).toBe(true);
+    expect(gateTier({ signoff: builds[0].signoff })).toBe('hard');
+
+    // Every subsequent build carries no sign-off and gates routine (the plan is already approved).
+    for (const b of builds.slice(1)) {
+      expect(b.signoff).toBeUndefined();
+      expect(gateTier({ signoff: b.signoff, irreversible: false, matchedTriggers: [] })).toBe('routine');
+    }
+  });
+
+  test('/ship advances the delivery plan one increment per loop, binding the next', () => {
+    const plan = parseDeliveryPlan(readFileSync(join(repo, 'PLAN.md'), 'utf-8'));
+
+    // The committed backlog has one active increment; it binds first.
+    expect(nextIncrement(plan)?.id).toBe('INC-2');
+
+    // /ship ships it (recording actual tokens from run.json) and the next todo binds.
+    const shipped = advanceIncrement(plan, 'INC-2', 'shipped', 2_400_000);
+    expect(verifyAdvance(plan, shipped).pass).toBe(true);
+    expect(nextIncrement(shipped)?.id).toBe('INC-3');
+
+    // Exactly one increment changed status; its actual token spend is recorded on the ledger.
+    const changed = shipped.increments.filter(
+      (a) => a.status !== plan.increments.find((b) => b.id === a.id)?.status,
+    );
+    expect(changed.map((c) => c.id)).toEqual(['INC-2']);
+    expect(shipped.increments.find((i) => i.id === 'INC-2')?.actualTokens).toBe(2_400_000);
+  });
 });
 
 /**
@@ -452,6 +511,7 @@ describe('pipeline acceptance — Java/Quarkus reference product (routing is a p
     expect(listArtifacts(repo, id).map((a) => a.file)).toEqual([
       '01-discover.md',
       '02-plan-arch.md',
+      '02c-plan-delivery.md',
       '03-build-api.md',
       '04-review.md',
       '05-qa.md',
