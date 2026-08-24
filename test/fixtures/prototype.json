@@ -1,0 +1,25 @@
+{
+  "skill": "prototype",
+  "intent": "Renders the approved design record into a clickable HTML prototype, styled from the design tokens verbatim — it renders, never redesigns — with a coverage gate over every screen and every navigation link.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "renders-not-redesigns",
+      "criterion": "Renders the design record verbatim from its tokens; it never redesigns.",
+      "weight": 3,
+      "anchors": { "require_all": ["render", "redesign", "verbatim"] }
+    },
+    {
+      "name": "coverage-gate",
+      "criterion": "A coverage gate fails the prototype if a screen has no page or a navigation link dangles.",
+      "weight": 2,
+      "anchors": { "require_all": ["coverage", "every screen", "dangl"] }
+    },
+    {
+      "name": "reads-design-record",
+      "criterion": "Reads the 02a-plan-design record and records the 02b-prototype artifact.",
+      "weight": 2,
+      "anchors": { "require_all": ["02a-plan-design", "02b-prototype"] }
+    }
+  ]
+}

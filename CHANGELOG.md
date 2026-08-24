@@ -3,6 +3,97 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.66.0.0] — 2026-08-12
+
+**Code review, batch 4 follow-up — the `/prototype` coverage gate now rejects blank ids fail-closed.**
+The one non-material edge noted in the batch-4 review, hardened. A screen or page with a blank id was
+never explicitly rejected, and the three coverage rules plus the roll-up each handled it differently
+(one looked it up by `""`, another treated `""` as absent) — inconsistent, though never a pass of a
+genuinely broken prototype.
+
+### Fixed — `lib/prototype-plan.ts`
+- New `screen-id` rule: a screen in the inventory, or a page rendering a screen, with a **blank id**
+  now fails the gate with a `blank-id` finding — reported once, up front, instead of leaking into
+  `missing-page` / `orphan-page` inconsistently.
+- `coverageSummary` now filters blank ids exactly as `verifyPrototypePlan` does, so the operator
+  roll-up and the gate agree — an edge to `""` is never counted resolved, a blank screen never
+  counted covered. New tests pin the blank-id failures (with no double-reporting) and the
+  summary/gate agreement.
+
+## [0.65.0.0] — 2026-08-12
+
+**Code review, batches 3–8 — completed; one doc fix, the rest reviewed clean.** Closes out the
+risk-ordered review of the recently-added skills and their backing verifiers.
+
+### Fixed
+- **`docs/implementation-plan.md`** — the Phase 6 header had a mojibake where a status glyph belongs;
+  now reads 🚧 (in progress).
+
+### Reviewed clean (no defect found)
+- **Delivery gate** (`lib/delivery-plan.ts`, `lib/run.ts` `gateTier`) — goal-traceability, duplicate
+  id/order, single-active, and monotonic-advance are all correct; the PLAN→BUILD sign-off gate is
+  fail-closed.
+- **Prototype coverage** (`lib/prototype-plan.ts`) — the token-fidelity rule fails *closed* (an empty
+  token set over-blocks rather than passing invented tokens), and link-coverage avoids double-reporting.
+- **Cost report** (`lib/infra-cost-report.ts`) — advisory-only by design; NaN/negative budgets, the
+  spike rule, and the summing fallback behave correctly.
+- **Schema/bindings** (`lib/schema.ts`) — the near-miss binding guard correctly curates long,
+  distinctive security-binding names; the infra bindings validate (vendor:check + acceptance green).
+- **Design-phase, cache, and install tooling** — covered by their existing teeth-verified rubrics and
+  negative unit tests.
+
+The full review plan and per-batch outcomes are in `docs/code-review-plan.md`.
+
+## [0.64.0.0] — 2026-08-12
+
+**Code review, batch 2 — `/drift` now guarantees its headline ordering in tested code.** The drift
+bug-list's core discipline is "security-sensitive drift first", but the verifier returned findings in
+input order and left the ordering to the skill's prose — so nothing tested that an out-of-band open
+firewall actually leads the report.
+
+### Fixed — `lib/infra-drift-report.ts` (the `/drift` bug-list)
+- `verifyDriftReport` now returns findings **security-sensitive first** as a stable partition (order
+  within each group preserved), so the discipline is enforced mechanically and pinned by a test — a
+  security-sensitive firewall drift leads even when it was listed later in the refresh diff.
+- (`/cost` reviewed in the same batch — no defect: it is advisory-only by design, and NaN/negative
+  budgets, the spike rule, and the summing fallback all behave correctly.)
+
+## [0.63.0.0] — 2026-08-12
+
+**Code review, batch 1 — two fail-open holes closed in the `/provision` apply gate.** The
+infrastructure gate that decides whether a plan is safe to `apply` had two ways a real hazard could
+pass silently. Both are fixed; both now block fail-closed.
+
+### Fixed — `lib/infra-plan-verify.ts` (the `/provision` hard gate)
+- **Uppercase policy severities no longer slip through.** Severity matching was case-sensitive, so a
+  `tfsec`/Checkov finding emitted as `HIGH`/`CRITICAL` (their native output) was silently downgraded
+  to `low` and did **not** block the apply. Severity is now normalised case-insensitively, and an
+  **unrecognised** severity label blocks (fail-closed) instead of defaulting to `low`.
+- **Unclassifiable plan actions no longer read as a harmless no-op.** An action verb the gate doesn't
+  model — e.g. a Pulumi `replace`/`same` op left un-normalised — was dropped, leaving the change
+  looking like a no-op, so a **protected database replace could pass**. A change with no recognised
+  action is now treated as suspect and **blocks** with an `unrecognized-change` finding until the
+  operator resolves it.
+- Both checks now normalise at verification time (not just at parse time), so `verifyInfraPlan` is
+  correct however the plan was constructed. New negative tests cover the uppercase severity, the
+  unrecognised severity, the un-normalised Pulumi op, and the partial-match case that must *not*
+  false-positive. `planSummary` gains an `unrecognizedChanges` count.
+
+## [0.62.0.0] — 2026-08-12
+
+Quality hardening — no behaviour change. The seven skills added in 0.58–0.61 (`plan-delivery`,
+`prototype`, `plan-infra`, `infra-review`, `provision`, `cost`, `drift`) shipped without the Tier-2
+per-skill discipline rubric every comparable PLAN/SHIP skill carries, so a future rewrite could have
+stripped a core discipline (the provision hard-gate, the cost never-block, the drift security-first
+ordering, the prototype fidelity gate) and the eval suite would have stayed green.
+
+### For contributors
+- Added a per-skill content rubric for each of the seven skills (`test/fixtures/<skill>.json`),
+  pinning its core discipline with a heavily-weighted `require_all` dimension so the gate has teeth —
+  verified for all seven: the real skill body scores 1.00, and stripping the core discipline drops
+  the weighted score to 0.43–0.57, well below the 0.9 pass threshold (a rewrite that drops the
+  discipline now fails Tier-2). No skill body, template, or runtime code changed.
+
 ## [0.61.0.0] — 2026-08-12
 
 **The infrastructure lane now goes from ground zero to a ready environment — and tells you what it

@@ -60,6 +60,7 @@ export interface PrototypePlan {
 
 /** Why a prototype fails the coverage gate — drives the finding text `/prototype` shows. */
 export type PrototypeRisk =
+  | 'blank-id'
   | 'missing-page'
   | 'dangling-link'
   | 'invented-token'
@@ -139,6 +140,7 @@ function duplicates<T>(values: readonly T[]): T[] {
 
 /**
  * Verify a prototype fully covers the design record. Rules:
+ *   - screen-id       — every screen, and every page's rendered screen, has a non-blank id.
  *   - screen-coverage — every screen in the inventory has a rendered page.
  *   - link-coverage   — every navigation edge resolves: the `from` screen has a page whose links
  *                       include `to`, and `to` is a real screen with a page (no dangling routes).
@@ -154,9 +156,30 @@ export function verifyPrototypePlan(plan: PrototypePlan): PrototypeVerdict {
   const pageByScreen = new Map(plan.pages.map((p) => [p.screen, p]));
   const tokenSet = new Set(plan.tokens);
 
-  // screen-coverage — a screen with no page fails.
+  // screen-id — a blank id is malformed and, left unchecked, is handled inconsistently by the rules
+  // below (a page renders "", coverage looks it up by ""). Reject it once, up front, and fail closed.
+  plan.screens.forEach((screen, index) => {
+    if (screen.id.length === 0) {
+      findings.push({
+        rule: 'screen-id',
+        risk: 'blank-id',
+        detail: `screen #${index + 1} ('${screen.title || 'untitled'}') has no id`,
+      });
+    }
+  });
+  for (const page of plan.pages) {
+    if (page.screen.length === 0) {
+      findings.push({
+        rule: 'screen-id',
+        risk: 'blank-id',
+        detail: `a prototype page renders a screen with no id`,
+      });
+    }
+  }
+
+  // screen-coverage — a screen with no page fails (blank ids are already reported by screen-id).
   for (const screen of plan.screens) {
-    if (!pageByScreen.has(screen.id)) {
+    if (screen.id.length > 0 && !pageByScreen.has(screen.id)) {
       findings.push({
         rule: 'screen-coverage',
         risk: 'missing-page',
@@ -165,9 +188,9 @@ export function verifyPrototypePlan(plan: PrototypePlan): PrototypeVerdict {
     }
   }
 
-  // orphan-page — a page for a screen the inventory never declared fails.
+  // orphan-page — a page for a screen the inventory never declared fails (blank handled by screen-id).
   for (const page of plan.pages) {
-    if (!screenIds.has(page.screen)) {
+    if (page.screen.length > 0 && !screenIds.has(page.screen)) {
       findings.push({
         rule: 'orphan-page',
         risk: 'orphan-page',
@@ -255,9 +278,11 @@ export interface PrototypeCoverage {
 
 /** Roll up how much of the design record the prototype covers — the operator-facing dashboard. */
 export function coverageSummary(plan: PrototypePlan): PrototypeCoverage {
-  const pageByScreen = new Map(plan.pages.map((p) => [p.screen, p]));
-  const screenIds = new Set(plan.screens.map((s) => s.id));
-  const coveredScreens = plan.screens.filter((s) => pageByScreen.has(s.id)).length;
+  // A blank id is not a real screen — filter it out here exactly as verifyPrototypePlan does, so the
+  // roll-up and the gate agree (an edge to "" is never counted as resolved).
+  const pageByScreen = new Map(plan.pages.filter((p) => p.screen.length > 0).map((p) => [p.screen, p]));
+  const screenIds = new Set(plan.screens.map((s) => s.id).filter((id) => id.length > 0));
+  const coveredScreens = plan.screens.filter((s) => s.id.length > 0 && pageByScreen.has(s.id)).length;
   const resolvedEdges = plan.nav.filter((e) => {
     const fromPage = pageByScreen.get(e.from);
     return Boolean(fromPage) && screenIds.has(e.to) && pageByScreen.has(e.to) && fromPage!.links.includes(e.to);

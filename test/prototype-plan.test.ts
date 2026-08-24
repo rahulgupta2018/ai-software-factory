@@ -131,6 +131,55 @@ describe('verifyPrototypePlan — each rule has a negative case that fails', () 
     expect(v.findings.some((f) => f.risk === 'orphan-page')).toBe(true);
   });
 
+  test('a screen with a blank id fails (blank-id) and is not also double-reported as missing-page', () => {
+    const plan = healthyPlan({
+      screens: [
+        { id: '', title: 'Nameless' },
+        { id: 'detail', title: 'Detail' },
+      ],
+      nav: [],
+      pages: [page({ screen: 'detail', links: [], tokensUsed: ['color-accent'] })],
+    });
+    const v = verifyPrototypePlan(plan);
+    expect(v.pass).toBe(false);
+    expect(v.findings.some((f) => f.risk === 'blank-id')).toBe(true);
+    expect(v.findings.some((f) => f.risk === 'missing-page')).toBe(false); // the blank screen is not also a missing-page
+  });
+
+  test('a page rendering a blank screen fails (blank-id) and is not also double-reported as orphan-page', () => {
+    const plan = healthyPlan({
+      pages: [
+        page({ screen: 'home', links: ['detail'], tokensUsed: ['color-bg'] }),
+        page({ screen: 'detail', links: [], tokensUsed: ['color-accent'] }),
+        page({ screen: '', links: [], tokensUsed: ['color-bg'] }), // blank screen id
+      ],
+    });
+    const v = verifyPrototypePlan(plan);
+    expect(v.pass).toBe(false);
+    expect(v.findings.some((f) => f.risk === 'blank-id')).toBe(true);
+    expect(v.findings.some((f) => f.risk === 'orphan-page')).toBe(false);
+  });
+
+  test('coverageSummary agrees with the gate on blank ids — an edge to "" is not counted resolved', () => {
+    const plan = healthyPlan({
+      screens: [
+        { id: 'home', title: 'Home' },
+        { id: '', title: 'Blank' },
+      ],
+      nav: [{ from: 'home', action: 'Go', to: '' }],
+      pages: [
+        page({ screen: 'home', links: [''], tokensUsed: ['color-bg'] }),
+        page({ screen: '', links: [], tokensUsed: ['color-bg'] }),
+      ],
+    });
+    // The gate fails on the blank id …
+    expect(verifyPrototypePlan(plan).findings.some((f) => f.risk === 'blank-id')).toBe(true);
+    // … and the roll-up doesn't count the blank screen as covered or the edge to "" as resolved.
+    const c = coverageSummary(plan);
+    expect(c.coveredScreens).toBe(1); // only 'home'
+    expect(c.resolvedEdges).toBe(0);
+  });
+
   test('a repeated screen id fails (duplicate-screen)', () => {
     const plan = healthyPlan({
       screens: [

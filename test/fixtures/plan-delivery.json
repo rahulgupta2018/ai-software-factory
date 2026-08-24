@@ -1,0 +1,25 @@
+{
+  "skill": "plan-delivery",
+  "intent": "Decomposes the PRD into a prioritised, traceable increment backlog in PLAN.md — each increment tracing to a PRD goal — gated by a PLAN→BUILD sign-off, composing project-planner + sprint-planner.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "traceable-increments",
+      "criterion": "Produces an increment backlog where each increment traces to a PRD goal (an orphan increment fails).",
+      "weight": 3,
+      "anchors": { "require_all": ["increment", "goal", "trace"] }
+    },
+    {
+      "name": "signoff-gate",
+      "criterion": "The PLAN.md backlog is gated by a PLAN→BUILD sign-off before build.",
+      "weight": 2,
+      "anchors": { "require_all": ["sign-off", "PLAN.md"] }
+    },
+    {
+      "name": "composes-planners",
+      "criterion": "Composes the project-planner and sprint-planner craft skills rather than re-deriving them.",
+      "weight": 2,
+      "anchors": { "require_all": ["project-planner", "sprint-planner"] }
+    }
+  ]
+}

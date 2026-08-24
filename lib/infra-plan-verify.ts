@@ -24,8 +24,12 @@ import { parseFrontmatter } from './frontmatter.ts';
 /** A Terraform plan action for one resource (`terraform show -json` `resource_changes[].change.actions`). */
 export type ChangeAction = 'create' | 'read' | 'update' | 'delete' | 'no-op';
 
-/** Policy-scan severity (`tfsec` / Checkov / OPA-Conftest). */
-export type Severity = 'low' | 'medium' | 'high' | 'critical';
+/**
+ * Policy-scan severity (`tfsec` / Checkov / OPA-Conftest). `unknown` is the fail-closed bucket for a
+ * severity string the verifier does not recognise — it BLOCKS rather than silently downgrading, so a
+ * scanner emitting a non-standard label can't sneak a real finding past the gate.
+ */
+export type Severity = 'low' | 'medium' | 'high' | 'critical' | 'unknown';
 
 /**
  * Resource types whose very creation IS a long-lived, downloadable credential. Their presence in a
@@ -52,6 +56,13 @@ export interface ResourceChange {
    * password / private key), as opposed to a reference to a secret manager. Empty is the norm.
    */
   secretAttributes?: string[];
+  /**
+   * True when the raw plan carried an action the verifier could not classify (e.g. a Pulumi `replace`
+   * op left un-normalised, or a malformed change with no valid action). A real plan change always
+   * carries a recognised action, so an unclassifiable change is treated as SUSPECT and blocks — the
+   * verifier must never silently read it as a harmless no-op.
+   */
+  unrecognizedActions?: boolean;
 }
 
 /** One policy-scan finding (`tfsec` / Checkov / OPA-Conftest). */
@@ -82,7 +93,9 @@ export type InfraRisk =
   | 'replace-protected'
   | 'long-lived-key'
   | 'secret-in-state'
-  | 'policy-high';
+  | 'policy-high'
+  | 'policy-unknown'
+  | 'unrecognized-change';
 
 /** One failed gate rule. */
 export interface InfraFinding {
@@ -121,22 +134,36 @@ function coerceActions(v: unknown): ChangeAction[] {
 
 function coerceChange(raw: unknown): ResourceChange {
   const c = (raw ?? {}) as Record<string, unknown>;
+  const actions = coerceActions(c.actions);
+  // A real plan change always carries at least one recognised action. Zero recognised actions means
+  // the raw plan used an action verb the verifier does not model (a Pulumi `replace`/`same` op left
+  // un-normalised) or the change is malformed — either way, unclassifiable, so flag it to fail closed.
   return {
     address: asString(c.address),
     type: asString(c.type),
-    actions: coerceActions(c.actions),
+    actions,
     secretAttributes: asStringArray(c.secret_attributes),
+    unrecognizedActions: actions.length === 0,
   };
 }
 
 const SEVERITIES: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'critical']);
 
+/**
+ * Normalise a severity string. Case-insensitive — scanners like `tfsec`/Checkov emit UPPERCASE
+ * (`HIGH`, `CRITICAL`), and a case-sensitive match would silently downgrade them to `low` and let a
+ * real finding through. An unrecognised label becomes `unknown` (which BLOCKS), never `low`.
+ */
+function coerceSeverity(raw: unknown): Severity {
+  const s = asString(raw).trim().toLowerCase();
+  return (SEVERITIES.has(s) ? s : 'unknown') as Severity;
+}
+
 function coerceFinding(raw: unknown): PolicyFinding {
   const f = (raw ?? {}) as Record<string, unknown>;
-  const severity = asString(f.severity, 'low');
   return {
     id: asString(f.id),
-    severity: (SEVERITIES.has(severity) ? severity : 'low') as Severity,
+    severity: coerceSeverity(f.severity),
     resource: asString(f.resource),
     detail: asString(f.detail),
   };
@@ -171,6 +198,16 @@ function isDestroy(actions: ChangeAction[]): boolean {
 }
 
 /**
+ * A change the verifier cannot classify — no recognised action survives. Computed at check time (not
+ * trusting the parse-time flag) so `verifyInfraPlan` is correct however the plan was built: an empty
+ * or all-unrecognised action set (a Pulumi `replace`/`same` op left un-normalised) is suspect and
+ * must block rather than read as a harmless no-op.
+ */
+function isUnrecognizedChange(c: ResourceChange): boolean {
+  return c.unrecognizedActions === true || c.actions.filter((a) => ACTIONS.has(a)).length === 0;
+}
+
+/**
  * Verify a plan is safe to `apply`. Rules:
  *   - protected-destroy — a protected resource is destroyed (delete only) without destroy-consent.
  *   - protected-replace — a protected resource is replaced (`-/+`, delete+create) without consent.
@@ -186,6 +223,16 @@ export function verifyInfraPlan(plan: InfraPlan): InfraVerdict {
   const isProtected = (c: ResourceChange) => protectedSet.has(c.address) || protectedSet.has(c.type);
 
   for (const change of plan.changes) {
+    // unrecognized-change — the plan carried an action the verifier can't classify. Fail closed: we
+    // cannot prove this change is safe (it may be a protected destroy in disguise), so it blocks.
+    if (isUnrecognizedChange(change)) {
+      findings.push({
+        rule: 'recognized-actions',
+        risk: 'unrecognized-change',
+        detail: `'${change.address || change.type || '(unknown)'}' has no recognised plan action — the plan uses an action verb this gate does not model (normalise Pulumi ops to create/read/update/delete/no-op) or the change is malformed; cannot prove it safe`,
+      });
+    }
+
     // protected-destroy / protected-replace — blast-radius guard, gated by explicit consent.
     if (isProtected(change) && !plan.consentToDestroy) {
       if (isReplace(change.actions)) {
@@ -223,12 +270,21 @@ export function verifyInfraPlan(plan: InfraPlan): InfraVerdict {
   }
 
   // policy-clean — a high/critical policy finding blocks apply; low/medium are recorded, not blocking.
+  // Severity is normalised at check time (case-insensitive), and an unrecognised label blocks —
+  // fail closed, never assume it's low — so a `HIGH`/`severe`-emitting scanner can't slip through.
   for (const finding of plan.policyFindings) {
-    if (finding.severity === 'high' || finding.severity === 'critical') {
+    const severity = coerceSeverity(finding.severity);
+    if (severity === 'high' || severity === 'critical') {
       findings.push({
         rule: 'policy-clean',
         risk: 'policy-high',
-        detail: `${finding.severity} policy finding ${finding.id} on '${finding.resource}': ${finding.detail}`,
+        detail: `${severity} policy finding ${finding.id} on '${finding.resource}': ${finding.detail}`,
+      });
+    } else if (severity === 'unknown') {
+      findings.push({
+        rule: 'policy-clean',
+        risk: 'policy-unknown',
+        detail: `policy finding ${finding.id} on '${finding.resource}' has an unrecognised severity '${finding.severity}' (blocked fail-closed): ${finding.detail}`,
       });
     }
   }
@@ -246,8 +302,10 @@ export interface InfraPlanSummary {
   replaces: number;
   /** Protected resources the plan destroys or replaces. */
   protectedTouched: number;
-  /** High/critical policy findings. */
+  /** Gate-blocking policy findings (high, critical, or unrecognised severity). */
   highPolicyFindings: number;
+  /** Changes the verifier could not classify (blocked fail-closed). */
+  unrecognizedChanges: number;
 }
 
 /** Roll up the blast radius of a plan — the operator-facing dashboard before the apply gate. */
@@ -259,8 +317,11 @@ export function planSummary(plan: InfraPlan): InfraPlanSummary {
   let destroys = 0;
   let replaces = 0;
   let protectedTouched = 0;
+  let unrecognizedChanges = 0;
   for (const change of plan.changes) {
-    if (isReplace(change.actions)) {
+    if (isUnrecognizedChange(change)) {
+      unrecognizedChanges += 1;
+    } else if (isReplace(change.actions)) {
       replaces += 1;
       if (isProtected(change)) protectedTouched += 1;
     } else if (isDestroy(change.actions)) {
@@ -272,8 +333,9 @@ export function planSummary(plan: InfraPlan): InfraPlanSummary {
       updates += 1;
     }
   }
-  const highPolicyFindings = plan.policyFindings.filter(
-    (f) => f.severity === 'high' || f.severity === 'critical',
-  ).length;
-  return { creates, updates, destroys, replaces, protectedTouched, highPolicyFindings };
+  const highPolicyFindings = plan.policyFindings.filter((f) => {
+    const s = coerceSeverity(f.severity);
+    return s === 'high' || s === 'critical' || s === 'unknown';
+  }).length;
+  return { creates, updates, destroys, replaces, protectedTouched, highPolicyFindings, unrecognizedChanges };
 }

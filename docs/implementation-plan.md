@@ -1009,7 +1009,7 @@ gate proves the transport posture.
 
 ---
 
-### Phase 6 — Mobile store release + on-device QA � IN PROGRESS (skill layer shipped v0.37.0.0; device-runner binary remaining)
+### Phase 6 — Mobile store release + on-device QA 🚧 IN PROGRESS (skill layer shipped v0.37.0.0; device-runner binary remaining)
 
 Phase 5 stops at a **built, secured, signed-ready** mobile artifact; it does not publish. This
 phase closes the gap from "release build on disk" to "live in the App Store / Play Store", and adds

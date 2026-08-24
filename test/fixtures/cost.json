@@ -1,0 +1,25 @@
+{
+  "skill": "cost",
+  "intent": "Estimates the monthly cost of an infra change from an infracost plan and compares it to the budget — measure-and-warn, never a block — naming the drivers and recording the estimate.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "measure-and-warn",
+      "criterion": "Warns against the budget but never blocks — the measure-and-warn discipline.",
+      "weight": 3,
+      "anchors": { "require_all": ["warn", "never block", "budget"] }
+    },
+    {
+      "name": "reads-infracost-budget",
+      "criterion": "Reads the infracost plan JSON and compares against tech_bindings.infra.cost_budget.",
+      "weight": 2,
+      "anchors": { "require_all": ["infracost", "cost_budget"] }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the cost estimate as the 02f artifact via the run harness.",
+      "weight": 2,
+      "anchors": { "require_all": ["02f", "fac run artifact"] }
+    }
+  ]
+}

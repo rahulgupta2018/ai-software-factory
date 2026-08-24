@@ -1,0 +1,25 @@
+{
+  "skill": "drift",
+  "intent": "The /qa of infrastructure: reads a refresh diff and reports out-of-band drift with security-sensitive drift first — the finding half, not the fix; the operator reconciles.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "report-not-fix-security-first",
+      "criterion": "Reports drift for the operator to reconcile — the finding half, not the fix — with security-sensitive drift surfaced first.",
+      "weight": 3,
+      "anchors": { "require_all": ["reconcile", "not the fix", "security-sensitive"] }
+    },
+    {
+      "name": "reads-refresh-diff",
+      "criterion": "Reads a refresh diff (terraform refresh-only / pulumi refresh) to find what changed out of band.",
+      "weight": 2,
+      "anchors": { "require_all": ["refresh", "out of band"] }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the drift report as the 06g artifact via the run harness.",
+      "weight": 2,
+      "anchors": { "require_all": ["06g", "fac run artifact"] }
+    }
+  ]
+}

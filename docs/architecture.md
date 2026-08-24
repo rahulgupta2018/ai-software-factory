@@ -13,7 +13,8 @@
 The **AI Software Factory** (CLI codename `fac`) is a *product-agnostic AI engineering workflow*.
 You give it a product idea written as a **PRD** (Product Requirements Document), and a team of
 specialist AI agents — strategist, architect, designer, implementer, reviewer, QA, security,
-release — turn it into shipped software. Each agent is powered by a **workflow skill** (the *method*:
+release, and a dedicated **platform** (infrastructure) engineer — turn it into shipped software.
+Each agent is powered by a **workflow skill** (the *method*:
 "how a code review is done"). Those skills stay consistent because they are **generated** from
 templates, and they get their *values* (your tech stack, guardrails, commands) from **your PRD**, not
 from hard-coded assumptions. The whole thing is modelled on gstack's orchestration and assembled
@@ -32,17 +33,17 @@ Everything in the repo belongs to one of three layers. This is the mental model 
 flowchart TB
     subgraph L1["LAYER 1 · Workflow skills — the 'how' (we build these)"]
         direction LR
-        L1a["/plan-arch · /review · /qa · /ship · /investigate ...<br/>generated from SKILL.md.tmpl templates"]
+        L1a["/plan-arch · /review · /qa · /ship · /investigate<br/>/plan-infra · /cost · /provision · /drift · /security ...<br/>34 skills across 9 layers, generated from SKILL.md.tmpl"]
     end
 
     subgraph L2["LAYER 2 · Craft skills — reusable expertise (we vendor these)"]
         direction LR
-        L2a["python-expert · fullstack-developer · code-reviewer<br/>ux-designer · tdd-red-green-refactor · technical-writer ...<br/>copied + pinned from the agent-skills library"]
+        L2a["python-expert · fullstack-developer · code-reviewer · ux-designer<br/>terraform-expert · pulumi-expert · gcp-cloud-expert · adk-agent<br/>40+ skills copied + pinned from the agent-skills library"]
     end
 
     subgraph L3["LAYER 3 · Tooling — the hands (we build/adopt these)"]
         direction LR
-        L3a["browse · design · make-pdf · diagram<br/>generator · eval harness · memory/decision store · redaction guard"]
+        L3a[\"browse · design · make-pdf · diagram · mobile-device<br/>generator · eval harness · memory/decision store · redaction guard\"]
     end
 
     PRD["PRD.md + .factory/stack.yaml<br/>(your product's values)"]
@@ -78,7 +79,8 @@ ai-software-factory/
 │   ├── browse/               headless browser (for /qa + design review)
 │   ├── design/               UI mockup / image generation (for /plan-design)
 │   ├── make-pdf/             Markdown → publication-quality HTML/PDF (for /document)
-│   └── diagram/              validate + render Mermaid diagrams (for /plan-arch)
+│   ├── diagram/              validate + render Mermaid diagrams (for /plan-arch)
+│   └── mobile-device/        drive a mobile emulator/device (for mobile /qa + release verify)
 ├── scripts/                ← the implementation behind each `fac` subcommand (thin CLI wrappers)
 │   ├── gen-skill-docs.ts     the GENERATOR: SKILL.md.tmpl → SKILL.md (see §4)
 │   ├── skill-check.ts        static validation of skills (drift, frontmatter, line budget)
@@ -98,6 +100,11 @@ ai-software-factory/
 │   ├── context.ts            load / ownership-check / merge / derive the two product halves
 │   ├── eval-plan.ts          the eval-cadence policy (gate vs periodic) — one source of truth
 │   ├── install-plan.ts       the pure install planner (what links where, per platform)
+│   ├── *-report / *-verify   the VERIFIER family — one pure core per report-producing skill:
+│   │                         infra-cost · infra-drift · infra-plan-verify · sast · dast · sca ·
+│   │                         container-scan · provenance-verify · tls-verify · scan-liveness ·
+│   │                         pipeline-lint · mobile-release-verify · delivery-plan · prototype-plan
+│   ├── prompt-cache.ts       prompt-cache accounting for the eval harness
 │   └── memory/decision/redact/guard/run/benchmark-models/eval-select.ts   pure cores for §7
 ├── hosts/                  ← multi-host adapters (claude.ts, codex.ts). Adding a host = one file.
 ├── templates/              ← PRD.template.md + stack.template.yaml — what `fac init` copies.
@@ -115,6 +122,28 @@ The **`lib/` vs `scripts/` split** is deliberate and worth internalising: `lib/`
 (testable offline, no I/O at import), `scripts/` holds the *thin CLI shell* around it (argument
 parsing, file writes, `process.exit`). This is why the test suite can run fully offline — it imports
 the `lib/` cores directly and never shells out.
+
+### The skill catalogue — 34 workflow skills across 9 layers
+
+Each workflow skill declares a **layer** in its frontmatter. The layers trace the arc of a product
+from idea to operation, and each agent (§6) loads a slice of them:
+
+| Layer | Workflow skills |
+|---|---|
+| **Think** | `/discover` |
+| **Plan** | `/spec` · `/plan-product` · `/plan-arch` · `/plan-design` · `/plan-infra` · `/plan-delivery` · `/prototype` |
+| **Build** | `/build` |
+| **Review** | `/review` · `/investigate` · `/security` · `/infra-review` · `/cost` · `/second-opinion` |
+| **Test** | `/qa` · `/qa-report` · `/benchmark` |
+| **Ship** | `/ship` · `/deploy` · `/pipeline` · `/provision` · `/canary` · `/document` |
+| **Ops** | `/context-save` · `/context-restore` · `/drift` |
+| **Safety** | `/careful` · `/freeze` · `/guard` |
+| **Reflect** | `/health` · `/retro` · `/learn` · `/skill-smith` |
+
+The **infrastructure lane** (owned by the `platform` agent) is its own thread through these layers:
+`/plan-infra` (Plan) → `/infra-review` ∥ `/cost` (Review) → `/provision` (Ship) → `/drift` (Ops).
+It operates entirely on **operator-provided plan/preview JSON** (terraform/pulumi/infracost) — the
+Factory never holds cloud credentials and never runs a live `apply`.
 
 ---
 
@@ -248,7 +277,7 @@ flowchart TB
 
     subgraph HOST["Host CLI (Claude Code / Codex)"]
         direction TB
-        AGENTS["Specialist agents<br/>strategist → architect → designer →<br/>implementer → reviewer → QA → security → release"]
+        AGENTS["14 specialist agents · orchestrator routes<br/>strategist → architect → designer → implementer →<br/>reviewer → security → QA → release<br/>platform (infra) lane runs alongside · coach/skill-smith reflect"]
     end
 
     subgraph PROD["Your product repo"]

@@ -1,0 +1,25 @@
+{
+  "skill": "plan-infra",
+  "intent": "Writes the IaC design record: the landing-zone foundation, elicited environments (no baked ladder — it always asks), well-architected pillars, a per-environment region strategy, keyless OIDC identity, and the protected resources.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "landing-zone-elicited-envs",
+      "criterion": "Designs the landing-zone foundation and elicits the environments rather than baking a fixed ladder.",
+      "weight": 3,
+      "anchors": { "require_all": ["landing", "environment", "elicit"] }
+    },
+    {
+      "name": "well-architected-pillars",
+      "criterion": "Plans the well-architected pillars with a per-environment region strategy.",
+      "weight": 2,
+      "anchors": { "require_all": ["pillar", "region"] }
+    },
+    {
+      "name": "keyless-and-protected",
+      "criterion": "Uses keyless OIDC identity (never a downloadable key) and records the protected resources.",
+      "weight": 2,
+      "anchors": { "require_all": ["OIDC", "protected"] }
+    }
+  ]
+}

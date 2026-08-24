@@ -1,0 +1,25 @@
+{
+  "skill": "provision",
+  "intent": "Provisions the written IaC behind a hard gate: verifies the plan offline (no protected destroy/replace without consent, no long-lived key, no secret in state), hard-gates the irreversible apply, then confirms and records the run.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "hard-gate-before-apply",
+      "criterion": "The irreversible apply is a hard gate requiring explicit consent — never an automatic apply.",
+      "weight": 3,
+      "anchors": { "require_all": ["hard gate", "apply", "consent"] }
+    },
+    {
+      "name": "offline-plan-verify",
+      "criterion": "Verifies the plan offline before applying: no protected destroy/replace, no long-lived key, no secret in state.",
+      "weight": 2,
+      "anchors": { "require_all": ["protected", "secret in state", "long-lived"] }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the provision run as the 06f artifact via the run harness.",
+      "weight": 2,
+      "anchors": { "require_all": ["06f", "fac run artifact"] }
+    }
+  ]
+}

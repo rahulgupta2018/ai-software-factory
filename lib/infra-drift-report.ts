@@ -51,7 +51,7 @@ export interface DriftReport {
 /** Why the drift check raises a finding — drives the finding text `/drift` shows. */
 export type DriftRisk = 'resource-modified' | 'resource-deleted' | 'unmanaged-resource';
 
-/** One drift finding (a bug-list entry, ordered security-sensitive first by the skill). */
+/** One drift finding (a bug-list entry; `verifyDriftReport` returns them security-sensitive first). */
 export interface DriftFinding {
   rule: string;
   risk: DriftRisk;
@@ -117,8 +117,9 @@ export function parseDriftReport(text: string, label = 'drift report'): DriftRep
  *   - resource-modified  — a managed resource changed out of band (config drift).
  *   - resource-deleted   — a managed resource was deleted out of band (it has vanished).
  *   - unmanaged-resource — a resource exists in the environment with no IaC managing it (shadow).
- * Every drifted or unmanaged resource yields one finding; `securitySensitive` is carried through so
- * the skill can surface security-relevant drift first. An empty resource list is in-sync (no drift).
+ * Every drifted or unmanaged resource yields one finding. The bug-list is returned **security-
+ * sensitive first** (a stable partition — order within each group is preserved), so the discipline is
+ * guaranteed here and tested, not left to the skill's prose. An empty resource list is in-sync.
  */
 export function verifyDriftReport(report: DriftReport): DriftVerdict {
   const findings: DriftFinding[] = [];
@@ -150,7 +151,12 @@ export function verifyDriftReport(report: DriftReport): DriftVerdict {
       });
     }
   }
-  return { drifted: findings.length > 0, findings };
+  // Security-sensitive drift leads the bug-list (stable partition — input order kept within groups).
+  const ordered = [
+    ...findings.filter((f) => f.securitySensitive),
+    ...findings.filter((f) => !f.securitySensitive),
+  ];
+  return { drifted: ordered.length > 0, findings: ordered };
 }
 
 // ── Drift summary ──────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ skills are the reusable *method*; your `PRD.md` supplies the *values*. AI code o
 
 | Layer | Lives in | What it is |
 |---|---|---|
-| 1 — workflow skills | `skills/` | The 27 `/commands` below, generated from `.tmpl` templates |
+| 1 — workflow skills | `skills/` | The 34 `/commands` below, generated from `.tmpl` templates |
 | 2 — craft skills | `vendor-skills/` | Language/domain expertise vendored from `agent-skills`, pinned by hash |
 | 3 — tooling | `tools/` | Real binaries the skills drive: browser, design, pdf, diagram, mobile-device |
 
@@ -82,14 +82,14 @@ your `PATH` contains `~/.bun/bin`.
 ==> AI Software Factory setup
    using bun 1.3.14
 ==> Generating + validating skills
-gen:skills — generated 27 skill(s) for 2 host(s).
-skill:check — 27 skill(s) OK.
-vendor:check — 31 vendored skill(s), 0 failed, 0 warning(s).
+gen:skills — generated 34 skill(s) for 2 host(s).
+skill:check — 34 skill(s) OK.
+vendor:check — 43 vendored skill(s), 0 failed, 0 warning(s).
 ==> Linking the fac CLI
 ==> Installing skills into hosts
 install —
   removed stale /Users/you/.claude/skills/factory
-  ✔ claude   installed 27 skill(s) as /fac-<name>
+  ✔ claude   installed 34 skill(s) as /fac-<name>
     codex    codex not found on PATH — skipped
   → start a NEW Claude Code session to pick them up (skills load at session start).
 ==> Done.
@@ -289,8 +289,10 @@ You run `fac sync-context`, then continue with `/build`, `/review`, `/qa`, `/shi
 
 ## 4. The `/commands` — what each one does
 
-All 27 skills, grouped by pipeline stage. Invoke by name (e.g. `/discover`) in your AI host.
-**V1** = ships first; **FF** = fast-follow.
+All 34 skills, grouped by pipeline stage. Invoke by name (e.g. `/discover`) in your AI host.
+**V1** = ships first; **FF** = fast-follow. The **PLATFORM** group is a lane of its own — the
+`platform` agent designs, reviews, prices, provisions, and monitors cloud infrastructure alongside
+the app build.
 
 ### THINK — turn an idea into a PRD
 
@@ -305,6 +307,8 @@ All 27 skills, grouped by pipeline stage. Invoke by name (e.g. `/discover`) in y
 | `/plan-product` | V1 | Pressure-tests the PRD before building — right thing, right scope, right user? Runs in Expand / Hold / Reduce mode. |
 | `/plan-arch` | V1 | Picks languages, components, frameworks, commands, and craft skills → writes `.factory/stack.yaml`. |
 | `/plan-design` | V1 | Turns a UI-bearing PRD into a defensible UI spec — visual direction, design tokens, component inventory, flows, accessibility floor. |
+| `/prototype` | V1 | Turns the design record into a clickable, self-contained HTML prototype (one page per screen, wired by the nav graph, styled from the tokens verbatim) to look at **before any code** — self-verified with the browser, fully offline. |
+| `/plan-delivery` | V1 | Decomposes the approved PRD into an ordered backlog of shippable increments in a committed `PLAN.md` — each tracing to a goal, with effort + token estimates and a todo→in-progress→shipped lifecycle. Sets the PLAN→BUILD gate. |
 | `/spec` | V1 | Turns vague intent into a precise, executable spec — scope, acceptance criteria, edge cases, task breakdown. |
 
 ### BUILD — implement the features
@@ -338,6 +342,20 @@ All 27 skills, grouped by pipeline stage. Invoke by name (e.g. `/discover`) in y
 | `/deploy` | V1 | Merge → wait for CI → deploy → verify healthy in production. Includes provenance/signing gate and mobile store branches (Apple/Google). |
 | `/pipeline` | V1 | Generates & hardens the CI/CD workflow the Factory assumes — least-privilege permissions, OIDC/keyless auth, pinned actions, required security steps. |
 | `/document` | V1 | Turns a shipped change into the docs it needs — release notes + Diataxis reference/how-to/tutorial/explanation, grounded in what actually shipped. |
+
+### PLATFORM — the infrastructure lane (design → review ∥ cost → provision → drift)
+
+Owned by the `platform` agent, distinct from the app build. Every skill operates on
+**operator-provided plan/preview JSON** (terraform / pulumi / infracost) — the Factory never holds
+cloud credentials and never runs a live `apply` on your behalf.
+
+| Command | Pri | What it does |
+|---|---|---|
+| `/plan-infra` | V1 | Turns the settled stack into the Infrastructure-as-Code **design record** — landing-zone foundation (org/folder/project + billing bootstrap, org-policy guardrails), the **elicited** environment ladder (never baked), region strategy per environment, the well-architected pillars (scalability, resiliency, observability, IAM/RBAC, SSL, secrets, runtimes, data, messaging), any MLOps/LLMOps platform, remote+locked state, and OIDC (keyless) identity. The `/plan-arch` of infra. |
+| `/infra-review` | V1 | Pre-apply **security + policy scan** of the IaC — tfsec/Checkov for provider misconfig plus OPA/Conftest for org policy. A high-severity finding **hard-gates** `/provision`. |
+| `/cost` | V1 | Estimates the monthly cost of an infra change (infracost over the plan JSON), verified offline against the product's budget. **Measure-and-warn** — flags over/near-budget or a per-resource spike; never a gate. |
+| `/provision` | V1 | Takes the design from plan → **HARD GATE** → apply. Verifies the plan offline (no protected resource destroyed, no long-lived key, no secret in state, no high-severity policy finding), stops for explicit consent on the irreversible apply, then applies and confirms. |
+| `/drift` | V1 | Detects when the live cloud has diverged from the IaC that owns it — classifies each divergence (modified / deleted out of band, or an unmanaged shadow resource) into a prioritised bug-list, **security-sensitive first**. Reports; the fix routes to `/provision` or `/investigate`. |
 
 ### REFLECT & OPS — learn, monitor, resume
 

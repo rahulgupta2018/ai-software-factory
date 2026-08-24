@@ -85,6 +85,25 @@ describe('verifyDriftReport — each drift class has a case that fires', () => {
     expect(v.findings[0].securitySensitive).toBe(true);
     expect(v.findings[0].detail).toContain('SECURITY-SENSITIVE');
   });
+
+  test('security-sensitive drift is returned FIRST, ahead of non-sensitive drift (enforced here, not in prose)', () => {
+    const v = verifyDriftReport(
+      inSyncReport({
+        resources: [
+          resource({ address: 'bucket.assets', driftType: 'modified', securitySensitive: false }),
+          resource({ address: 'firewall.ssh', driftType: 'modified', changedAttributes: ['source_ranges'], securitySensitive: true }),
+          resource({ address: 'label.env', driftType: 'modified', securitySensitive: false }),
+        ],
+      }),
+    );
+    // The security-sensitive firewall drift leads, even though it was listed second in the input.
+    expect(v.findings[0].securitySensitive).toBe(true);
+    expect(v.findings[0].detail).toContain('firewall.ssh');
+    // Non-sensitive findings keep their relative input order after the sensitive ones.
+    expect(v.findings.map((f) => f.securitySensitive)).toEqual([true, false, false]);
+    expect(v.findings[1].detail).toContain('bucket.assets');
+    expect(v.findings[2].detail).toContain('label.env');
+  });
 });
 
 describe('driftSummary — the operator-facing drift roll-up', () => {

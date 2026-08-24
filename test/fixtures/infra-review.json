@@ -1,0 +1,25 @@
+{
+  "skill": "infra-review",
+  "intent": "Scans the written IaC before any apply — tfsec/Checkov for misconfiguration and OPA/Conftest for organisation policy — and blocks /provision on a high/critical finding.",
+  "pass_threshold": 0.9,
+  "dimensions": [
+    {
+      "name": "blocks-provision-on-severity",
+      "criterion": "A high/critical finding blocks /provision — the review is a gate, not an advisory.",
+      "weight": 3,
+      "anchors": { "require_all": ["block", "critical", "provision"] }
+    },
+    {
+      "name": "scanner-and-policy",
+      "criterion": "Runs both a misconfiguration scanner (tfsec/Checkov) and policy-as-code (OPA/Conftest).",
+      "weight": 2,
+      "anchors": { "require_all": ["tfsec", "Checkov", "OPA", "Conftest"] }
+    },
+    {
+      "name": "records-artifact",
+      "criterion": "Records the review as the 02e artifact via the run harness.",
+      "weight": 2,
+      "anchors": { "require_all": ["02e", "fac run artifact"] }
+    }
+  ]
+}

@@ -146,6 +146,51 @@ describe('verifyInfraPlan — each rule has a negative case that blocks', () => 
     expect(verifyInfraPlan(plan).pass).toBe(true);
   });
 
+  test('an UPPERCASE severity (tfsec/Checkov style) still blocks — case-insensitive (fail-closed)', () => {
+    const plan = healthyPlan({
+      policyFindings: [
+        { id: 'tfsec-open-ssh', severity: 'HIGH' as unknown as 'high', resource: 'google_compute_firewall.ssh', detail: '0.0.0.0/0 to 22' },
+      ],
+    });
+    expect(verifyInfraPlan(plan).findings.map((f) => f.risk)).toContain('policy-high');
+  });
+
+  test('an UNRECOGNISED severity blocks rather than silently downgrading to low (fail-closed)', () => {
+    const plan = healthyPlan({
+      policyFindings: [
+        { id: 'weird', severity: 'severe' as unknown as 'high', resource: 'x', detail: 'non-standard label' },
+      ],
+    });
+    const v = verifyInfraPlan(plan);
+    expect(v.pass).toBe(false);
+    expect(v.findings.map((f) => f.risk)).toContain('policy-unknown');
+  });
+
+  test('a change with an unclassifiable action blocks instead of reading as a no-op (fail-closed)', () => {
+    // A protected resource the raw plan marks for a Pulumi `replace` op left un-normalised — the
+    // verifier must NOT silently treat the dropped action as a harmless no-op and pass.
+    const plan = healthyPlan({
+      changes: [
+        change({ address: 'google_sql_database_instance.main', type: 'google_sql_database_instance', actions: ['replace' as unknown as 'delete'] }),
+      ],
+    });
+    const v = verifyInfraPlan(plan);
+    expect(v.pass).toBe(false);
+    expect(v.findings.map((f) => f.risk)).toContain('unrecognized-change');
+  });
+
+  test('a change with a partially-recognised action set is still classified (no false unrecognized)', () => {
+    // delete+create+garbage → the recognised delete+create still reads as a replace; not flagged unrecognized.
+    const plan = healthyPlan({
+      changes: [
+        change({ address: 'google_sql_database_instance.main', type: 'google_sql_database_instance', actions: ['delete', 'create', 'frobnicate' as unknown as 'no-op'] }),
+      ],
+    });
+    const risks = verifyInfraPlan(plan).findings.map((f) => f.risk);
+    expect(risks).toContain('replace-protected');
+    expect(risks).not.toContain('unrecognized-change');
+  });
+
   test('consent waives destroy/replace but NEVER the key/secret/policy rules', () => {
     const plan = healthyPlan({
       consentToDestroy: true,
