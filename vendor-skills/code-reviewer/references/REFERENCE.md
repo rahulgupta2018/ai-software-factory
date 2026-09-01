@@ -73,6 +73,7 @@ of this catalogue.
 | Meaningful Names | [maintainability-naming.md](maintainability-naming.md) |
 | Type Hints / Annotations | [maintainability-type-hints.md](maintainability-type-hints.md) |
 | Complexity, DRY & SRP | [maintainability-complexity-dry.md](maintainability-complexity-dry.md) |
+| Tag vs Governed Entity (data modeling) | [maintainability-tag-vs-entity.md](maintainability-tag-vs-entity.md) |
 
 ## Testing
 
@@ -90,7 +91,7 @@ of this catalogue.
 **Frontend:** CSP/headers, secure cookies, no client secrets, a11y.
 **Performance:** N+1, indexes, needless calls.
 **Correctness:** error handling, races, transactions, cleanup.
-**Maintainability:** naming, types, complexity/DRY.
+**Maintainability:** naming, types, complexity/DRY, tag-vs-entity (a governed thing modeled as a bare tag).
 **Testing:** new logic, edge/error paths, regression tests.
 
 ## Severity levels
