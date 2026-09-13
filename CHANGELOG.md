@@ -3,6 +3,49 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.70.0.0] — 2026-09-13
+
+**Builds now have to prove they meet the contract, not just pass their own tests.** A build that
+wraps a library, goes green on lint/typecheck/tests, and silently skips a contracted behaviour (an
+audit event never emitted, a role never populated, a migration never shipped) used to sail through —
+because the build wrote both the code *and* the tests that certified it. That self-certification loop
+is now broken by an **acceptance gate**: every contracted behaviour is enumerated up front, and the
+build isn't done until each one is met, backed by a test, or explicitly deferred with consent.
+
+### Added — the acceptance gate (`lib/acceptance-verify.ts`)
+- A new mechanical gate that verifies a **conformance matrix** (the build's report: each criterion →
+  met/unmet + the test that proves it) against an **acceptance contract** (the answer key: every
+  contracted behaviour, compiled from the OpenAPI spec / architecture obligations / PRD *before* the
+  code exists). Fail-closed: an unmet criterion, a "met" with no cited test, a criterion missing from
+  the matrix, a drifted entry, an unrecognised status/kind, or an unconsented deferral all **block**.
+- A `security`, `side-effect` (audit/outbox writes), or `data` (schema/migration) criterion may
+  **never** be deferred; routes/headers/error-shapes may be, but only with a reason and operator
+  consent.
+- Proven with a negative case per block rule (`test/acceptance-verify.test.ts`), offline.
+
+### Changed — `/build` → 0.4.0: done is contract-complete, not tree-green
+- Before coding a component, `/build` compiles its acceptance contract into `02c-acceptance-<name>.md`
+  — enumerating the **cross-cutting** obligations (audit side-effects, correlation/cache headers,
+  error envelopes, authz/CSRF/rate-limit, migrations), not just the routes.
+- It then builds test-first **per criterion** (a side-effect's test asserts the outbox row, not a
+  200), and closes the contract as a conformance matrix in `03-build-<name>.md`, verified by
+  `lib/acceptance-verify.ts` as a **hard gate**.
+
+### Changed — `/review` → 0.4.0: a new Conformance lens, and it's a hard gate
+- New first lens (order is now Conformance → Security → Performance → Correctness → Maintainability →
+  Testing). `/review` is the **independent second actor**: it re-derives the criteria from the
+  contract itself, re-verifies the matrix, and **reads each cited test to confirm it asserts the
+  behaviour** rather than a proxy. An unmet criterion blocks `/ship`, exactly like a security finding.
+
+### Changed — `/spec` → 0.2.0
+- When a slice is bound to a formal contract, `/spec` compiles the acceptance criteria **exhaustively**
+  from it (every operation + every cross-cutting obligation) in the `lib/acceptance-verify.ts` shape,
+  so the build and review always have a complete answer key.
+
+### Rubric teeth
+- New weight-3 `acceptance-conformance` (build) and `conformance-gate` (review) dimensions; stripping
+  the discipline drops each skill below the 0.9 pass threshold (build → 0.82, review → 0.80).
+
 ## [0.69.0.0] — 2026-09-13
 
 **Install now asks: virtual environment or container?** Building on the environment contract (0.68),

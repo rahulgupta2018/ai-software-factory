@@ -2,14 +2,14 @@
 name: review
 description: >-
   Pre-landing code review of a change set. Reviews the diff against the base branch in
-  priority order (Security → Performance → Correctness → Maintainability → Testing), writes a
-  review-report artifact, and applies safe auto-fixes. Activates when a change is ready for
-  review or before /ship. Hard-gates on security findings; does not own writing features or
-  running the app.
+  priority order (Conformance → Security → Performance → Correctness → Maintainability →
+  Testing), writes a review-report artifact, and applies safe auto-fixes. Activates when a
+  change is ready for review or before /ship. Hard-gates on conformance and security findings;
+  does not own writing features or running the app.
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.3.0
+  version: 0.4.0
   last_updated: 2026-09-13
   layer: Review
   priority: V1
@@ -60,8 +60,16 @@ Precedence: per-skill `overrides` → merged product context → skill generic d
 `/review` is the Factory's staff engineer. It reviews a change set — the diff between the working
 branch and its base — before that change lands. It composes the ported `code-reviewer` craft skill
 and reviews in a fixed priority order, writes a review-report artifact into the run, applies the
-fixes that are safe to automate, and flags the rest for the author. Security findings are a **hard
-gate**: the change does not proceed to `/ship` until they're resolved.
+fixes that are safe to automate, and flags the rest for the author. **Conformance** and **security**
+findings are **hard gates**: the change does not proceed to `/ship` until they're resolved.
+
+Its first job is the one the build's own green suite can't do: **confirm the code meets its
+contract, not just its own tests.** `/build` compiled an acceptance contract (`02c-acceptance-*.md`)
+and reported a conformance matrix (in `03-build-*.md`); `/review` is the *independent second actor*
+that re-derives the criteria from the same contract sources, verifies the matrix with
+`lib/acceptance-verify.ts`, and checks that each cited test genuinely asserts its behaviour. That
+independence is what breaks build's self-certification loop — the grader holds the answer key, not
+the student.
 
 ## When to Activate
 
@@ -79,10 +87,19 @@ Activate when:
 
 ## Core Concepts
 
-- **The diff is the input.** Review the change between the working branch and its base
-  (`git diff <base>...HEAD`), not the whole repo. Scope keeps the review sharp and re-runnable.
-- **Priority order is fixed.** Security → Performance → Correctness → Maintainability → Testing.
-  Higher-priority findings are addressed first; a security finding outranks a style nit every time.
+- **The diff is the input — the contract is the yardstick.** Review the change between the working
+  branch and its base (`git diff <base>...HEAD`), not the whole repo — but judge it against the
+  **acceptance contract**, not against itself. The `02c-acceptance-*.md` answer keys and the
+  `03-build-*.md` conformance matrices are first-class inputs, alongside the diff.
+- **Conformance is re-derived, not trusted.** Do not take the build's matrix at face value — that
+  would just re-run the self-certification. Re-derive the criteria from the contract sources
+  (OpenAPI/arch/spec) yourself, confirm the matrix covers them, and **read each cited test to
+  confirm it asserts the behaviour** (a `side-effect` criterion needs a test that asserts the outbox
+  row, not a 200). A matrix that claims `met` with a test that proves nothing is a Conformance
+  finding.
+- **Priority order is fixed.** Conformance → Security → Performance → Correctness → Maintainability →
+  Testing. Higher-priority findings are addressed first; an unmet contract criterion or a security
+  hole outranks a style nit every time.
 - **The report is the artifact.** Findings land in `.factory/runs/<id>/04-review.md` with
   file/line references, severity, and a fix. Review reads the *diff*, but records the **build
   artifacts it reviewed** (`03-build-*.md`) as its run inputs — so a re-build (a new diff) re-opens
@@ -90,18 +107,32 @@ Activate when:
 - **Auto-fix the safe, flag the rest.** Apply mechanical, low-risk fixes (obvious bugs, missing
   error handling at boundaries, lint) directly. Anything that changes behaviour or design gets
   flagged for the author, not silently rewritten.
-- **Security is a hard gate.** An unresolved security finding is irreversible-adjacent risk — it
-  matches the escalation policy and never batches through. `/ship` must not proceed past it.
+- **Conformance and security are hard gates.** An unmet acceptance criterion means the change does
+  not do what its contract promises; an unresolved security finding is irreversible-adjacent risk.
+  Neither batches through, and `/ship` must not proceed past either.
 
 ## Workflow
 
 Freedom level: **medium** — follow the order, adapt depth to the change size.
 
 1. **Read context.** Load the merged product context (per the config protocol) for `commands`,
-   `guardrails`, and `escalation_policy`. Identify the base branch.
+   `guardrails`, and `escalation_policy`. Identify the base branch. Load each reviewed component's
+   **acceptance contract** (`02c-acceptance-<name>.md`) and **conformance matrix** (the
+   `conformance:` block of `03-build-<name>.md`), and the contract sources they were compiled from.
 2. **Get the diff.** `git diff <base>...HEAD` plus the list of changed files. If the change is
    large, review file-group by file-group, highest-risk first.
 3. **Review in priority order** using the ported `code-reviewer` catalogue:
+   - **Conformance** — the contract gate, and the first lens because a change that doesn't meet its
+     contract shouldn't ship however clean the diff. (a) **Verify** the conformance matrix against
+     the acceptance contract with `lib/acceptance-verify.ts` — any `unmet`/`partial`, `met`-without-
+     a-test, missing criterion, drifted entry, or unconsented deferral is a **blocking** finding.
+     (b) **Re-derive independently**: read the contract sources (OpenAPI/arch/`02b-spec.md`) and
+     confirm the answer key is *complete* — a criterion the build never enumerated (so it isn't in
+     the contract *or* the matrix) is the most dangerous gap; add it and re-verify. (c) **Audit the
+     tests**: for each `met` criterion, open the cited test and confirm it asserts the behaviour, not
+     a proxy — a `side-effect` test that only checks a 200, an `error-shape` test that accepts any
+     non-2xx, is a Conformance finding even though the gate is green. Record each unmet criterion as
+     a finding with its id.
    - **Security** — injection, authn/authz, secrets, unsafe deserialization, OWASP Top 10. If CI
      produced a static-analysis report (semgrep/SARIF), surface its findings here as **advisory**
      via `lib/sast-report.ts` against `tech_bindings.sast` — they *gate* in `/security`, not here.
@@ -126,16 +157,17 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
    / `dart format --set-exit-if-changed` / `flutter test`** (defer to `flutter-dart-expert` for
    idiom- and MASVS-level findings). Treat failures as findings.
 5. **Apply safe auto-fixes.** Mechanical, behaviour-preserving fixes only. Re-run the checks.
-6. **Write the report artifact.** Record findings with severity, `path:line`, and a fix under an
-   active run. Record the **build artifacts you reviewed** as inputs (not the working-tree files),
-   so a re-build re-opens the review:
+6. **Write the report artifact.** Record findings with severity, `path:line` (or criterion id for
+   Conformance), and a fix under an active run. Record the **build artifacts you reviewed** as inputs
+   (not the working-tree files), so a re-build re-opens the review:
    ```bash
-   fac run artifact --seq 4 --step review --inputs .factory/runs/$RUN/03-build-<component>.md --body-file review.md
+   fac run artifact --seq 4 --step review --inputs .factory/runs/$RUN/03-build-<component>.md,.factory/runs/$RUN/02c-acceptance-<component>.md --body-file review.md
    ```
    `--seq 4`: review is the fourth linear step (`04-review.md`), after the builds (`03-build-*`) —
    never `--seq 3`, which would collide with a build artifact.
-7. **Gate.** If any unresolved **security** finding remains, this is a **hard gate** — stop and
-   surface it; do not hand off to `/ship`. Otherwise, routine findings are advisory.
+7. **Gate.** If any unresolved **Conformance** finding (an unmet acceptance criterion) or **security**
+   finding remains, this is a **hard gate** — stop and surface it; do not hand off to `/ship`.
+   Otherwise, routine findings are advisory.
 8. **Hand off.** Hand a clean change to `/qa` to exercise the running app (then `/ship`). A change
    with no runnable surface (a pure refactor / back-end-only slice) clears straight to `/ship`.
 
@@ -148,44 +180,66 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
 
 ## Examples
 
-**Example:**
+**Example — a green build that doesn't meet its contract.**
 ```
-Input:  diff on feature/repair-status — adds a Postgres query built by string concatenation and
-        a new endpoint with no authz check.
-Output: 04-review.md — SECURITY (high): SQL injection at repairs/query.ts:42 → parameterise;
-        SECURITY (high): missing authz at repairs/routes.ts:18 → require session role.
-        Auto-fixed: lint + an unhandled Promise rejection. Hard gate raised — /ship blocked
-        until the two security findings are resolved.
+Input:  03-build-identity.md — 11/11 tests green, lint+typecheck clean. Its conformance matrix
+        claims all criteria met. 02c-acceptance-identity.md enumerates the contract.
+Review: Conformance lens — lib/acceptance-verify.ts flags AC-IDENTITY-002 (audit emission,
+        side-effect) as met-without-a-test. Re-deriving from identity.yaml surfaces a criterion the
+        build never enumerated: x-correlation-id on every response (missing from contract AND code).
+        The "met" for AC-003 (role in payload) cites a test that only asserts a 200 — a proxy.
+Output: 04-review.md — CONFORMANCE (block): AC-IDENTITY-002 audit emission unproven; AC (new)
+        correlation-id unimplemented; AC-IDENTITY-003 test asserts a proxy, not the role. Hard gate
+        raised — /ship blocked until the contract is actually met, despite the green suite.
 ```
 
 ## Guidelines
 
-1. Review the diff against the base, not the whole repo.
-2. Address findings in priority order; security outranks everything.
-3. Every finding has a `path:line` and a concrete fix.
-4. Auto-fix only behaviour-preserving changes; flag anything that alters design or behaviour.
-5. An unresolved security finding is a hard gate — `/ship` does not proceed.
-6. Write the review report as a run artifact.
+1. Review the diff against the base, not the whole repo — but judge it against the acceptance
+   contract, not against itself.
+2. Address findings in priority order; conformance and security outrank everything.
+3. Re-derive acceptance criteria independently and read each cited test — never trust the build's
+   matrix at face value; that just re-runs the self-certification.
+4. Every finding has a `path:line` (or a criterion id) and a concrete fix.
+5. Auto-fix only behaviour-preserving changes; flag anything that alters design or behaviour.
+6. An unmet acceptance criterion or an unresolved security finding is a hard gate — `/ship` does not
+   proceed.
+7. Write the review report as a run artifact, recording the acceptance contract as an input.
 
 ## Gotchas
 
-1. **Reviewing the whole repo**: drowns the real change. Scope to the diff.
-2. **Silent design rewrites**: eroding trust. Flag design; don't auto-apply it.
-3. **Style over substance**: a nit above a security hole is a mis-ordered review. Follow the order.
-4. **Batching a security finding through a routine gate**: never. Security is a hard gate.
+1. **Trusting the conformance matrix**: taking the build's `met`s at face value re-runs the
+   self-certification loop. Re-verify with `lib/acceptance-verify.ts` and read the cited tests.
+2. **Missing the missing criterion**: the most dangerous gap is a contracted behaviour the build
+   never enumerated — absent from both the answer key and the matrix, so the gate is green. Re-derive
+   from the contract sources to catch it.
+3. **A test that proves a proxy**: a `side-effect` criterion "met" by a test that only checks a 200,
+   an `error-shape` by any non-2xx — green but hollow. That's a Conformance finding.
+4. **Reviewing the whole repo**: drowns the real change. Scope to the diff.
+5. **Silent design rewrites**: eroding trust. Flag design; don't auto-apply it.
+6. **Style over substance**: a nit above a security hole or an unmet criterion is a mis-ordered
+   review. Follow the order.
+7. **Batching a conformance/security finding through a routine gate**: never. Both are hard gates.
 
 ## Integration
 
 - `fullstack-developer` / `python-expert` / `java-quarkus-expert` / `flutter-dart-expert` (craft) —
   write the code `/review` inspects.
 - `code-reviewer` (ported craft) — the indexed rule catalogue `/review` applies.
-- Run harness (`fac run`) — stores the review report; resume re-runs review when a build artifact changes.
+- `acceptance-verify` (`lib/acceptance-verify.ts`) — the mechanical Conformance gate: verifies the
+  build's conformance matrix against its acceptance contract, fail-closed. `/review` re-runs it and
+  audits the cited tests independently.
+- `build` — compiles `02c-acceptance-*.md` and reports the conformance matrix `/review` audits.
+- Run harness (`fac run`) — stores the review report; resume re-runs review when a build artifact or
+  its acceptance contract changes.
 - `qa` — exercises the running app after review.
 - `ship` — the landing step gated by this review.
 
 ## References
 
 - Rule catalogue: ported `code-reviewer` skill (`vendor-skills/code-reviewer/`)
+- Acceptance gate: `lib/acceptance-verify.ts`; answer key `02c-acceptance-<name>.md`; matrix in
+  `03-build-<name>.md` frontmatter
 - Commands + guardrails: merged product context (`.factory/context.gen.yaml`)
 - Run artifacts: `.factory/runs/<id>/04-review.md`
-- Related skills: `qa`, `ship`, `investigate`, `security`
+- Related skills: `build`, `spec`, `qa`, `ship`, `investigate`, `security`

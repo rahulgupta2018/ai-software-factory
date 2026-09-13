@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.1.0
-  last_updated: 2026-07-22
+  version: 0.2.0
+  last_updated: 2026-09-13
   layer: Plan
   priority: V1
 ---
@@ -88,6 +88,15 @@ Activate when:
   recorded as a sub-sequenced run artifact (`02b-spec.md`); when it records `PRD.md` as an input, a changed PRD re-runs the spec.
 - **Acceptance criteria are testable behaviours.** Each criterion reads as a concrete
   observable ("given X, when Y, then Z"), so it maps 1:1 to a test the build loop writes.
+- **When a formal contract exists, the criteria are compiled from it — exhaustively.** If the slice
+  is bound to an OpenAPI spec or documented architecture obligations, don't hand-pick a few
+  behaviours: enumerate **every** contracted behaviour, and not just the routes — the cross-cutting
+  obligations too (`side-effect` audit/outbox writes, `header` correlation/cache-control,
+  `error-shape` envelopes, `security` authz/CSRF/rate-limit, `data` schema/migrations). This is the
+  acceptance contract the build closes and `/review` audits; record it in `02c-acceptance-<name>.md`
+  as a fenced ```yaml block (top-level `acceptance:`) in the body — the shape `lib/acceptance-verify.ts`
+  reads (`{component, sources, criteria:[{id, behavior, kind, source}]}`). A behaviour left off the
+  answer key is a blind spot no gate can later catch.
 - **Scope is a boundary, both sides.** An explicit non-goals / out-of-scope list is as important
   as the in-scope list — it's what stops scope creep mid-build.
 - **Edge cases up front.** Empty states, limits, permissions, failures, and concurrency named now
@@ -166,10 +175,15 @@ Output: run artifact 02b-spec.md. Handoff → Implementer + tdd (each criterion 
 - `plan-arch` — owns the stack; `/spec` defines behaviour and verification, not the stack.
 - `project-planner` (craft) — supplies the task breakdown mechanics.
 - `tdd-red-green-refactor` — turns each acceptance criterion into a failing test.
+- `acceptance-verify` (`lib/acceptance-verify.ts`) — consumes the compiled acceptance contract as its
+  answer key; a contract-bound spec should emit criteria in that frontmatter shape.
+- `build` / `review` — the build closes the acceptance contract (conformance matrix) and `/review`
+  audits it; a thorough spec is what gives both a complete answer key.
 - Run harness (`fac run`) — records the spec as a sub-sequenced `02x-spec.md`; a changed PRD re-runs it.
 
 ## References
 
 - Breakdown craft: vendored `project-planner`
+- Acceptance gate: `lib/acceptance-verify.ts` (answer key `02c-acceptance-<name>.md`)
 - Run harness: `fac run`
-- Related skills: `discover`, `plan-arch`, `tdd-red-green-refactor`, `review`
+- Related skills: `discover`, `plan-arch`, `tdd-red-green-refactor`, `build`, `review`

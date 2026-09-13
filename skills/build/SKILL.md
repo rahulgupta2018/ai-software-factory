@@ -4,7 +4,7 @@ description: "The build loop: implements the PRD's V1 features test-first, one c
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.3.0
+  version: 0.4.0
   last_updated: 2026-09-13
   layer: Build
   priority: V1
@@ -82,6 +82,26 @@ Activate when:
 
 ## Core Concepts
 
+- **Done is contract-complete, not tree-green.** The trap this loop must not fall into: writing the
+  code *and* the tests that certify it, so "done" collapses to "my own tests pass" — a build that
+  wraps a library, passes every test/lint/typecheck, and silently omits contracted behaviour (an
+  audit event never emitted, a `role` never populated, a header never stamped, a migration never
+  shipped). A green suite proves the code you wrote works; it says nothing about the code you didn't
+  write. So the definition of done is: **every acceptance criterion the contract enumerates is met
+  and backed by a test, or explicitly deferred with consent** — verified by `lib/acceptance-verify.ts`,
+  not by the test runner's exit code.
+- **The acceptance contract is the answer key.** Before coding a contract-bound component, compile
+  its contract sources (the OpenAPI spec, the architecture obligations, the PRD, any `02b-spec.md`)
+  into an enumerated acceptance contract — **one criterion per contracted behaviour**, and not just
+  the routes: the cross-cutting obligations too (`side-effect` audit/outbox writes, `header`
+  correlation/cache-control, `error-shape` envelopes, `security` authz/CSRF/rate-limit, `data`
+  schema/migrations). Record it as `02c-acceptance-<name>.md`. This is written *from the spec, before
+  the code exists*, so it can't be shaped to match whatever the code happens to do.
+- **The conformance matrix is the proof.** The build closes the answer key: for every criterion,
+  the `03-build-<name>.md` records `met | unmet | partial | deferred`, the implementing `file:line`,
+  and **the test that proves it**. A "met" with no test is self-certification and the gate rejects
+  it. An omitted criterion is loud (`unmet`/missing), never silent. `/review` re-derives the same
+  criteria independently and audits this matrix — a second actor with the same answer key.
 - **One build artifact per component.** For each entry in `tech_stack.components[]`, the loop
   produces `03-build-<name>.md` (e.g. `03-build-api.md`, `03-build-web.md`). This is what makes
   BUILD a first-class run step instead of a gap: without it, `fac run resume` reports "build
@@ -118,6 +138,22 @@ yours.
    and any `02b-spec.md` slice.
 2. **For each component** in `tech_stack.components[]`:
    a. **Route.** Load the craft skill(s) for its `language`/`framework` (see Language routing).
+   a2. **Compile the acceptance contract — the answer key, before any code.** From the component's
+      contract sources (its OpenAPI spec `docs/openapi/<name>.yaml` if any, the architecture
+      obligations in `02-plan-arch.md`/`be-architecture.md`, the PRD V1 lane, any `02b-spec.md`),
+      enumerate **every** contracted behaviour as an acceptance criterion — routes **and** the
+      cross-cutting obligations (`side-effect`, `header`, `error-shape`, `security`, `data`). Record
+      it as a branch artifact under plan-arch:
+      ```bash
+      fac run artifact --seq 2c --step acceptance-<name> \
+        --inputs docs/openapi/<name>.yaml,.factory/runs/$RUN/02-plan-arch.md --body-file acceptance-<name>.md
+      ```
+      The criteria live in a fenced ```yaml block (top-level `acceptance:`) in the artifact **body**
+      — the run harness owns the frontmatter (step/run/inputs) — in the shape `lib/acceptance-verify.ts`
+      reads (`{component, sources, criteria:[{id, behavior, kind, source}]}`). A component with no formal
+      contract (a greenfield slice) still gets criteria — from `/spec`'s given/when/then — so the
+      gate always has an answer key. If a criterion can't be phrased as a testable behaviour, sharpen
+      it; a vague criterion is a blind spot waiting to happen.
    b. **Install deps into the chosen isolation + check prerequisites.** First resolve
       `tech_stack.isolation`: **if it is unset, ASK the operator — virtual environment or container —
       before installing anything; this is a hard gate, never assume.** A POC belongs in a `venv`
@@ -130,24 +166,40 @@ yours.
       tests, a GPU/CUDA driver, Ollama for local inference) is a **stop-and-ask**, not a silent skip.
       If `install` is absent, run the ecosystem default (`npm ci` / `pip install -e .[dev]`) and note
       it as a V1 task to record in the stack.
-   c. **Build test-first.** For each V1 feature in this component, write a failing test in the
-      component's tooling (red), the minimal code to pass (green), then refactor under green
+   c. **Build test-first, criterion by criterion.** Work the acceptance contract, not a vague
+      feature list: for **each acceptance criterion**, write a failing test that asserts *that
+      criterion's observable behaviour* (red) — a `side-effect` criterion's test asserts the outbox
+      row was written, not merely a 200; an `error-shape` criterion's test asserts the envelope and
+      status — then the minimal code to pass (green), then refactor under green
       (`tdd-red-green-refactor`). Follow `typed-service-contracts` at boundaries (parse-don't-
-      validate, errors-as-values, no unhandled throws).
+      validate, errors-as-values, no unhandled throws). A criterion you can't yet satisfy is
+      `unmet`/`partial` in the matrix — never quietly dropped.
    d. **Run the component's checks.** `commands.<name>.test`, then `lint`/`typecheck`/`build`.
       Guard anything beyond those with `fac guard`. Leave this component's tree green.
-   e. **Record the build artifact.** Under the active run, write `03-build-<name>.md` — what was
-      built, the tests added, and any decisions:
+   e. **Close the acceptance contract — HARD GATE.** Build the conformance matrix: one entry per
+      criterion (`{id, status, impl, test}`), then verify it against `02c-acceptance-<name>.md` with
+      `lib/acceptance-verify.ts`. Any `unmet`/`partial`, any `met` with no cited test, any missing
+      criterion, any drifted entry, or any unconsented deferral **blocks** — the component is not
+      done. A `deferred` criterion needs an explicit reason *and* operator consent (`consentToDefer`),
+      and a `security`/`side-effect`/`data` criterion may **never** be deferred. Do not proceed to
+      the next component (or handoff) with a failing gate.
+   f. **Record the build artifact.** Under the active run, write `03-build-<name>.md` — what was
+      built, the tests added, decisions, and the **conformance matrix as a fenced ```yaml block
+      (top-level `conformance:`) in the body** (the shape `lib/acceptance-verify.ts` reads), with the
+      `acceptanceSummary` coverage line alongside it:
       ```bash
       fac run artifact --seq 3 --step build-<name> \
-        --inputs .factory/runs/$RUN/02-plan-arch.md[,.factory/runs/$RUN/02a-plan-design.md] \
+        --inputs .factory/runs/$RUN/02c-acceptance-<name>.md,.factory/runs/$RUN/02-plan-arch.md[,.factory/runs/$RUN/02a-plan-design.md] \
         --body-file build-<name>.md
       ```
-      Add `02a-plan-design.md` to `--inputs` for a UI component, and `02b-spec.md` for a spec'd
-      slice. `--seq 3` for every component; the `--step build-<name>` makes the filenames distinct.
-3. **Leave the whole tree green.** Every component's checks pass before handoff.
-4. **Hand off.** The diff plus the `03-build-*.md` artifacts go to `/review`, which records them as
-   inputs.
+      Always record `02c-acceptance-<name>.md` as an input (a changed answer key re-opens the build).
+      Add `02a-plan-design.md` for a UI component, and `02b-spec.md` for a spec'd slice. `--seq 3`
+      for every component; the `--step build-<name>` makes the filenames distinct.
+3. **Leave the whole tree green AND every acceptance gate passing.** Every component's checks pass
+   and its `lib/acceptance-verify.ts` verdict is `pass` before handoff.
+4. **Hand off.** The diff plus the `03-build-*.md` artifacts (with their conformance matrices) and
+   the `02c-acceptance-*.md` answer keys go to `/review`, which re-derives the criteria and audits
+   the matrix as its Conformance gate.
 
 ## Practical Guidance
 
@@ -166,27 +218,50 @@ yours.
 ```
 Input:  stack.yaml — api (typescript/hono + postgres), web (react + tailwind-v4),
         reminders (python), mobile (dart/flutter); 02-plan-arch.md; 02a-plan-design.md (web+mobile).
-Loop:   api      → fullstack-developer + typed-service-contracts + database-expert; bun test
+Loop:   api      → compile 02c-acceptance-api (routes + authz + error envelopes + audit writes);
+                   fullstack-developer + typed-service-contracts + database-expert; bun test per criterion
         web      → fullstack-developer + react-frontend-architect + modern-css (impl 02a spec); bun test
         reminders→ python-expert; pytest
         mobile   → flutter-dart-expert (impl 02a mobile spec, MASVS); flutter test
-Output: 03-build-api.md (inputs: 02-plan-arch), 03-build-web.md + 03-build-mobile.md
-        (inputs: 02-plan-arch, 02a-plan-design), 03-build-reminders.md (inputs: 02-plan-arch).
-        Tree green. Handoff → /review.
+Gate:   each component — lib/acceptance-verify.ts over (02c answer key × 03-build conformance matrix)
+        → pass. api's "emits audit event on mutation" (side-effect) is met + tested, not dropped.
+Output: 02c-acceptance-<name>.md per component; 03-build-<name>.md per component carrying a
+        conformance:{} matrix (inputs: 02c-acceptance-<name>, 02-plan-arch [, 02a-plan-design]).
+        Tree green, every acceptance gate passing. Handoff → /review (re-derives + audits).
 ```
 
 ## Guidelines
 
-1. One `03-build-<name>.md` artifact per component — the session isn't done until each exists.
-2. Every build records `02-plan-arch.md`; UI builds also `02a-plan-design.md`; a slice also `02b-spec.md`.
-3. Test-first, always: `commands.<name>.test` is the runner, never a hardcoded one.
-4. Never edit `stack.yaml`, the PRD, or the UI spec — read them; changes are notes to their owners.
-5. Guard any command beyond test/lint/typecheck/build with `fac guard`; a flagged command is a hard gate.
-6. Leave the whole tree green before handing off to `/review`.
+1. Done is contract-complete, not tree-green: every acceptance criterion met+tested or
+   consented-deferred, verified by `lib/acceptance-verify.ts` — a passing test suite is necessary,
+   never sufficient.
+2. Compile `02c-acceptance-<name>.md` from the contract sources **before** coding; enumerate the
+   cross-cutting obligations (side-effect/header/error-shape/security/data), not just the routes.
+3. One `03-build-<name>.md` artifact per component carrying the `conformance:` matrix — the session
+   isn't done until each exists and its acceptance gate passes.
+4. Every build records `02c-acceptance-<name>.md` + `02-plan-arch.md`; UI builds also
+   `02a-plan-design.md`; a slice also `02b-spec.md`.
+5. Test-first per criterion: `commands.<name>.test` is the runner, never a hardcoded one; the test
+   must assert the criterion's actual behaviour, not a proxy (a 200 is not proof of a side effect).
+6. Never edit `stack.yaml`, the PRD, or the UI spec — read them; changes are notes to their owners.
+7. Guard any command beyond test/lint/typecheck/build with `fac guard`; a flagged command is a hard gate.
+8. Leave the whole tree green and every acceptance gate passing before handing off to `/review`.
 
 ## Gotchas
 
-1. **No build artifact**: skipping `03-build-<name>.md` strands the run at BUILD — `fac run resume`
+1. **"Green tests = done" (the self-certification trap)**: a build that wraps a library, passes its
+   own suite, and silently omits a contracted behaviour (audit emission, `role` in the payload, a
+   migration, an error envelope) is the failure mode this loop exists to prevent. The suite proves
+   the code you wrote works; only the acceptance gate proves the code you *should have written*
+   exists. Compile the answer key first, close every criterion, verify with `lib/acceptance-verify.ts`.
+2. **A test that asserts a proxy, not the behaviour**: a `side-effect` criterion "verified" by a 200
+   response, or an `error-shape` criterion by any non-200, is `untested` in spirit — the gate wants
+   a cited test, `/review` checks it actually asserts the behaviour. Assert the outbox row, the
+   envelope, the header, the role — the thing itself.
+3. **Silently dropping a hard criterion**: a `security`/`side-effect`/`data` criterion you can't
+   finish is `unmet` (it blocks) — never `deferred`. Only route/header/error-shape/contract
+   criteria may be deferred, and only with an explicit reason and operator consent.
+4. **No build artifact**: skipping `03-build-<name>.md` strands the run at BUILD — `fac run resume`
    never advances and `/review`/`/qa` have nothing to read. Always record it.
 2. **Ignoring the UI spec**: a web/mobile build that doesn't implement `02a-plan-design.md` throws
    away the whole design phase. Record it as an input and build it verbatim.
@@ -206,13 +281,19 @@ Output: 03-build-api.md (inputs: 02-plan-arch), 03-build-web.md + 03-build-mobil
   `python-expert`, `java-quarkus-expert`, `flutter-dart-expert`, `database-expert`,
   `typed-service-contracts`, `tdd-red-green-refactor` — supply the per-language idioms.
 - `guard` (`fac guard`) — classifies a command as destructive before the loop runs it.
-- Run harness (`fac run`) — records `03-build-<name>.md` per component; a change to plan-arch, the
-  UI spec, or a slice re-opens that component's build.
-- `review` — reads the `03-build-*.md` artifacts as its inputs.
+- `acceptance-verify` (`lib/acceptance-verify.ts`) — the mechanical acceptance gate: verifies the
+  conformance matrix against the acceptance contract, fail-closed. The build self-verifies with it;
+  `/review` re-runs it as the Conformance gate.
+- Run harness (`fac run`) — records `02c-acceptance-<name>.md` (answer key) and `03-build-<name>.md`
+  (conformance matrix) per component; a change to plan-arch, the answer key, the UI spec, or a slice
+  re-opens that component's build.
+- `review` — reads the `03-build-*.md` matrices + `02c-acceptance-*.md` answer keys, re-derives the
+  criteria independently, and hard-gates on any unmet criterion (Conformance lens).
 
 ## References
 
 - Machine context: `.factory/stack.yaml` (owned by `/plan-arch`)
+- Acceptance gate: `lib/acceptance-verify.ts` (contract × conformance matrix, fail-closed)
 - UI spec: `02a-plan-design.md` (owned by `/plan-design`)
 - Agent: `agents/implementer.md`
 - Worked example: `examples/reference-product/` (api, web, reminders, mobile)

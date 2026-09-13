@@ -1,8 +1,14 @@
 {
   "skill": "build",
-  "intent": "The build loop: implements V1 test-first one component at a time, routes each component to its language craft skill, runs the component's own test command, guards non-test commands, and records a per-component 03-build-<name>.md artifact (with its plan-arch/design/spec inputs) that review and QA resume from.",
+  "intent": "The build loop: for each component it compiles an acceptance contract (answer key) from the contract sources, implements test-first per criterion routed to the language craft skill, runs the component's own test command, guards non-test commands, closes the acceptance contract as a conformance matrix verified by lib/acceptance-verify.ts (hard gate — done is contract-complete, not tree-green), and records a per-component 03-build-<name>.md artifact (with its acceptance/plan-arch/design/spec inputs) that review and QA resume from.",
   "pass_threshold": 0.9,
   "dimensions": [
+    {
+      "name": "acceptance-conformance",
+      "criterion": "Done is contract-complete, not tree-green: compiles an acceptance contract from the contract sources before coding, closes it as a conformance matrix, and verifies with lib/acceptance-verify.ts (a met criterion needs a cited test; hard/security/side-effect/data criteria may not be deferred).",
+      "weight": 3,
+      "anchors": { "require_all": ["lib/acceptance-verify.ts", "acceptance contract", "conformance matrix"] }
+    },
     {
       "name": "per-component-artifact",
       "criterion": "Records one 03-build-<name>.md run artifact per component so the run leaves BUILD.",

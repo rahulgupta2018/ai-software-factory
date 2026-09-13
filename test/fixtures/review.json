@@ -1,11 +1,17 @@
 {
   "skill": "review",
-  "intent": "Pre-landing diff review: reviews the change in a fixed priority order (Security → Performance → Correctness → Maintainability → Testing), auto-fixes only behaviour-preserving issues and flags the rest, hard-gates on security findings, and records a 04-review.md artifact.",
+  "intent": "Pre-landing diff review: judges the change against its acceptance contract (Conformance lens) as an independent second actor, then reviews in a fixed priority order (Conformance → Security → Performance → Correctness → Maintainability → Testing), auto-fixes only behaviour-preserving issues and flags the rest, hard-gates on conformance and security findings, and records a 04-review.md artifact.",
   "pass_threshold": 0.9,
   "dimensions": [
     {
+      "name": "conformance-gate",
+      "criterion": "Judges the change against its acceptance contract: re-derives the criteria independently, verifies the conformance matrix with lib/acceptance-verify.ts, audits the cited tests, and hard-gates on any unmet criterion — not trusting the build's own green suite.",
+      "weight": 3,
+      "anchors": { "require_all": ["lib/acceptance-verify.ts", "Conformance", "re-derive"] }
+    },
+    {
       "name": "priority-order",
-      "criterion": "Reviews in the fixed order: Security → Performance → Correctness → Maintainability → Testing.",
+      "criterion": "Reviews in the fixed order: Conformance → Security → Performance → Correctness → Maintainability → Testing.",
       "weight": 3,
       "anchors": { "require_all": ["Security", "Performance", "Correctness", "Maintainability", "Testing"] }
     },
