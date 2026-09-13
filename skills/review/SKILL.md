@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: 0.2.0
-  last_updated: 2026-07-24
+  version: 0.3.0
+  last_updated: 2026-09-13
   layer: Review
   priority: V1
 ---
@@ -105,7 +105,16 @@ Freedom level: **medium** — follow the order, adapt depth to the change size.
    - **Security** — injection, authn/authz, secrets, unsafe deserialization, OWASP Top 10. If CI
      produced a static-analysis report (semgrep/SARIF), surface its findings here as **advisory**
      via `lib/sast-report.ts` against `tech_bindings.sast` — they *gate* in `/security`, not here.
-   - **Performance** — N+1 queries, unbounded loops, needless allocation, blocking I/O.
+   - **Performance** — screen the change against the named cloud performance **antipatterns**, each
+     with its standard fix: **No Caching** (repeated identical reads → Cache-Aside), **Chatty I/O**
+     (many small round-trips → batch/coarsen), **Extraneous Fetching** (N+1 / over-fetch / `SELECT *`
+     → project + page), **Synchronous I/O** (blocking the caller → async / background job), **Busy
+     Database** (business logic in the store → move to a stateless tier), **Monolithic Persistence**
+     (one store for divergent access patterns → polyglot), **Improper Instantiation** (per-request
+     HTTP/DB clients → reuse pools/singletons), **Retry Storm** (unbounded retries → backoff+jitter +
+     Circuit Breaker), **Busy Front End** (heavy work on request threads → queue + worker), **Noisy
+     Neighbor** (one tenant starves shared resources → bulkhead/quota). Plus unbounded loops and
+     needless allocation. See the `cloud-architecture-patterns` antipattern catalogue.
    - **Correctness** — logic errors, edge cases, error handling at boundaries, race conditions.
    - **Maintainability** — naming, dead code, over-abstraction, unclear control flow.
    - **Testing** — missing coverage for the change's behaviour and edge cases.

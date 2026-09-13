@@ -3,6 +3,44 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.67.0.0] — 2026-09-13
+
+**Architecture fundamentals — `/plan-arch` now chooses an architecture style, applies the design
+principles + a failure-mode analysis, and selects the cloud design patterns the workload's risks call
+for; `/review` screens for the named performance antipatterns.** Closes the application-architecture
+gap found reviewing the skills against the (cloud-agnostic) architecture canon (see
+`docs/cloud-architecture-coverage.md`): the Factory produced a *stack* without the *shape* — no style
+choice, no resilience/messaging/data-pattern selection, no antipattern sweep.
+
+### Added — `cloud-architecture-patterns` craft skill (authored in agent-skills, vendored)
+- A new cloud-agnostic craft skill carrying the **architecture styles** (N-tier / web-queue-worker /
+  microservices / event-driven / big-data / big-compute) with a selection table, the **design
+  principles** + **failure-mode analysis**, the **cloud design-patterns catalog** (resilience,
+  messaging, data, composition, security — full catalog with implementation sketches in
+  `references/patterns-catalog.md`), and the **performance-antipattern** list with fixes. Vendored at
+  0.1.0 (`vendor:check` green, 44 skills).
+
+### Changed — `/plan-arch` → 0.3.0 (composes it)
+- New workflow step (before the toolchain): **choose the architecture style** from the domain +
+  prioritised NFRs (state the reason + tradeoff), walk the **design principles + FMA**, and **select
+  the cloud design patterns** the risks call for (Retry+Circuit Breaker, Bulkhead, Queue-Based Load
+  Leveling+Competing Consumers, Cache-Aside, Saga, Idempotent Consumer, Gateway/BFF, …).
+- **Data-store decision** added to "choose the shape" ("best store for the job" / polyglot +
+  partitioning), instead of defaulting silently to the TS/Postgres path.
+- The architecture record (`02-plan-arch.md`) now carries the style + patterns-applied (risk each
+  addresses) + FMA; `cloud-architecture-patterns` is a recommended composed skill; new Gotchas
+  ("a stack with no style", "resilience left to the build") + Guideline.
+
+### Changed — `/review` → 0.3.0 (antipattern sweep)
+- The Performance lens now screens against the **named performance antipatterns** — No Caching, Chatty
+  I/O, Extraneous Fetching, Synchronous I/O, Busy Database, Monolithic Persistence, Improper
+  Instantiation, Retry Storm, Busy Front End, Noisy Neighbor — each with its standard fix.
+
+### Eval
+- New teeth-verified rubric dimensions: `plan-arch.architecture-style-and-patterns` (weight 3) and
+  `review.performance-antipatterns` (weight 2). Real body 1.00; discipline stripped → 0.81 / 0.83
+  (fail), below the 0.9 threshold.
+
 ## [0.66.0.0] — 2026-08-12
 
 **Code review, batch 4 follow-up — the `/prototype` coverage gate now rejects blank ids fail-closed.**

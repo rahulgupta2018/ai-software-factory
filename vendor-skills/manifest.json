@@ -56,6 +56,12 @@
       "vendored_at": "2026-07-23",
       "sha256": "6681b3d7b3ff9876ca163fcb314e923393c83c14c019b205bdae4193a7d8a0ba"
     },
+    "cloud-architecture-patterns": {
+      "version": "0.1.0",
+      "source_last_updated": "2026-09-13",
+      "vendored_at": "2026-09-13",
+      "sha256": "534ebcdd65c169443ac79e5fa9af83126154709442d157bc38a952150d989dad"
+    },
     "code-reviewer": {
       "version": "1.0.0",
       "source_last_updated": "2026-07-22",

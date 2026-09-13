@@ -9,8 +9,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.2.0"
-  last_updated: 2026-07-28
+  version: "0.3.0"
+  last_updated: 2026-09-13
   layer: "Plan"
   priority: "V1"
 ---
@@ -89,6 +89,16 @@ Activate when:
   `provenance`; a **server/API/web surface** → `auth`/`session`/`crypto`/`tls`; a **container image**
   → `container_scan`; a **public preview** → `dast`; a **mobile store release** → `mobile_release`.
   Drop the genuinely-N/A ones (delete the block); don't leave a missing gate for `/security` to find.
+- **Architecture fundamentals come before the stack — compose `cloud-architecture-patterns`.** Choose
+  the **architecture style** (N-tier / web-queue-worker / microservices / event-driven / big-data /
+  big-compute) from the domain and the PRD's prioritised NFRs *before* picking components; apply the
+  **design principles** and run a **failure-mode analysis** (each dependency/store/queue: impact +
+  response); and **select the cloud design patterns** the workload's risks call for (Retry+Circuit
+  Breaker, Bulkhead, Queue-Based Load Leveling+Competing Consumers, Cache-Aside, Saga, Idempotent
+  Consumer, Gateway/BFF, Anti-Corruption Layer, …). This is the vendored `cloud-architecture-patterns`
+  craft skill's method — compose it, don't re-derive it. Record the style, the patterns applied (with
+  the risk each addresses), and the FMA in `02-plan-arch.md`. A stack without a style is a toolchain,
+  not an architecture.
 
 ## Workflow
 
@@ -100,48 +110,63 @@ Freedom level: **medium** — follow the sequence, adapt the stack to the PRD.
 2. **Extract drivers from the PRD and the discovery record.** V1 features, personas, constraints
    (budget, timeline, existing systems, compliance), the risk surface (what's irreversible or
    sensitive), and the options/open questions `/discover` already weighed — don't re-litigate them.
-3. **Choose the shape.** Decide languages and components (e.g. `api`, `web`, `db`). For each
-   component pick a framework and, where relevant, db/css. Default to the vendored TypeScript/
-   React path; justify any deviation against the PRD. Sketch the **module map** (the packages within
-   each component — e.g. `engine`, `coach`, `persistence`, `ui`) and the **dependency rule** (which
-   layer may import which; the domain core depends on nothing) — you'll record these in step 10.
-4. **Define commands per component.** `test`, `build`, `lint`, `typecheck`, plus a top-level
+3. **Choose the architecture style, patterns, and principles (compose `cloud-architecture-patterns`).**
+   *Before* the toolchain: pick the **style** from the domain + prioritised NFRs (N-tier /
+   web-queue-worker / microservices / event-driven / big-data / big-compute) and state the one reason
+   and the tradeoff you accept. Walk the **design principles** + a **failure-mode analysis** (each
+   dependency/store/queue → impact + response). **Select the cloud design patterns** the risks call for
+   — pair Retry with Circuit Breaker + timeout + backoff; make consumers idempotent under at-least-once
+   messaging; Cache-Aside for hot reads; Saga+Compensating for cross-service consistency; a Gateway/BFF
+   at the edge. Record the style, the patterns applied (risk each addresses), and the FMA for step 12.
+4. **Choose the shape.** Decide languages and components (e.g. `api`, `web`, `db`) consistent with the
+   style. For each component pick a framework and, where relevant, db/css. **Pick the data store per
+   job** ("best store for the job" — relational / document / cache / search / blob; polyglot where
+   access patterns diverge, not one store forced onto all) and note a partitioning strategy if a store
+   nears a scale limit. Default to the vendored TypeScript/React path; justify any deviation against
+   the PRD. Sketch the **module map** (the packages within each component — e.g. `engine`, `coach`,
+   `persistence`, `ui`) and the **dependency rule** (which layer may import which; the domain core
+   depends on nothing) — you'll record these in step 12.
+5. **Define commands per component.** `test`, `build`, `lint`, `typecheck`, plus a top-level
    `deploy` (or `deploy_apple`/`deploy_google` for a mobile store release). These are what the build
    loop and `/qa`/`/ship` actually run — get them right.
-5. **Select craft skills.** List the skills the build loop composes in `skills[]`. For each, make
-   sure the `${ctx.*}` keys it binds are populated by the stack you chose — verify against the
-   merged `.factory/context.gen.yaml` (after `fac sync-context`). Note `fac vendor:check` does *not*
+6. **Select craft skills.** List the skills the build loop composes in `skills[]`. For a
+   back-end / distributed / cloud system, include **`cloud-architecture-patterns`** (the style +
+   patterns method from step 3) alongside the language skills. For each, make sure the `${ctx.*}`
+   keys it binds are populated by the stack you chose — verify against the merged
+   `.factory/context.gen.yaml` (after `fac sync-context`). Note `fac vendor:check` does *not*
    validate your product: it checks the Factory's own vendored skills against the Factory reference
    product.
-6. **Decide the security & release bindings.** Walk the applicable gates for *this* stack and fill
+7. **Decide the security & release bindings.** Walk the applicable gates for *this* stack and fill
    the ones that apply, using the catalogue in `templates/stack.template.yaml`: a **dependency
    manifest** (npm/pub/PyPI/Maven) → `supply_chain`; a **CI release** → `ci` + `provenance`; a
    **server/API/web surface** → `auth`/`session`/`crypto`/`tls`; a **container image** →
    `container_scan`; a **public preview** → `dast`; a **mobile store release** → `mobile_release`.
    These are `/plan-arch`'s to write — `/security` audits them, it doesn't originate them. Note the
    genuinely-N/A gates and why (one line each) so the decision is visible.
-7. **Set guardrails + escalation.** From the PRD's risk surface: `budget.warn_tokens`,
+8. **Set guardrails + escalation.** From the PRD's risk surface: `budget.warn_tokens`,
    `pii_handling`, `secrets`, `prohibited_data`, and `escalation_policy.triggers` (the
    operations that must stop and ask — these become hard gates).
-8. **Write `.factory/stack.yaml`, then prune it.** The machine half only. **Never touch `PRD.md`'s
+9. **Write `.factory/stack.yaml`, then prune it.** The machine half only. **Never touch `PRD.md`'s
    frontmatter keys** (`product`, `domain`, `meta`) — that is an ownership violation. Then **delete
    every commented catalogue block you did not fill** — the committed file is your decisions, not
    the template menu (no `com.example.app` leftover, no duplicate binding).
-9. **Sync + validate.** Run `fac sync-context` (merges → `.factory/context.gen.yaml` +
+10. **Sync + validate.** Run `fac sync-context` (merges → `.factory/context.gen.yaml` +
    `.agents/project-context.yaml`, Ajv-validated), then inspect the merged context to confirm every
    `skills[]` entry's `${ctx.*}` keys are present.
-10. **Diagram the architecture.** Produce, as Mermaid validated with `fac diagram check`, at least:
+11. **Diagram the architecture.** Produce, as Mermaid validated with `fac diagram check`, at least:
     a **component/module diagram** (the components, their modules, the data store, and the
     dependency arrows) and **one sequence diagram** for the flow with the tightest NFR or a hard gate
     (e.g. the < 300 ms coach path through a worker isolate; or merge → provenance-gate → deploy).
     ```bash
     fac diagram check --file arch-component.mmd     # validate before embedding
     ```
-    Embed the fenced ```mermaid blocks in the record (step 11); optionally render with
+    Embed the fenced ```mermaid blocks in the record (step 12); optionally render with
     `fac diagram svg|html`.
-11. **Record the decision as a run artifact.** Under an active run, write the architecture
-    *document* — not just the stack values, but the **module map + dependency rule**, the
-    **diagrams** from step 10, the **concurrency & error-handling boundaries** (what runs off the
+12. **Record the decision as a run artifact.** Under an active run, write the architecture
+    *document* — not just the stack values, but the **architecture style** (and the reason + tradeoff),
+    the **patterns applied** (with the risk each addresses) and the **failure-mode analysis** from
+    step 3, the **module map + dependency rule**, the **diagrams** from step 11, the **concurrency &
+    error-handling boundaries** (what runs off the
     main thread / in a worker, what crosses that boundary, how errors surface — Result types vs
     throws), and the **test strategy** (the reference suite / golden vectors and where they come
     from). This is what makes the build loop resume from a design, not a sentence:
@@ -152,7 +177,7 @@ Freedom level: **medium** — follow the sequence, adapt the stack to the PRD.
     either re-runs `plan-arch` (make-like cascade). Do **not** list `.factory/stack.yaml`: that is
     plan-arch's own *output*, and recording it would make a stack edit re-run the step that wrote it.
     When there is no discovery record (a hand-authored PRD), use just `--inputs PRD.md`.
-12. **Hand off.** Point the user to `/plan-design` (if any component has a UI) and then the build
+13. **Hand off.** Point the user to `/plan-design` (if any component has a UI) and then the build
     loop: implement V1 features, then `/review`, `/qa`, `/ship`.
 
 ## Practical Guidance
@@ -178,15 +203,21 @@ Output: .factory/stack.yaml —
           components: api (hono + postgres), web (react + tailwind-v4)
           commands: bun test/build/lint/typecheck per component; deploy "fly deploy"
           tech_bindings: hosting fly.io, cache none
-          skills: discover, fullstack-developer, tdd-red-green-refactor, typed-service-contracts
+          style: web-queue-worker (simple domain + a heavy async job: reminders) — accepts eventual
+                 consistency on reminder delivery; patterns: Queue-Based Load Leveling + Competing
+                 Consumers (reminders), Idempotent Consumer (at-least-once), Cache-Aside (repair reads),
+                 Retry+Circuit Breaker (payment provider later). FMA: db down → degrade read-only;
+                 queue backlog → autoscale workers. data stores: Postgres (relational) + a cache.
+          skills: discover, cloud-architecture-patterns, fullstack-developer, tdd-red-green-refactor, typed-service-contracts
           tech_bindings.supply_chain (npm deps) + ci + provenance (CI release); no container/dast (no image/preview)
           guardrails.budget.warn_tokens: 400000
           escalation_policy.triggers: ["schema migration on live data",
                                        "anything touching contractor payments"]
         + stack.yaml PRUNED (only the bindings decided; no commented catalogue left)
-        + run artifact 02-plan-arch.md — module map (api: routes/handlers/db; web: ui/state) +
-          dependency rule + a Mermaid component diagram + a sequence diagram for the "log a repair"
-          write path + concurrency/error boundaries + test strategy. inputs: PRD.md + 01-discover.md.
+        + run artifact 02-plan-arch.md — style + reason + tradeoff + patterns-applied + FMA +
+          module map (api: routes/handlers/db; web: ui/state) + dependency rule + a Mermaid component
+          diagram + a sequence diagram for the "log a repair" write path + concurrency/error
+          boundaries + test strategy. inputs: PRD.md + 01-discover.md.
         Handoff → /plan-design (web UI) → build loop.
 ```
 
@@ -198,6 +229,9 @@ Output: .factory/stack.yaml —
    the merged `.factory/context.gen.yaml`, not `fac vendor:check` (a Factory-repo check).
 4. Always run `fac sync-context` after writing the stack; leave the context validated and green.
 5. Record the architecture decision as a run artifact under an active run.
+6. Choose an architecture style (with its tradeoff) and select the cloud design patterns the workload's
+   risks call for — composing `cloud-architecture-patterns` — before the toolchain. Never ship a stack
+   without a style, and never leave resilience/consistency patterns for the build loop to invent.
 
 ## Gotchas
 
@@ -218,6 +252,13 @@ Output: .factory/stack.yaml —
 8. **Skipping the security decision**: leaving every security binding commented on a product that
    has dependencies, a CI release, or a server is under-design. Decide each gate; `/security` audits
    what you wrote, it can't audit what you never declared.
+9. **A stack with no style**: jumping to languages/frameworks without choosing an architecture style
+   (and its tradeoff) ships a toolchain, not an architecture. Choose the style from the domain + NFRs
+   first (step 3), composing `cloud-architecture-patterns`.
+10. **Resilience left to the build**: a distributed system with remote calls, a queue, or a shared
+    store but no selected patterns (Retry+Circuit Breaker, Idempotent Consumer, Cache-Aside, Bulkhead)
+    passes tests and falls over under load. Select the patterns and record the risk each addresses;
+    the build implements them, it shouldn't have to invent them.
 
 ## Integration
 
@@ -227,6 +268,9 @@ Output: .factory/stack.yaml —
 - `vendor:check` (`fac vendor:check`) — a *Factory-repo* integrity check (vendored skills intact,
   bindings resolve against the Factory reference product). It does **not** validate your product's
   stack — use the merged `.factory/context.gen.yaml` for that.
+- `cloud-architecture-patterns` (craft) — supplies the architecture-style choice, the design
+  principles + FMA, the cloud design-patterns selection, and the antipattern screen this skill composes
+  in step 3; `/plan-arch` records the decisions, the craft skill supplies the method + catalog.
 - `diagram` (`fac diagram`) — validates (`check`) and renders (`svg`/`html`) the Mermaid component
   and sequence diagrams the record embeds.
 - `security` — *audits* the security/release bindings `/plan-arch` writes into `stack.yaml`; it does

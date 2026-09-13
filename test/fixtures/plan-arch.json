@@ -22,6 +22,12 @@
       "anchors": { "require_all": ["Language routing"], "any": ["flutter-dart-expert", "java-quarkus-expert", "python-expert"], "min_any": 2 }
     },
     {
+      "name": "architecture-style-and-patterns",
+      "criterion": "Chooses an architecture style and selects the cloud design patterns + runs a failure-mode analysis (composing cloud-architecture-patterns), before the toolchain — not just a stack.",
+      "weight": 3,
+      "anchors": { "require_all": ["architecture style", "cloud-architecture-patterns", "failure-mode analysis", "Circuit Breaker"] }
+    },
+    {
       "name": "reads-discovery-record",
       "criterion": "Consumes the THINK handoff — PRD.md plus the 01-discover.md interrogation record.",
       "weight": 2,

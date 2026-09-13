@@ -22,6 +22,12 @@
       "anchors": { "any": ["behaviour-preserving", "flag"], "min_any": 1 }
     },
     {
+      "name": "performance-antipatterns",
+      "criterion": "The Performance lens screens the change against the named cloud performance antipatterns (No Caching, Chatty I/O, Retry Storm, …), each with its fix.",
+      "weight": 2,
+      "anchors": { "require_all": ["antipattern", "No Caching", "Chatty I/O", "Retry Storm"] }
+    },
+    {
       "name": "diff-scoped",
       "criterion": "Reviews the diff against the base, not the whole repo.",
       "weight": 2,
