@@ -21,22 +21,33 @@ tech_stack:
       language: dart
       framework: flutter
       notes: "Contractor app (iOS + Android from one codebase): view assigned jobs, update status offline. Proves the Flutter craft path — routes to flutter-dart-expert, TDD in flutter_test, MASVS mobile-security checklist. Tokens in flutter_secure_storage, never SharedPreferences."
+  # Environment contract — runtimes the environment must provide + system prerequisites the manifest
+  # can't express. Application deps stay in the manifest; the per-component `install` command pulls them.
+  runtimes: { bun: ">=1.0", python: "3.12", flutter: ">=3.24" }
+  prerequisites:
+    - "postgres@16 (api + reminders integration tests)"
+    - "docker (local compose for integration tests)"
+  isolation: venv               # a demo/reference build — local venv; a prod ship would be 'container'
 
 commands:
   api:
+    install: bun install
     test: bun test
     build: bun run build
     lint: bun run lint
     typecheck: bun run typecheck
   web:
+    install: bun install
     test: bun test
     build: bun run build
     lint: bun run lint
   reminders:
+    install: pip install -e .[dev]
     test: pytest
     lint: ruff check
     typecheck: mypy .
   mobile:
+    install: flutter pub get
     test: flutter test
     build: flutter build apk --release
     lint: flutter analyze

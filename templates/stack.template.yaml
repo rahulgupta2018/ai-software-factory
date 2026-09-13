@@ -28,15 +28,28 @@ tech_stack:
                                #   - name: mobile
                                #     language: dart
                                #     framework: flutter
+  # runtimes: {}               # language/tool versions the ENVIRONMENT must provide before install,
+                               #   e.g. { node: "20", python: "3.12", bun: ">=1.0" }. Deps live in the
+                               #   manifest; this declares the runtimes it assumes.
+  # prerequisites: []          # system services/tools the manifest CAN'T express, e.g.
+                               #   [ "docker", "postgres@16 (integration tests)", "redis",
+                               #     "ollama (local inference)", "nvidia-cuda + GPU (self-hosted vLLM)" ]
+  # isolation: venv            # how deps install/isolate: venv (POC / local) | container (production
+                               #   ship — docker, deps baked into the image) | none. If UNSET, the
+                               #   build loop ASKS the operator before installing (a hard gate).
 
 commands: {}                   # per component (+ optional deploy), e.g.
                                #   api:
+                               #     install: bun install        # deps + dev tools; the build loop runs this FIRST
                                #     test: bun test
                                #     build: bun run build
                                #     lint: bun run lint
+                               #     typecheck: tsc --noEmit
                                #   deploy: fly deploy
                                #   deploy_apple: fastlane pilot     # mobile store tracks (Phase 6)
                                #   deploy_google: fastlane supply
+                               # NB: application dependencies stay in the manifest (package.json /
+                               # pyproject.toml / requirements.txt); `install` pulls them, never a list here.
 
 # Concrete infra + security a skill may target. sync-context derives per-component
 # `api`/`web`/`db` entries from tech_stack.components[]; anything you set here wins.

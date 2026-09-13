@@ -3,6 +3,57 @@
 All notable changes to the AI Software Factory are documented here. This file is **for users** —
 it describes what you can do, not how the sausage was made.
 
+## [0.69.0.0] — 2026-09-13
+
+**Install now asks: virtual environment or container?** Building on the environment contract (0.68),
+the build loop's install step is isolation-aware — a POC installs into a local venv, a production ship
+builds a container — and it asks the operator when the choice isn't recorded.
+
+### Added — `tech_stack.isolation`
+- New optional stack field: `venv` (language-native local env — Python venv / JS node_modules, for
+  experiments), `container` (Docker — production ship, deps baked into the image), or `none`. If
+  **unset, the build loop asks the operator before installing** — a hard gate, never assumed.
+
+### Changed — `/plan-arch` → 0.5.0, `/build` → 0.3.0
+- `/plan-arch` records `tech_stack.isolation` as part of the environment contract (venv for a POC,
+  container for a prod ship; unset ⇒ the build asks).
+- `/build`'s install step now **resolves the isolation first** — asks venv-vs-container when unset
+  (hard gate), installs into a venv or `docker build`s per service accordingly, *then* runs `install`.
+- Rubric anchors extended (`isolation`/`container`) on both skills; teeth re-verified (plan-arch
+  1.00→0.89, build 1.00→0.89).
+- Template + reference product demonstrate `isolation`.
+
+## [0.68.0.0] — 2026-09-13
+
+**The Factory now declares an *environment contract* — how to install deps, which runtimes, and which
+system prerequisites — so the build loop provisions before it builds, instead of assuming a pre-baked
+environment.** Application dependencies stay in the language manifest (never duplicated into the
+stack); the stack records only what the manifest *can't* express.
+
+### Added — environment contract in the stack schema
+- `commands.<component>.install` — how to install deps + dev tools (`npm ci`, `pip install -e .[dev]`,
+  `uv sync`); the build loop runs it first.
+- `tech_stack.runtimes` — language/tool versions the environment must provide (`node`, `python`, `bun`).
+- `tech_stack.prerequisites` — system services/tools the manifest can't express (docker, GPU/CUDA,
+  Ollama, Postgres/Redis for integration tests). All optional and backward-compatible.
+
+### Changed — `/plan-arch` → 0.4.0
+- New Core Concept + Workflow step + Gotcha + Guideline: declare the environment contract
+  (`install` + `runtimes` + `prerequisites`), and **keep application dependencies in the manifest** —
+  never duplicate a dependency list into `stack.yaml` (it drifts and fights the ecosystem's lockfiles
+  and scanners). A dev tool like `mypy`/`ruff`/`biome` is a dev-dependency in the manifest, pulled by
+  a command — not a stack entry.
+- Teeth-verified rubric dimension `environment-contract` (real 1.00 → stripped 0.89, fail).
+
+### Changed — `/build` → 0.2.0
+- The build loop now **runs `commands.<name>.install` before the first test** and treats a missing
+  runtime/system prerequisite as a **stop-and-ask**, not a silent skip. New rubric dimension
+  `installs-and-prereqs` (real 1.00 → stripped 0.86, fail).
+
+### Also
+- `templates/stack.template.yaml` gains the environment-contract catalogue; the reference product
+  demonstrates `install`/`runtimes`/`prerequisites` end-to-end (acceptance test stays green).
+
 ## [0.67.0.0] — 2026-09-13
 
 **Architecture fundamentals — `/plan-arch` now chooses an architecture style, applies the design

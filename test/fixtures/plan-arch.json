@@ -28,6 +28,12 @@
       "anchors": { "require_all": ["architecture style", "cloud-architecture-patterns", "failure-mode analysis", "Circuit Breaker"] }
     },
     {
+      "name": "environment-contract",
+      "criterion": "Declares the environment contract (install command, runtimes, prerequisites, isolation venv/container) while keeping application dependencies in the manifest — never duplicated into stack.yaml.",
+      "weight": 2,
+      "anchors": { "require_all": ["environment contract", "runtimes", "prerequisites", "manifest", "isolation"] }
+    },
+    {
       "name": "reads-discovery-record",
       "criterion": "Consumes the THINK handoff — PRD.md plus the 01-discover.md interrogation record.",
       "weight": 2,

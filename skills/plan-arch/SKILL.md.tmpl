@@ -9,7 +9,7 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.3.0"
+  version: "0.5.0"
   last_updated: 2026-09-13
   layer: "Plan"
   priority: "V1"
@@ -83,6 +83,15 @@ Activate when:
 - **The stack is decisions, not a template.** `stack.yaml` is a committed design record — it holds
   what you *chose*. After writing, **prune every commented catalogue block you did not fill**: ship
   no `com.example.app` placeholder and no duplicate binding.
+- **The environment contract is declared, not assumed — but dependencies are not.** So the build loop
+  knows what to provision, record the `install` command per component, `tech_stack.runtimes` (language
+  /tool versions), `tech_stack.prerequisites` (system services/tools — docker, GPU/CUDA, Ollama,
+  Postgres/Redis), and `tech_stack.isolation` (`venv` for a POC, `container` for a production ship — if
+  unset, the build loop asks the operator at install time). **Application dependencies stay in the language manifest** (package.json /
+  pyproject.toml / requirements.txt) — the single source of truth the `install` command pulls; never
+  duplicate a dependency list into `stack.yaml` (it drifts and fights the ecosystem's lockfiles and
+  scanners). Dev tools (`mypy`/`ruff`/`biome`) are dev-dependencies in the manifest, invoked by a
+  command — not stack entries.
 - **Security bindings are yours to decide.** `/plan-arch` *writes* the security/release bindings;
   `/security` *audits* them — it never originates them. Walk the gates that apply to this stack and
   fill them — a **dependency manifest** → `supply_chain` (SCA/SBOM); a **CI release** → `ci` +
@@ -126,9 +135,21 @@ Freedom level: **medium** — follow the sequence, adapt the stack to the PRD.
    the PRD. Sketch the **module map** (the packages within each component — e.g. `engine`, `coach`,
    `persistence`, `ui`) and the **dependency rule** (which layer may import which; the domain core
    depends on nothing) — you'll record these in step 12.
-5. **Define commands per component.** `test`, `build`, `lint`, `typecheck`, plus a top-level
-   `deploy` (or `deploy_apple`/`deploy_google` for a mobile store release). These are what the build
-   loop and `/qa`/`/ship` actually run — get them right.
+5. **Define the environment contract: commands + runtimes + prerequisites.** Per component:
+   `install` (how to install deps + dev tools — `npm ci`, `pip install -e .[dev]`, `uv sync`; the
+   build loop runs it first), `test`, `build`, `lint`, `typecheck`, plus a top-level `deploy` (or
+   `deploy_apple`/`deploy_google` for a mobile store release). These are what the build loop and
+   `/qa`/`/ship` actually run — get them right. Then declare what the *manifest can't express*:
+   `tech_stack.runtimes` (the language/tool versions the environment must provide — `node`, `python`,
+   `bun`) and `tech_stack.prerequisites` (system services/tools the build/test/run needs — docker, a
+   GPU/CUDA driver, Ollama, Postgres/Redis for integration tests). Set `tech_stack.isolation` — how
+   deps are installed and isolated: **`venv`** (a language-native local virtual environment — for an
+   experiment / POC) or **`container`** (Docker — a production ship, deps baked into the image). If you
+   can't decide it here, leave it unset and the build loop will **ask the operator at install time**
+   (a POC belongs in a venv; a prod-grade product ships as a container). **Never list application
+   dependencies here** — those live in the manifest (package.json / pyproject.toml / requirements.txt),
+   which the `install` command pulls; a dev tool like `mypy`/`ruff`/`biome` is a *dev-dependency in the
+   manifest*, referenced by a command, not a stack.yaml entry.
 6. **Select craft skills.** List the skills the build loop composes in `skills[]`. For a
    back-end / distributed / cloud system, include **`cloud-architecture-patterns`** (the style +
    patterns method from step 3) alongside the language skills. For each, make sure the `${ctx.*}`
@@ -201,7 +222,8 @@ Input:  PRD.md — Repair Tracker (log a repair, assign, status, reminders), sta
 Output: .factory/stack.yaml —
           tech_stack.languages: [typescript, react, sql]
           components: api (hono + postgres), web (react + tailwind-v4)
-          commands: bun test/build/lint/typecheck per component; deploy "fly deploy"
+          commands: per component install "bun install" + test/build/lint/typecheck; deploy "fly deploy"
+          runtimes: {bun: ">=1.0"}; prerequisites: [postgres@16 (integration tests)]
           tech_bindings: hosting fly.io, cache none
           style: web-queue-worker (simple domain + a heavy async job: reminders) — accepts eventual
                  consistency on reminder delivery; patterns: Queue-Based Load Leveling + Competing
@@ -232,6 +254,10 @@ Output: .factory/stack.yaml —
 6. Choose an architecture style (with its tradeoff) and select the cloud design patterns the workload's
    risks call for — composing `cloud-architecture-patterns` — before the toolchain. Never ship a stack
    without a style, and never leave resilience/consistency patterns for the build loop to invent.
+7. Declare the environment contract — an `install` command per component, `tech_stack.runtimes`, and
+   `tech_stack.prerequisites` — so the build loop provisions before it builds. Keep application
+   dependencies in the manifest (package.json / pyproject.toml / requirements.txt); never duplicate a
+   dependency list into `stack.yaml`.
 
 ## Gotchas
 
@@ -259,6 +285,12 @@ Output: .factory/stack.yaml —
     store but no selected patterns (Retry+Circuit Breaker, Idempotent Consumer, Cache-Aside, Bulkhead)
     passes tests and falls over under load. Select the patterns and record the risk each addresses;
     the build implements them, it shouldn't have to invent them.
+11. **Dependencies duplicated, or prerequisites assumed**: two opposite failures of the environment
+    contract. Don't copy application dependencies into `stack.yaml` — they live in the manifest, which
+    drifts the moment you duplicate it. *Do* declare the `install` command, `tech_stack.runtimes`, and
+    `tech_stack.prerequisites` — a `typecheck: mypy app` with no `install` that pulls mypy, or a vLLM
+    component with no `nvidia-cuda`/GPU prerequisite, is a build that fails in an environment nobody
+    told what to provision.
 
 ## Integration
 

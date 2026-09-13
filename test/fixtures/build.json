@@ -34,6 +34,12 @@
       "anchors": { "require_all": ["fac guard"], "any": ["hard gate"], "min_any": 1 }
     },
     {
+      "name": "installs-and-prereqs",
+      "criterion": "Installs into the chosen isolation (asks venv-vs-container when unset), runs the component's install before tests, and treats a missing runtime/system prerequisite as a stop-and-ask.",
+      "weight": 2,
+      "anchors": { "require_all": ["install", "prerequisite", "isolation", "container"] }
+    },
+    {
       "name": "reads-not-writes",
       "criterion": "Never edits the stack, PRD, or UI spec — reads them; changes are notes to owners.",
       "weight": 1,

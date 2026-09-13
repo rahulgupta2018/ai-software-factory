@@ -138,6 +138,29 @@
               }
             }
           }
+        },
+        "runtimes": {
+          "type": "object",
+          "description": "Language/tool runtime versions the build environment must provide before install, e.g. {\"node\": \"20\", \"python\": \"3.12\", \"bun\": \">=1.0\"}. Dependencies live in the manifest; this declares the runtimes that manifest assumes so the environment can be provisioned.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "prerequisites": {
+          "type": "array",
+          "description": "System-level prerequisites the language manifest cannot express — services or tools the build/test/run environment needs before the app runs, e.g. 'docker', 'postgres@16 (integration tests)', 'redis', 'ollama (local inference)', 'nvidia-cuda + GPU (self-hosted vLLM)'. Human- and machine-readable; DevOps provisions them, /plan-arch declares them.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "venv",
+            "container",
+            "none"
+          ],
+          "description": "How the build loop installs and isolates dependencies. 'venv' = a language-native local virtual environment (Python venv / JS node_modules) — for experiments and local dev; 'container' = build and run in Docker (a production ship — deps baked into the image, not the host); 'none' = install into the ambient environment. If UNSET, the build loop must ASK the operator before installing (a hard gate): venv for a POC, container for a production ship."
         }
       }
     },
@@ -171,6 +194,10 @@
               },
               "typecheck": {
                 "type": "string"
+              },
+              "install": {
+                "type": "string",
+                "description": "Install/bootstrap the component's deps + dev tools before build/test, e.g. 'npm ci', 'pip install -e .[dev]', 'uv sync'. The build loop runs this first. Dependencies live in the language manifest (package.json / pyproject.toml / requirements.txt), never duplicated here — this only says HOW to install them."
               }
             }
           }

@@ -8,8 +8,8 @@ description: >-
 license: MIT
 metadata:
   author: AI Software Factory
-  version: "0.1.0"
-  last_updated: 2026-07-24
+  version: "0.3.0"
+  last_updated: 2026-09-13
   layer: "Build"
   priority: "V1"
 ---
@@ -86,13 +86,25 @@ yours.
    and any `02b-spec.md` slice.
 2. **For each component** in `tech_stack.components[]`:
    a. **Route.** Load the craft skill(s) for its `language`/`framework` (see Language routing).
-   b. **Build test-first.** For each V1 feature in this component, write a failing test in the
+   b. **Install deps into the chosen isolation + check prerequisites.** First resolve
+      `tech_stack.isolation`: **if it is unset, ASK the operator — virtual environment or container —
+      before installing anything; this is a hard gate, never assume.** A POC belongs in a `venv`
+      (language-native local env: Python `venv`, JS `node_modules`); a production-grade ship uses a
+      `container` (`docker build` per service — each ships a Dockerfile — so deps bake into the image,
+      never the host). Then run `commands.<name>.install` (deps + dev tools, pulled from the manifest)
+      inside that isolation, before the first test, so `test`/`lint`/`typecheck` have what they need. A
+      runtime or system prerequisite the component requires but the environment lacks
+      (`tech_stack.runtimes` / `tech_stack.prerequisites` — e.g. the Postgres/Redis for integration
+      tests, a GPU/CUDA driver, Ollama for local inference) is a **stop-and-ask**, not a silent skip.
+      If `install` is absent, run the ecosystem default (`npm ci` / `pip install -e .[dev]`) and note
+      it as a V1 task to record in the stack.
+   c. **Build test-first.** For each V1 feature in this component, write a failing test in the
       component's tooling (red), the minimal code to pass (green), then refactor under green
       (`tdd-red-green-refactor`). Follow `typed-service-contracts` at boundaries (parse-don't-
       validate, errors-as-values, no unhandled throws).
-   c. **Run the component's checks.** `commands.<name>.test`, then `lint`/`typecheck`/`build`.
+   d. **Run the component's checks.** `commands.<name>.test`, then `lint`/`typecheck`/`build`.
       Guard anything beyond those with `fac guard`. Leave this component's tree green.
-   d. **Record the build artifact.** Under the active run, write `03-build-<name>.md` — what was
+   e. **Record the build artifact.** Under the active run, write `03-build-<name>.md` — what was
       built, the tests added, and any decisions:
       ```bash
       fac run artifact --seq 3 --step build-<name> \
